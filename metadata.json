@@ -1,0 +1,6 @@
+{
+  "name": "MG SOLUTIONS GROUP - Facturación Electrónica",
+  "description": "Sistema ERP y Facturación Electrónica para MG SOLUTIONS GROUP con gestión de productos, clientes, usuarios con estados activo/inactivo y arquitectura Spring Boot Java + MySQL.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
