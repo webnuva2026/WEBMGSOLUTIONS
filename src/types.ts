@@ -11,23 +11,25 @@ export interface ModuloSistemaDef {
 }
 
 export const MODULOS_DISPONIBLES: ModuloSistemaDef[] = [
-  { id: 'ventas', nombre: 'Ventas & Facturación', descripcion: 'Emisión de comprobantes, métricas y dashboard', icono: 'Receipt', categoria: 'Operaciones' },
+  { id: 'ventas', nombre: 'Ventas', descripcion: 'Gestión de ventas y operaciones comerciales', icono: 'Receipt', categoria: 'Operaciones' },
+  { id: 'panel-recepcion', nombre: 'Panel de recepción', descripcion: 'Ingresos y seguimiento inicial de equipos', icono: 'ClipboardList', categoria: 'Taller' },
+  { id: 'panel-almacen', nombre: 'Panel de almacén', descripcion: 'Stock y movimientos entre sedes', icono: 'Package', categoria: 'Almacén' },
   { id: 'taller', nombre: 'Servicio Técnico & Taller', descripcion: 'Recepción, bandeja del técnico, avances y entregas', icono: 'Wrench', categoria: 'Taller' },
+  { id: 'equipos', nombre: 'Equipos registrados', descripcion: 'Equipos de clientes e historial de servicios', icono: 'Laptop', categoria: 'Taller' },
   { id: 'clientes', nombre: 'Directorio de Clientes', descripcion: 'Gestión y validación de RUC y DNI', icono: 'Users', categoria: 'Operaciones' },
   { id: 'productos', nombre: 'Productos & Stock', descripcion: 'Catálogo, inventario y control de precios', icono: 'Package', categoria: 'Almacén' },
   { id: 'categorias', nombre: 'Categorías', descripcion: 'Clasificación de productos', icono: 'Layers', categoria: 'Almacén' },
   { id: 'marcas', nombre: 'Marcas', descripcion: 'Registro de marcas del catálogo', icono: 'Tag', categoria: 'Almacén' },
   { id: 'usuarios', nombre: 'Gestión de Usuarios & Paneles', descripcion: 'Usuarios, roles y asignación de permisos a paneles', icono: 'ShieldCheck', categoria: 'Administración' },
-  { id: 'config-empresa', nombre: 'Datos de Empresa & SUNAT', descripcion: 'RUC, certificados digitales y parámetros fiscales', icono: 'Building2', categoria: 'Administración' },
+  { id: 'config-empresa', nombre: 'Datos de Empresa', descripcion: 'Información general y parámetros operativos', icono: 'Building2', categoria: 'Administración' },
   { id: 'sucursales', nombre: 'Sucursales', descripcion: 'Sedes y almacenes secundarios', icono: 'Network', categoria: 'Administración' },
-  { id: 'compras', nombre: 'Compras a Proveedores', descripcion: 'Órdenes de compra e ingreso de mercadería', icono: 'Truck', categoria: 'Operaciones' },
-  { id: 'caja-bancos', nombre: 'Caja & Bancos', descripcion: 'Movimientos de efectivo y transferencias', icono: 'Wallet', categoria: 'Operaciones' },
-  { id: 'reportes', nombre: 'Reportes Gerenciales', descripcion: 'Informes contables y estadísticas', icono: 'BarChart3', categoria: 'Administración' },
+  { id: 'movimientos', nombre: 'Movimientos entre sedes', descripcion: 'Traslados y control de inventario entre sedes', icono: 'ArrowLeftRight', categoria: 'Almacén' },
 ];
 
 export interface Usuario {
   id: number;
   username: string;
+  password?: string;
   nombreCompleto: string;
   email: string;
   telefono?: string;
@@ -123,7 +125,6 @@ export interface OrdenServicio {
   saldoPendiente: number;
   bitacora: BitacoraAvance[];
   comunicaciones: ComunicacionCliente[];
-  comprobanteEmitidoId?: number;
   garantiaDias?: number;
   notasInternas?: string;
 }
@@ -139,6 +140,18 @@ export interface Cliente {
   email: string;
   telefono?: string;
   estado: EstadoRegistro;
+  fechaRegistro: string;
+}
+
+export interface Equipo {
+  id: number;
+  clienteId: number;
+  tipo: TipoEquipo;
+  marca: string;
+  modelo: string;
+  numeroSerie: string;
+  accesorios: string[];
+  estado: 'REGISTRADO' | 'EN_SERVICIO' | 'LISTO_ENTREGA' | 'ENTREGADO';
   fechaRegistro: string;
 }
 
@@ -168,46 +181,9 @@ export interface Producto {
   precioUnitario: number;
   precioCosto: number;
   stock: number;
+  stockPorSede?: Record<string, number>;
   unidadMedida: string; // NIU, ZZ, KGM, etc.
   estado: EstadoRegistro;
-}
-
-export type TipoComprobante = 'FACTURA' | 'BOLETA' | 'NOTA_CREDITO' | 'NOTA_DEBITO';
-export type EstadoComprobante = 'PAGADO' | 'PENDIENTE' | 'ANULADO';
-export type EstadoSunat = 'ACEPTADO' | 'RECHAZADO' | 'PENDIENTE' | 'EXCEPCION';
-
-export interface DetalleComprobante {
-  id: string;
-  productoId: number;
-  codigo: string;
-  descripcion: string;
-  cantidad: number;
-  precioUnitario: number;
-  subtotal: number;
-  igv: number;
-  total: number;
-}
-
-export interface Comprobante {
-  id: number;
-  tipo: TipoComprobante;
-  serie: string; // Ej: F001, B001
-  numero: string; // Ej: 000456
-  fechaEmision: string;
-  fechaVencimiento?: string;
-  clienteId: number;
-  clienteDocumento: string;
-  clienteNombre: string;
-  moneda: 'PEN' | 'USD';
-  subtotal: number;
-  igv: number; // 18%
-  total: number;
-  estado: EstadoComprobante;
-  estadoSunat: EstadoSunat;
-  detalles: DetalleComprobante[];
-  hashCdr?: string;
-  observaciones?: string;
-  formaPago: 'CONTADO' | 'CREDITO';
 }
 
 export interface EmpresaConfig {
@@ -221,9 +197,6 @@ export interface EmpresaConfig {
   provincia: string;
   distrito: string;
   ubigeo: string;
-  solUsuarioSunat: string;
-  certificadoVencimiento: string;
-  estadoSunat: 'CONECTADO' | 'DESCONECTADO' | 'MANTENIMIENTO';
 }
 
 export interface Sucursal {
@@ -235,3 +208,55 @@ export interface Sucursal {
   esPrincipal: boolean;
   estado: EstadoRegistro;
 }
+
+export type EstadoMovimientoInventario = 'SOLICITADO' | 'APROBADO' | 'EN_TRANSITO' | 'RECIBIDO' | 'CANCELADO';
+
+export interface MovimientoInventario {
+  id: number;
+  productoId: number;
+  productoNombre: string;
+  cantidad: number;
+  sedeOrigen: string;
+  sedeDestino: string;
+  solicitadoPor: string;
+  fecha: string;
+  estado: EstadoMovimientoInventario;
+}
+
+export type TipoComprobante = 'BOLETA' | 'FACTURA' | 'NOTA_VENTA';
+export type MetodoPago = 'EFECTIVO' | 'YAPE_PLIN' | 'TARJETA' | 'TRANSFERENCIA';
+
+export interface ItemVenta {
+  productoId: number;
+  codigo: string;
+  nombre: string;
+  categoria: string;
+  marca: string;
+  precioUnitario: number;
+  cantidad: number;
+  subtotal: number;
+}
+
+export interface Venta {
+  id: number;
+  codigoComprobante: string; // Ej: B001-000124 o F001-000089
+  tipoComprobante: TipoComprobante;
+  clienteId?: number;
+  clienteDocumento: string;
+  clienteNombre: string;
+  clienteDireccion?: string;
+  vendedorId: number;
+  vendedorNombre: string;
+  sucursal: string;
+  fecha: string;
+  items: ItemVenta[];
+  subtotal: number; // Base imponible
+  igv: number;      // 18%
+  descuento: number;
+  total: number;
+  metodoPago: MetodoPago;
+  montoRecibido?: number;
+  vuelto?: number;
+  estado: 'EMITIDO' | 'ANULADO';
+}
+

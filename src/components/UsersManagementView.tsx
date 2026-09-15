@@ -35,18 +35,18 @@ const ROLE_LABELS: Record<UserRole, { label: string; bg: string; text: string }>
   ADMIN: { label: 'Super Administrador', bg: 'bg-purple-100', text: 'text-purple-800' },
   SECRETARIA: { label: 'Secretaría / Recepción', bg: 'bg-pink-100', text: 'text-pink-800' },
   TECNICO: { label: 'Técnico de Taller', bg: 'bg-emerald-100', text: 'text-emerald-800' },
-  FACTURADOR: { label: 'Ventas & Facturador', bg: 'bg-blue-100', text: 'text-[#00346F]' },
+  FACTURADOR: { label: 'Ventas', bg: 'bg-blue-100', text: 'text-[#00346F]' },
   ALMACEN: { label: 'Jefe de Almacén', bg: 'bg-amber-100', text: 'text-amber-800' },
   CAJERO: { label: 'Cajero / Tesorería', bg: 'bg-slate-100', text: 'text-slate-800' },
 };
 
 const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   ADMIN: MODULOS_DISPONIBLES.map((m) => m.id),
-  SECRETARIA: ['taller', 'ventas', 'clientes', 'caja-bancos'],
+  SECRETARIA: ['panel-recepcion', 'taller', 'equipos', 'ventas', 'clientes'],
   TECNICO: ['taller', 'productos'],
   FACTURADOR: ['ventas', 'clientes', 'productos'],
-  ALMACEN: ['productos', 'categorias', 'marcas', 'compras'],
-  CAJERO: ['caja-bancos', 'ventas'],
+  ALMACEN: ['panel-almacen', 'productos', 'categorias', 'marcas', 'movimientos'],
+  CAJERO: ['ventas'],
 };
 
 export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
@@ -135,9 +135,9 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
     } else if (presetType === 'TECH') {
       setFormData({ ...formData, modulosPermitidos: ['taller', 'productos'] });
     } else if (presetType === 'SECRETARY') {
-      setFormData({ ...formData, modulosPermitidos: ['taller', 'ventas', 'clientes', 'caja-bancos'] });
+      setFormData({ ...formData, modulosPermitidos: ['panel-recepcion', 'taller', 'equipos', 'ventas', 'clientes'] });
     } else if (presetType === 'ALMACEN') {
-      setFormData({ ...formData, modulosPermitidos: ['productos', 'categorias', 'marcas', 'compras'] });
+      setFormData({ ...formData, modulosPermitidos: ['panel-almacen', 'productos', 'categorias', 'marcas', 'movimientos'] });
     }
   };
 
@@ -155,6 +155,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
     const userToSave: Usuario = {
       id: editingUser ? editingUser.id : Date.now(),
       username: formData.username.trim().toLowerCase(),
+      password: editingUser?.password || 'password123',
       nombreCompleto: formData.nombreCompleto.trim(),
       email: formData.email.trim(),
       telefono: formData.telefono || '',
@@ -238,7 +239,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
             <option value="ADMIN">Super Administrador</option>
             <option value="SECRETARIA">Secretaría / Recepción</option>
             <option value="TECNICO">Técnico de Taller</option>
-            <option value="FACTURADOR">Ventas & Facturador</option>
+                <option value="FACTURADOR">Ventas</option>
             <option value="ALMACEN">Jefe de Almacén</option>
             <option value="CAJERO">Cajero</option>
           </select>
@@ -413,8 +414,8 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                       <option value="ADMIN">Super Administrador (Todos los paneles)</option>
                       <option value="SECRETARIA">Secretaría & Recepción (Taller, Ventas, Clientes)</option>
                       <option value="TECNICO">Técnico de Taller (Taller & Productos)</option>
-                      <option value="FACTURADOR">Ventas & Facturador (Ventas, Clientes, Productos)</option>
-                      <option value="ALMACEN">Jefe de Almacén (Productos, Marcas, Compras)</option>
+                      <option value="FACTURADOR">Ventas (Ventas, Clientes, Productos)</option>
+                      <option value="ALMACEN">Jefe de Almacén (Productos, Marcas, Movimientos)</option>
                       <option value="CAJERO">Cajero / Cobranzas (Caja & Ventas)</option>
                     </select>
                   </div>

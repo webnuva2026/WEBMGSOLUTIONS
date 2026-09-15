@@ -7,20 +7,23 @@ import {
   Search,
   Save,
   ShieldCheck,
-  Upload,
   CheckCircle2,
   Store,
-  KeyRound,
   Users as UsersIcon,
-  RefreshCw,
+  Pencil,
+  ToggleLeft,
+  ToggleRight,
+  Plus,
+  X,
 } from 'lucide-react';
-import { EmpresaConfig, Sucursal } from '../types';
+import { EmpresaConfig, Sucursal, EstadoRegistro } from '../types';
 
 interface CompanySettingsViewProps {
   empresa: EmpresaConfig;
   sucursales: Sucursal[];
   onSaveEmpresa: (empresa: EmpresaConfig) => void;
   onSaveSucursal: (sucursal: Sucursal) => void;
+  onToggleSucursalEstado?: (id: number) => void;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   setActiveView: (view: string) => void;
 }
@@ -30,28 +33,98 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
   sucursales,
   onSaveEmpresa,
   onSaveSucursal,
+  onToggleSucursalEstado,
   onShowToast,
   setActiveView,
 }) => {
-  const [activeTab, setActiveTab] = useState<'empresa' | 'sucursales' | 'certificado' | 'usuarios'>('empresa');
+  const [activeTab, setActiveTab] = useState<'empresa' | 'sucursales' | 'usuarios'>('empresa');
   const [formData, setFormData] = useState<EmpresaConfig>({ ...empresa });
-  const [isSearchingRuc, setIsSearchingRuc] = useState(false);
 
-  const handleRucConsultation = () => {
-    if (!formData.ruc || formData.ruc.length !== 11) {
-      onShowToast('RUC Inválido', 'El RUC debe tener 11 dígitos numéricos.', 'warning');
+  // Sucursal modal state
+  const [isSucursalModalOpen, setIsSucursalModalOpen] = useState(false);
+  const [editingSucursal, setEditingSucursal] = useState<Sucursal | null>(null);
+  const [sucursalForm, setSucursalForm] = useState<{
+    codigo: string;
+    nombre: string;
+    direccion: string;
+    telefono: string;
+    esPrincipal: boolean;
+    estado: EstadoRegistro;
+  }>({
+    codigo: '',
+    nombre: '',
+    direccion: '',
+    telefono: '',
+    esPrincipal: false,
+    estado: 'ACTIVO',
+  });
+
+  const handleOpenAddSucursal = () => {
+    const nextCode = `000${sucursales.length}`.slice(-4);
+    setEditingSucursal(null);
+    setSucursalForm({
+      codigo: nextCode,
+      nombre: '',
+      direccion: '',
+      telefono: '',
+      esPrincipal: false,
+      estado: 'ACTIVO',
+    });
+    setIsSucursalModalOpen(true);
+  };
+
+  const handleOpenEditSucursal = (suc: Sucursal) => {
+    setEditingSucursal(suc);
+    setSucursalForm({
+      codigo: suc.codigo,
+      nombre: suc.nombre,
+      direccion: suc.direccion,
+      telefono: suc.telefono,
+      esPrincipal: suc.esPrincipal,
+      estado: suc.estado,
+    });
+    setIsSucursalModalOpen(true);
+  };
+
+  const handleSaveSucursalForm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sucursalForm.nombre.trim()) {
+      onShowToast('Campo requerido', 'El nombre de la sucursal es obligatorio.', 'warning');
       return;
     }
 
-    setIsSearchingRuc(true);
-    setTimeout(() => {
-      setIsSearchingRuc(false);
-      onShowToast(
-        'Consulta SUNAT Exitosa',
-        'Datos del contribuyente sincronizados con el padrón RUC.',
-        'success'
-      );
-    }, 600);
+    const updatedSucursal: Sucursal = {
+      id: editingSucursal ? editingSucursal.id : Date.now(),
+      codigo: sucursalForm.codigo.trim() || '0000',
+      nombre: sucursalForm.nombre.trim(),
+      direccion: sucursalForm.direccion.trim(),
+      telefono: sucursalForm.telefono.trim(),
+      esPrincipal: sucursalForm.esPrincipal,
+      estado: sucursalForm.estado,
+    };
+
+    onSaveSucursal(updatedSucursal);
+    setIsSucursalModalOpen(false);
+    onShowToast(
+      editingSucursal ? 'Sucursal actualizada' : 'Sucursal creada',
+      `La sede "${updatedSucursal.nombre}" se guardó correctamente.`,
+      'success'
+    );
+  };
+
+  const handleToggleEstado = (suc: Sucursal) => {
+    if (onToggleSucursalEstado) {
+      onToggleSucursalEstado(suc.id);
+    } else {
+      const nuevoEstado: EstadoRegistro = suc.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO';
+      onSaveSucursal({ ...suc, estado: nuevoEstado });
+    }
+    const nuevoEstado = suc.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO';
+    onShowToast(
+      'Estado modificado',
+      `La sucursal "${suc.nombre}" ahora está ${nuevoEstado}.`,
+      nuevoEstado === 'ACTIVO' ? 'success' : 'warning'
+    );
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -96,18 +169,6 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
           </button>
 
           <button
-            onClick={() => setActiveTab('certificado')}
-            className={`pb-3 px-1 text-xs uppercase font-bold tracking-wider whitespace-nowrap transition-all border-b-2 flex items-center gap-2 ${
-              activeTab === 'certificado'
-                ? 'text-[#00346F] border-[#00346F]'
-                : 'text-slate-500 border-transparent hover:text-[#00346F]'
-            }`}
-          >
-            <KeyRound className="w-4 h-4" />
-            Certificado Digital
-          </button>
-
-          <button
             onClick={() => setActiveView('usuarios')}
             className="pb-3 px-1 text-xs uppercase font-bold tracking-wider whitespace-nowrap text-slate-500 hover:text-[#00346F] transition-colors flex items-center gap-2"
           >
@@ -138,20 +199,6 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                     className="flex-1 px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-[#00346F]"
                     placeholder="20609737524"
                   />
-                  <button
-                    type="button"
-                    onClick={handleRucConsultation}
-                    disabled={isSearchingRuc}
-                    className="px-3.5 py-2.5 bg-[#00346F] hover:bg-[#004A99] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
-                    title="Consultar en SUNAT"
-                  >
-                    {isSearchingRuc ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Search className="w-3.5 h-3.5" />
-                    )}
-                    <span className="hidden sm:inline">SUNAT</span>
-                  </button>
                 </div>
               </div>
 
@@ -243,7 +290,7 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Código Ubigeo (SUNAT)
+                  Código Ubigeo
                 </label>
                 <input
                   type="text"
@@ -259,7 +306,7 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Correo Electrónico de Facturación
+                  Correo Electrónico
                 </label>
                 <div className="relative">
                   <input
@@ -306,16 +353,21 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
         {activeTab === 'sucursales' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-sm font-bold text-slate-800">Sucursales y Puntos de Emisión</h3>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">Sucursales y Puntos de Emisión</h3>
+                <p className="text-[11px] text-slate-500">Gestione sedes, almacenes y puntos de atención de la empresa.</p>
+              </div>
               <button
-                onClick={() => onShowToast('Nueva Sucursal', 'Abriendo formulario de sucursal...', 'info')}
-                className="px-3 py-1.5 bg-[#00346F] text-white text-xs rounded-lg font-semibold hover:bg-[#004A99]"
+                type="button"
+                onClick={handleOpenAddSucursal}
+                className="px-3.5 py-1.5 bg-[#00346F] text-white text-xs rounded-lg font-semibold hover:bg-[#004A99] flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
               >
+                <Plus className="w-3.5 h-3.5" />
                 + Agregar Sucursal
               </button>
             </div>
 
-            <div className="overflow-x-auto border border-slate-200 rounded-lg">
+            <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white shadow-xs">
               <table className="w-full text-xs text-left">
                 <thead className="bg-[#EFF4FF] font-bold text-slate-600 border-b border-slate-200">
                   <tr>
@@ -325,15 +377,16 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                     <th className="py-2.5 px-3">Teléfono</th>
                     <th className="py-2.5 px-3 text-center">Tipo</th>
                     <th className="py-2.5 px-3 text-center">Estado</th>
+                    <th className="py-2.5 px-3 text-center">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {sucursales.map((suc) => (
-                    <tr key={suc.id} className="hover:bg-slate-50">
+                    <tr key={suc.id} className="hover:bg-slate-50 transition-colors">
                       <td className="py-2.5 px-3 font-mono font-bold text-[#00346F]">{suc.codigo}</td>
                       <td className="py-2.5 px-3 font-semibold text-slate-800">{suc.nombre}</td>
-                      <td className="py-2.5 px-3 text-slate-600">{suc.direccion}</td>
-                      <td className="py-2.5 px-3 text-slate-500">{suc.telefono}</td>
+                      <td className="py-2.5 px-3 text-slate-600">{suc.direccion || '—'}</td>
+                      <td className="py-2.5 px-3 text-slate-500">{suc.telefono || '—'}</td>
                       <td className="py-2.5 px-3 text-center">
                         {suc.esPrincipal ? (
                           <span className="px-2 py-0.5 bg-blue-100 text-[#00346F] font-bold rounded text-[10px]">
@@ -347,63 +400,189 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                       </td>
                       <td className="py-2.5 px-3 text-center">
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide ${
                             suc.estado === 'ACTIVO'
                               ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-red-100 text-red-800'
+                              : 'bg-red-100 text-red-700'
                           }`}
                         >
+                          <span className={`w-1.5 h-1.5 rounded-full ${suc.estado === 'ACTIVO' ? 'bg-emerald-500' : 'bg-red-500'}`} />
                           {suc.estado}
                         </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {/* Botón Lápiz de Editar */}
+                          <button
+                            type="button"
+                            title="Editar datos de sucursal"
+                            onClick={() => handleOpenEditSucursal(suc)}
+                            className="p-1.5 text-slate-600 hover:text-[#00346F] hover:bg-blue-50 rounded-lg border border-slate-200 transition-colors"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Botón Toggle Activar / Desactivar */}
+                          <button
+                            type="button"
+                            title={suc.estado === 'ACTIVO' ? 'Desactivar sucursal' : 'Activar sucursal'}
+                            onClick={() => handleToggleEstado(suc)}
+                            className={`p-1.5 rounded-lg border transition-colors flex items-center gap-1 text-[10px] font-bold ${
+                              suc.estado === 'ACTIVO'
+                                ? 'text-emerald-700 hover:bg-emerald-50 border-emerald-200'
+                                : 'text-red-700 hover:bg-red-50 border-red-200'
+                            }`}
+                          >
+                            {suc.estado === 'ACTIVO' ? (
+                              <ToggleRight className="w-4 h-4 text-emerald-600" />
+                            ) : (
+                              <ToggleLeft className="w-4 h-4 text-slate-400" />
+                            )}
+                            <span className="hidden sm:inline">
+                              {suc.estado === 'ACTIVO' ? 'Activo' : 'Inactivo'}
+                            </span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+
+            {/* Modal Agregar / Editar Sucursal */}
+            {isSucursalModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
+                <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col">
+                  <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-[#00346F] text-white">
+                    <div className="flex items-center gap-2">
+                      <Store className="w-5 h-5 text-blue-200" />
+                      <h3 className="text-sm font-bold">
+                        {editingSucursal ? 'Editar Sucursal / Sede' : 'Nueva Sucursal / Punto de Emisión'}
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsSucursalModalOpen(false)}
+                      className="text-white/70 hover:text-white p-1 rounded-lg"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSaveSucursalForm} className="p-5 space-y-4 text-xs">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                          Código *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={sucursalForm.codigo}
+                          onChange={(e) => setSucursalForm({ ...sucursalForm, codigo: e.target.value })}
+                          className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-[#00346F] focus:outline-none focus:border-[#00346F]"
+                          placeholder="0001"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                          Estado Operativo
+                        </label>
+                        <select
+                          value={sucursalForm.estado}
+                          onChange={(e) =>
+                            setSucursalForm({
+                              ...sucursalForm,
+                              estado: e.target.value as EstadoRegistro,
+                            })
+                          }
+                          className="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold focus:outline-none focus:border-[#00346F]"
+                        >
+                          <option value="ACTIVO">ACTIVO (En operación)</option>
+                          <option value="INACTIVO">INACTIVO (Suspendido)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Nombre de la Sucursal / Sede *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={sucursalForm.nombre}
+                        onChange={(e) => setSucursalForm({ ...sucursalForm, nombre: e.target.value })}
+                        className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
+                        placeholder="Ej: Sucursal Lambayeque Norte"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Dirección Completa
+                      </label>
+                      <input
+                        type="text"
+                        value={sucursalForm.direccion}
+                        onChange={(e) => setSucursalForm({ ...sucursalForm, direccion: e.target.value })}
+                        className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
+                        placeholder="Av. Ramón Castilla 450, Chiclayo"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                          Teléfono de Contacto
+                        </label>
+                        <input
+                          type="text"
+                          value={sucursalForm.telefono}
+                          onChange={(e) => setSucursalForm({ ...sucursalForm, telefono: e.target.value })}
+                          className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
+                          placeholder="(074) 281190"
+                        />
+                      </div>
+
+                      <div className="flex items-center pt-5">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={sucursalForm.esPrincipal}
+                            onChange={(e) => setSucursalForm({ ...sucursalForm, esPrincipal: e.target.checked })}
+                            className="w-4 h-4 text-[#00346F] rounded border-slate-300 focus:ring-blue-500"
+                          />
+                          <span className="font-bold text-slate-700">Sede Principal</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-200 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsSucursalModalOpen(false)}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-5 py-2 bg-[#00346F] hover:bg-[#004A99] text-white font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        {editingSucursal ? 'Guardar Cambios' : 'Registrar Sucursal'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {activeTab === 'certificado' && (
-          <div className="space-y-5 max-w-2xl">
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-3">
-              <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="text-sm font-bold text-emerald-900">Certificado Digital SUNAT Vigente</h4>
-                <p className="text-xs text-emerald-700 mt-1">
-                  Certificado PFX/P12 cargado correctamente para firma electrónica XML UBL 2.1.
-                </p>
-                <p className="text-xs font-semibold text-emerald-800 mt-2">
-                  Vigencia: Hasta el {empresa.certificadoVencimiento} (Activo)
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Usuario Secundario SOL (SUNAT)
-              </label>
-              <input
-                type="text"
-                value={formData.solUsuarioSunat}
-                onChange={(e) => setFormData({ ...formData, solUsuarioSunat: e.target.value })}
-                className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-800"
-                placeholder="MODDATOS"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                Actualizar Certificado Digital (.pfx o .p12)
-              </label>
-              <div className="border-2 border-dashed border-slate-300 hover:border-[#00346F] rounded-xl p-6 text-center cursor-pointer bg-[#F8F9FF] transition-colors">
-                <Upload className="w-8 h-8 text-[#00346F] mx-auto mb-2" />
-                <p className="text-xs font-bold text-slate-700">Arrastre su archivo de certificado aquí o haga clic</p>
-                <p className="text-[11px] text-slate-500 mt-1">Formatos soportados: .pfx, .p12 (Protegido por contraseña)</p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -29,6 +29,7 @@ interface ProductsViewProps {
   onToggleStatus: (id: number) => void;
   onDeleteProducto: (id: number) => void;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+  readOnly?: boolean;
 }
 
 export const ProductsView: React.FC<ProductsViewProps> = ({
@@ -39,9 +40,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   onToggleStatus,
   onDeleteProducto,
   onShowToast,
+  readOnly = false,
 }) => {
   const [search, setSearch] = useState('');
   const [selectedCategoria, setSelectedCategoria] = useState('ALL');
+  const [selectedSucursal, setSelectedSucursal] = useState('ALL');
   const [selectedEstado, setSelectedEstado] = useState<'ALL' | 'ACTIVO' | 'INACTIVO'>('ALL');
   const [page, setPage] = useState(1);
   const itemsPerPage = 8;
@@ -78,10 +81,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       selectedCategoria === 'ALL' ||
       p.categoriaNombre.toUpperCase() === selectedCategoria.toUpperCase();
 
+    const matchSucursal = selectedSucursal === 'ALL' || p.sucursal === selectedSucursal;
+
     const matchEstado = selectedEstado === 'ALL' || p.estado === selectedEstado;
 
-    return matchSearch && matchCat && matchEstado;
+    return matchSearch && matchCat && matchSucursal && matchEstado;
   });
+
+  const sucursales = Array.from(new Set(productos.map((product) => product.sucursal)));
+  const stockBajo = productos.filter((product) => product.estado === 'ACTIVO' && product.stock <= 10).length;
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
   const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
@@ -201,38 +209,74 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           <p className="text-slate-500 text-xs mt-0.5">Gestione el inventario y servicios de la empresa.</p>
         </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
+          <p className="text-[11px] font-semibold text-slate-500">Productos registrados</p>
+          <p className="mt-1 text-2xl font-bold text-[#00346F]">{productos.length}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
+          <p className="text-[11px] font-semibold text-slate-500">Sedes con inventario</p>
+          <p className="mt-1 text-2xl font-bold text-[#00346F]">{sucursales.length}</p>
+        </div>
+        <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-xs">
+          <p className="text-[11px] font-semibold text-amber-700">Stock bajo</p>
+          <p className="mt-1 text-2xl font-bold text-amber-800">{stockBajo}</p>
+        </div>
+      </div>
+        <div className="w-full md:w-52">
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+            Sede
+          </label>
+          <select
+            value={selectedSucursal}
+            onChange={(e) => {
+              setSelectedSucursal(e.target.value);
+              setPage(1);
+            }}
+            className="w-full py-2 px-3 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-[#00346F]"
+          >
+            <option value="ALL">Todas las sedes</option>
+            {sucursales.map((sucursal) => (
+              <option key={sucursal} value={sucursal}>{sucursal}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* State Filter matching requirement */}
+
         <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            onClick={handleDownloadTemplate}
-            className="bg-white border border-slate-300 text-[#00346F] hover:bg-slate-50 transition-colors px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs"
-          >
-            <Download className="w-4 h-4" />
-            Descargar plantilla
-          </button>
-
-          <button
-            onClick={handleSimulateUpload}
-            className="bg-white border border-slate-300 text-[#00346F] hover:bg-slate-50 transition-colors px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs"
-          >
-            <Upload className="w-4 h-4" />
-            Subir Excel
-          </button>
-
-          <button
-            onClick={handleExportExcel}
-            className="bg-white border border-slate-300 text-[#107C41] hover:bg-slate-50 transition-colors px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            Excel
-          </button>
-
-          <button
-            onClick={handleOpenNew}
-            className="bg-[#00346F] hover:bg-[#004A99] transition-colors text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm active:scale-[0.98]"
-          >
-            <Plus className="w-4 h-4" />
-            Nuevo Producto
-          </button>
+          {!readOnly && (
+            <>
+              <button
+                onClick={handleDownloadTemplate}
+                className="bg-white border border-slate-300 text-[#00346F] hover:bg-slate-50 transition-colors px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs"
+              >
+                <Download className="w-4 h-4" />
+                Descargar plantilla
+              </button>
+              <button
+                onClick={handleSimulateUpload}
+                className="bg-white border border-slate-300 text-[#00346F] hover:bg-slate-50 transition-colors px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs"
+              >
+                <Upload className="w-4 h-4" />
+                Subir Excel
+              </button>
+              <button
+                onClick={handleExportExcel}
+                className="bg-white border border-slate-300 text-[#107C41] hover:bg-slate-50 transition-colors px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                Excel
+              </button>
+              <button
+                onClick={handleOpenNew}
+                className="bg-[#00346F] hover:bg-[#004A99] transition-colors text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm active:scale-[0.98]"
+              >
+                <Plus className="w-4 h-4" />
+                Nuevo Producto
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -350,6 +394,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     </td>
                     <td className="py-3 px-4 text-center">
                       <button
+                        disabled={readOnly}
                         onClick={() => {
                           onToggleStatus(prod.id);
                           onShowToast(
@@ -360,7 +405,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                             'info'
                           );
                         }}
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-transform hover:scale-105 cursor-pointer ${
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-transform ${readOnly ? 'cursor-default' : 'hover:scale-105 cursor-pointer'} ${
                           prod.estado === 'ACTIVO'
                             ? 'bg-[#DCFCE7] text-[#166534] hover:bg-green-200'
                             : 'bg-[#FEE2E2] text-[#991B1B] hover:bg-red-200'
@@ -381,6 +426,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                       </button>
                     </td>
                     <td className="py-3 px-4 text-right">
+                      {!readOnly && (
                       <div className="flex items-center justify-end gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => handleOpenEdit(prod)}
@@ -402,6 +448,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -622,7 +669,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                       className="text-[#00346F] focus:ring-[#00346F]"
                     />
                     <span className="font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded text-xs">
-                      ACTIVO (Disponible para ventas y facturación)
+                      ACTIVO (Disponible para operaciones)
                     </span>
                   </label>
 
@@ -636,7 +683,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                       className="text-red-600 focus:ring-red-600"
                     />
                     <span className="font-semibold text-red-800 bg-red-100 px-2 py-0.5 rounded text-xs">
-                      INACTIVO (Descontinuado / Bloqueado en facturas)
+                      INACTIVO (Descontinuado / No disponible)
                     </span>
                   </label>
                 </div>

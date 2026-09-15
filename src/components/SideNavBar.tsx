@@ -2,27 +2,26 @@ import React from 'react';
 import {
   Settings,
   ShieldCheck,
-  Truck,
+  Wrench,
   Package,
-  ShoppingCart,
   Tag,
-  FileText,
-  CreditCard,
-  Landmark,
-  Network,
-  BarChart3,
   Users,
   Building2,
   ChevronDown,
   ChevronRight,
   X,
+  ArrowLeftRight,
+  LayoutDashboard,
+  ShoppingCart,
 } from 'lucide-react';
+import { Usuario } from '../types';
 
 interface SideNavBarProps {
   activeView: string;
   setActiveView: (view: string) => void;
   isOpenMobile: boolean;
   onCloseMobile: () => void;
+  currentUser: Usuario;
 }
 
 export const SideNavBar: React.FC<SideNavBarProps> = ({
@@ -30,9 +29,27 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
   setActiveView,
   isOpenMobile,
   onCloseMobile,
+  currentUser,
 }) => {
   const [almacenOpen, setAlmacenOpen] = React.useState(true);
   const [configOpen, setConfigOpen] = React.useState(true);
+  const isRestrictedUser = currentUser.rol !== 'ADMIN';
+  const moduleLabels: Record<string, string> = {
+    taller: currentUser.rol === 'TECNICO' ? 'Mis servicios técnicos' : 'Servicio técnico',
+    'panel-recepcion': 'Panel de recepción',
+    'panel-almacen': 'Panel de almacén',
+    equipos: 'Equipos registrados',
+    ventas: 'Punto de Venta (POS)',
+    dashboard: 'Dashboard Operativo',
+    clientes: 'Clientes',
+    productos: currentUser.rol === 'TECNICO' ? 'Consultar inventario' : 'Productos e inventario',
+    categorias: 'Categorías',
+    marcas: 'Marcas',
+    usuarios: 'Usuarios',
+    'config-empresa': 'Empresa',
+    sucursales: 'Sucursales',
+    movimientos: 'Movimientos entre sedes',
+  };
 
   const handleNavClick = (viewName: string) => {
     setActiveView(viewName);
@@ -75,6 +92,28 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
 
         {/* Navigation list */}
         <div className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 text-xs font-medium">
+          {isRestrictedUser ? (
+            <>
+              <p className="px-3.5 pb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-200/70">
+                Módulos disponibles
+              </p>
+              {currentUser.modulosPermitidos.map((moduleId) => (
+                <button
+                  key={moduleId}
+                  onClick={() => handleNavClick(moduleId)}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
+                    activeView === moduleId
+                      ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
+                      : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Package className="w-4 h-4 flex-shrink-0" />
+                  <span>{moduleLabels[moduleId] || moduleId}</span>
+                </button>
+              ))}
+            </>
+          ) : (
+            <>
           {/* Configuración */}
           <div>
             <button
@@ -148,20 +187,32 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
             }`}
           >
             <Users className="w-4 h-4 flex-shrink-0" />
-            <span>Clientes & RUC/DNI</span>
+            <span>Clientes</span>
           </button>
 
-          {/* Logística */}
+          {/* Servicio técnico */}
           <button
-            onClick={() => handleNavClick('logistica')}
+            onClick={() => handleNavClick('taller')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
-              activeView === 'logistica'
+              activeView === 'taller'
                 ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
                 : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
             }`}
           >
-            <Truck className="w-4 h-4 flex-shrink-0" />
-            <span>Logística</span>
+            <Wrench className="w-4 h-4 flex-shrink-0" />
+            <span>Servicio técnico</span>
+          </button>
+
+          <button
+            onClick={() => handleNavClick('equipos')}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
+              activeView === 'equipos'
+                ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
+                : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <Package className="w-4 h-4 flex-shrink-0" />
+            <span>Equipos registrados</span>
           </button>
 
           {/* Almacén (Productos, Categorías, Marcas) */}
@@ -224,20 +275,33 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
             )}
           </div>
 
-          {/* Compras */}
+          {/* Movimientos de inventario */}
           <button
-            onClick={() => handleNavClick('compras')}
+            onClick={() => handleNavClick('movimientos')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
-              activeView === 'compras'
+              activeView === 'movimientos'
                 ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
                 : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
             }`}
           >
-            <ShoppingCart className="w-4 h-4 flex-shrink-0" />
-            <span>Compras</span>
+            <ArrowLeftRight className="w-4 h-4 flex-shrink-0" />
+            <span>Movimientos entre sedes</span>
           </button>
 
-          {/* Ventas (Principal) */}
+          {/* Dashboard Operativo (Estadísticas y Resumen) */}
+          <button
+            onClick={() => handleNavClick('dashboard')}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
+              activeView === 'dashboard'
+                ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
+                : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <LayoutDashboard className="w-4 h-4 flex-shrink-0" />
+            <span>Dashboard Operativo</span>
+          </button>
+
+          {/* Punto de Venta (POS) */}
           <button
             onClick={() => handleNavClick('ventas')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
@@ -246,79 +310,17 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
                 : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
             }`}
           >
-            <Tag className="w-4 h-4 flex-shrink-0" />
-            <span>Ventas</span>
+            <ShoppingCart className="w-4 h-4 flex-shrink-0" />
+            <span>Punto de Venta (POS)</span>
           </button>
 
-          {/* CPE Sunat */}
-          <button
-            onClick={() => handleNavClick('cpe-sunat')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
-              activeView === 'cpe-sunat'
-                ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
-                : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <FileText className="w-4 h-4 flex-shrink-0" />
-            <span>CPE Sunat</span>
-          </button>
-
-          {/* Cuentas */}
-          <button
-            onClick={() => handleNavClick('cuentas')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
-              activeView === 'cuentas'
-                ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
-                : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <CreditCard className="w-4 h-4 flex-shrink-0" />
-            <span>Cuentas por Cobrar</span>
-          </button>
-
-          {/* Caja / Bancos */}
-          <button
-            onClick={() => handleNavClick('caja-bancos')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
-              activeView === 'caja-bancos'
-                ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
-                : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <Landmark className="w-4 h-4 flex-shrink-0" />
-            <span>Caja / Bancos</span>
-          </button>
-
-          {/* Contabilidad */}
-          <button
-            onClick={() => handleNavClick('contabilidad')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
-              activeView === 'contabilidad'
-                ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
-                : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <Network className="w-4 h-4 flex-shrink-0" />
-            <span>Contabilidad</span>
-          </button>
-
-          {/* Reportes */}
-          <button
-            onClick={() => handleNavClick('reportes')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
-              activeView === 'reportes'
-                ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
-                : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <BarChart3 className="w-4 h-4 flex-shrink-0" />
-            <span>Reportes</span>
-          </button>
+            </>
+          )}
         </div>
 
         {/* Footer info */}
         <div className="p-3 bg-black/20 border-t border-blue-900/40 text-[10px] text-blue-200/70 text-center">
-          <span>v2.4.0 • MG SOLUTIONS GROUP ERP</span>
+          <span>v2.5.0 • MG SOLUTIONS GROUP ERP</span>
         </div>
       </aside>
     </>

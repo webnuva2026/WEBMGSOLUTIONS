@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Wrench,
   Plus,
@@ -10,7 +10,6 @@ import {
   Send,
   Phone,
   MessageSquare,
-  FileText,
   Printer,
   UserCheck,
   Package,
@@ -31,7 +30,11 @@ import {
   HelpCircle,
   X,
   Share2,
-  ExternalLink,
+  UserPlus,
+  History,
+  RotateCcw,
+  Check,
+  ChevronDown,
 } from 'lucide-react';
 import {
   OrdenServicio,
@@ -40,6 +43,8 @@ import {
   Usuario,
   Cliente,
   Producto,
+  Marca,
+  Equipo,
   RepuestoUtilizado,
   ManoObraServicio,
   BitacoraAvance,
@@ -51,10 +56,16 @@ interface TechnicalWorkshopViewProps {
   usuarios: Usuario[];
   clientes: Cliente[];
   productos: Producto[];
+  marcas?: Marca[];
+  equipos?: Equipo[];
   currentUser: Usuario;
   onSaveOrden: (orden: OrdenServicio) => void;
-  onOpenInvoiceForOrder: (orden: OrdenServicio) => void;
+  onUpdateProductoStock: (productoId: number, delta: number) => void;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+  onSaveCliente?: (cliente: Cliente) => void;
+  preselectedClientId?: number;
+  onClearPreselectedClient?: () => void;
+  readOnly?: boolean;
 }
 
 const ESTADOS_CONFIG: Record<
@@ -115,7 +126,7 @@ const ESTADOS_CONFIG: Record<
     bg: 'bg-slate-100',
     text: 'text-slate-800',
     border: 'border-slate-300',
-    desc: 'Entregado con conformidad y comprobante',
+    desc: 'Entregado con conformidad y constancia de servicio',
   },
   RECHAZADO_DEVUELTO: {
     label: 'Rechazado / Sin Reparación',
@@ -131,10 +142,16 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
   usuarios,
   clientes,
   productos,
+  marcas = [],
+  equipos = [],
   currentUser,
   onSaveOrden,
-  onOpenInvoiceForOrder,
+  onUpdateProductoStock,
   onShowToast,
+  onSaveCliente,
+  preselectedClientId,
+  onClearPreselectedClient,
+  readOnly = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('TODOS');
@@ -160,6 +177,126 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
   const [newOrderAccesorios, setNewOrderAccesorios] = useState<string[]>(['Cargador original']);
   const [newOrderAdelanto, setNewOrderAdelanto] = useState<number>(0);
 
+  // Smart Client Search & Quick Register State
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
+  const [isClientSearchDropdownOpen, setIsClientSearchDropdownOpen] = useState(false);
+  const [isQuickClientModalOpen, setIsQuickClientModalOpen] = useState(false);
+  const [quickClientForm, setQuickClientForm] = useState<{
+    tipoDocumento: 'DNI' | 'RUC';
+    numeroDocumento: string;
+    razonSocial: string;
+    telefono: string;
+    email: string;
+    direccion: string;
+  }>({
+    tipoDocumento: 'DNI',
+    numeroDocumento: '',
+    razonSocial: '',
+    telefono: '',
+    email: '',
+    direccion: '',
+  });
+
+  const selectedClient = clientes.find((c) => c.id === Number(newOrderClienteId));
+
+  const filteredClients = clientes.filter((c) => {
+    if (!clientSearchQuery.trim()) return true;
+    const q = clientSearchQuery.toLowerCase().trim();
+    return (
+      c.razonSocial.toLowerCase().includes(q) ||
+      c.numeroDocumento.includes(q) ||
+      (c.telefono && c.telefono.includes(q))
+    );
+  });
+
+  // Client's registered equipment history for 1-click autocomplete
+  const clientRegisteredEquipos = (equipos || []).filter(
+    (eq) => eq.clienteId === newOrderClienteId
+  );
+  const clientPastEquiposFromOrders = ordenes
+    .filter((o) => o.clienteId === newOrderClienteId)
+    .map((o) => ({
+      id: o.id,
+      tipo: o.tipoEquipo,
+      marca: o.marca,
+      modelo: o.modelo,
+      numeroSerie: o.numeroSerie,
+      accesorios: o.accesoriosDejados.join(', '),
+    }));
+
+  const allClientEquipos = [
+    ...clientRegisteredEquipos.map((eq) => ({
+      id: eq.id,
+      tipo: eq.tipo,
+      marca: eq.marca,
+      modelo: eq.modelo,
+      numeroSerie: eq.numeroSerie,
+      accesorios: Array.isArray(eq.accesorios) ? eq.accesorios.join(', ') : String(eq.accesorios || ''),
+    })),
+    ...clientPastEquiposFromOrders,
+  ].filter(
+    (item, index, self) =>
+      index ===
+      self.findIndex(
+        (t) =>
+          t.marca.toLowerCase() === item.marca.toLowerCase() &&
+          t.modelo.toLowerCase() === item.modelo.toLowerCase() &&
+          (t.numeroSerie ? t.numeroSerie === item.numeroSerie : true)
+      )
+  );
+
+  const handleSelectPreExistingEquipo = (eq: {
+    tipo: TipoEquipo;
+    marca: string;
+    modelo: string;
+    numeroSerie?: string;
+    accesorios?: string;
+  }) => {
+    setNewOrderTipo(eq.tipo);
+    setNewOrderMarca(eq.marca);
+    setNewOrderModelo(eq.modelo);
+    if (eq.numeroSerie) setNewOrderSerie(eq.numeroSerie);
+    if (eq.accesorios) {
+      setNewOrderAccesorios(eq.accesorios.split(',').map((s) => s.trim()).filter(Boolean));
+    }
+    onShowToast('Equipo seleccionado', `Se cargaron los datos de "${eq.marca} ${eq.modelo}".`, 'info');
+  };
+
+  const handleQuickClientSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickClientForm.numeroDocumento.trim() || !quickClientForm.razonSocial.trim()) {
+      onShowToast('Error', 'Complete documento y nombre del cliente.', 'warning');
+      return;
+    }
+    const newClient: Cliente = {
+      id: Date.now(),
+      tipoDocumento: quickClientForm.tipoDocumento,
+      numeroDocumento: quickClientForm.numeroDocumento.trim(),
+      razonSocial: quickClientForm.razonSocial.trim().toUpperCase(),
+      telefono: quickClientForm.telefono.trim(),
+      email: quickClientForm.email.trim(),
+      direccionFiscal: quickClientForm.direccion.trim(),
+      estado: 'ACTIVO',
+      fechaRegistro: new Date().toISOString().split('T')[0],
+    };
+
+    if (onSaveCliente) {
+      onSaveCliente(newClient);
+    }
+    setNewOrderClienteId(newClient.id);
+    setIsQuickClientModalOpen(false);
+    setIsClientSearchDropdownOpen(false);
+    setClientSearchQuery('');
+    onShowToast('Cliente registrado', `Cliente ${newClient.razonSocial} añadido y seleccionado.`, 'success');
+  };
+
+  useEffect(() => {
+    if (preselectedClientId === undefined) return;
+    setNewOrderClienteId(preselectedClientId);
+    setIsNewOrderModalOpen(true);
+    onClearPreselectedClient?.();
+  }, [preselectedClientId, onClearPreselectedClient]);
+
   // Detail Modal Sub-forms
   const [activeDetailTab, setActiveDetailTab] = useState<'flujo' | 'bitacora' | 'repuestos' | 'comunicacion' | 'ticket'>('flujo');
   const [newAvanceTitulo, setNewAvanceTitulo] = useState('');
@@ -174,21 +311,24 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
 
   // Comunicación in detail
   const [comunicacionResumen, setComunicacionResumen] = useState('');
-  const [comunicacionCanal, setComunicacionCanal] = useState<'WHATSAPP' | 'LLAMADA' | 'PRESENCIAL'>('WHATSAPP');
+  const [comunicacionCanal, setComunicacionCanal] = useState<'LLAMADA' | 'PRESENCIAL'>('LLAMADA');
   const [comunicacionResultado, setComunicacionResultado] = useState<'APROBADO' | 'RECHAZADO' | 'PENDIENTE' | 'CONSULTA'>('APROBADO');
 
   const tecnicos = usuarios.filter((u) => u.rol === 'TECNICO' && u.estado === 'ACTIVO');
+  const visibleOrders = currentUser.rol === 'TECNICO'
+    ? ordenes.filter((order) => order.tecnicoId === currentUser.id)
+    : ordenes;
 
   // Metrics
-  const metricTotal = ordenes.length;
-  const metricEnTaller = ordenes.filter((o) =>
+  const metricTotal = visibleOrders.length;
+  const metricEnTaller = visibleOrders.filter((o) =>
     ['RECEPCIONADO', 'EN_DIAGNOSTICO', 'PRESUPUESTADO', 'APROBADO_EN_REPARACION', 'ESPERA_REPUESTOS'].includes(o.estado)
   ).length;
-  const metricListos = ordenes.filter((o) => o.estado === 'LISTO_ENTREGA' || o.estado === 'REPARADO_PROBADO').length;
-  const metricEntregados = ordenes.filter((o) => o.estado === 'ENTREGADO_COBRADO').length;
+  const metricListos = visibleOrders.filter((o) => o.estado === 'LISTO_ENTREGA' || o.estado === 'REPARADO_PROBADO').length;
+  const metricEntregados = visibleOrders.filter((o) => o.estado === 'ENTREGADO_COBRADO').length;
 
   // Filtered orders
-  const filteredOrders = ordenes.filter((o) => {
+  const filteredOrders = visibleOrders.filter((o) => {
     const matchesSearch =
       o.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.clienteNombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -215,10 +355,30 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
     setIsDetailModalOpen(true);
   };
 
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  const validateNewOrder = () => {
+    const errors: Record<string, string> = {};
+    if (!newOrderClienteId) errors.cliente = 'Seleccione un cliente.';
+    if (!newOrderTipo) errors.tipo = 'Seleccione tipo de equipo.';
+    if (!newOrderMarca.trim()) errors.marca = 'Ingrese la marca.';
+    if (!newOrderModelo.trim()) errors.modelo = 'Ingrese el modelo.';
+    if (!newOrderSerie.trim()) errors.serie = 'Ingrese el número de serie.';
+    if (!newOrderFalla.trim()) errors.falla = 'Describa la falla.';
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleCreateOrder = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateNewOrder()) return;
     const cliente = clientes.find((c) => c.id === Number(newOrderClienteId));
     if (!cliente) return;
+
+    if (!newOrderMarca.trim() || !newOrderModelo.trim() || !newOrderFalla.trim()) {
+      onShowToast('Datos incompletos', 'Registra marca, modelo y falla reportada del equipo.', 'warning');
+      return;
+    }
 
     if (cliente.estado === 'INACTIVO') {
       onShowToast('Cliente Inactivo', 'El cliente seleccionado está marcado como INACTIVO.', 'error');
@@ -226,7 +386,10 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
     }
 
     const assignedTech = usuarios.find((u) => u.id === Number(newOrderTecnicoId));
-    const nextNumber = ordenes.length + 1;
+    const nextNumber = ordenes.reduce((highest, order) => {
+      const match = order.codigo.match(/(\d+)$/);
+      return Math.max(highest, match ? Number(match[1]) : 0);
+    }, 0) + 1;
     const code = `OT-2024-${String(nextNumber).padStart(4, '0')}`;
 
     const newOrder: OrdenServicio = {
@@ -283,6 +446,10 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
   const handleAddAvance = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOrder || !newAvanceTitulo) return;
+    if (currentUser.rol === 'TECNICO' && selectedOrder.tecnicoId !== currentUser.id) {
+      onShowToast('Acceso restringido', 'Solo puedes actualizar tickets asignados a tu usuario.', 'error');
+      return;
+    }
 
     const newBitacoraItem: BitacoraAvance = {
       id: `b-${Date.now()}`,
@@ -311,6 +478,10 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
     if (!selectedOrder) return;
     const prod = productos.find((p) => p.id === Number(selectedProdId));
     if (!prod) return;
+    if (prod.estado !== 'ACTIVO' || repuestoCantidad < 1 || repuestoCantidad > prod.stock) {
+      onShowToast('Stock insuficiente', `Solo hay ${prod.stock} unidades disponibles de ${prod.nombre}.`, 'warning');
+      return;
+    }
 
     const itemTotal = prod.precioUnitario * repuestoCantidad;
     const newRepuesto: RepuestoUtilizado = {
@@ -337,6 +508,7 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
 
     setSelectedOrder(updatedOrder);
     onSaveOrden(updatedOrder);
+    onUpdateProductoStock(prod.id, -repuestoCantidad);
     onShowToast('Repuesto agregado', `${prod.nombre} x${repuestoCantidad}`, 'info');
   };
 
@@ -356,6 +528,8 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
 
     setSelectedOrder(updatedOrder);
     onSaveOrden(updatedOrder);
+    const removedRepuesto = selectedOrder.repuestos.find((repuesto) => repuesto.id === id);
+    if (removedRepuesto?.productoId) onUpdateProductoStock(removedRepuesto.productoId, removedRepuesto.cantidad);
   };
 
   const handleAddServicio = () => {
@@ -447,21 +621,6 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
     onShowToast('Contacto registrado', `Se guardó la interacción con el cliente vía ${comunicacionCanal}.`, 'success');
   };
 
-  const getWhatsAppLink = (order: OrdenServicio) => {
-    const cleanPhone = order.clienteTelefono.replace(/[^0-9]/g, '');
-    const phoneWithCountry = cleanPhone.startsWith('51') ? cleanPhone : `51${cleanPhone}`;
-    const text = encodeURIComponent(
-      `*MG SOLUTIONS GROUP - Servicio Técnico*\n` +
-      `Estimado(a) *${order.clienteNombre}*:\n\n` +
-      `Le informamos sobre su equipo *${order.marca} ${order.modelo}* (Orden *${order.codigo}*).\n` +
-      `📌 *Estado Actual*: ${ESTADOS_CONFIG[order.estado].label}\n` +
-      (order.costoTotal > 0 ? `💰 *Presupuesto*: S/ ${order.costoTotal.toFixed(2)} (Saldo: S/ ${order.saldoPendiente.toFixed(2)})\n` : '') +
-      `🔧 *Detalle / Diagnóstico*: ${order.diagnosticoTecnico || order.fallaReportada}\n\n` +
-      `Por favor responda este mensaje para confirmar la autorización. ¡Gracias!`
-    );
-    return `https://wa.me/${phoneWithCountry}?text=${text}`;
-  };
-
   return (
     <div className="flex-1 p-6 md:p-8 overflow-y-auto w-full max-w-7xl mx-auto bg-[#F8F9FF] min-h-screen">
       {/* Top Header */}
@@ -469,10 +628,12 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#00346F] text-white">
-              Taller Especializado & Laboratorio
+              {currentUser.rol === 'TECNICO' ? 'Panel del Técnico' : 'Taller Especializado & Laboratorio'}
             </span>
             <span className="text-xs text-slate-500 font-medium">
-              Flujo Integrado: Recepción ➔ Diagnóstico ➔ Repuestos ➔ Cliente ➔ Facturación
+              {currentUser.rol === 'TECNICO'
+                ? `Órdenes asignadas a ${currentUser.nombreCompleto}`
+                : 'Flujo Integrado: Recepción ➔ Diagnóstico ➔ Repuestos ➔ Cliente'}
             </span>
           </div>
           <h1 className="text-2xl font-bold text-[#0B1C30] tracking-tight flex items-center gap-2">
@@ -482,13 +643,15 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
         </div>
 
         <div className="flex gap-2">
-          <button
-            onClick={() => setIsNewOrderModalOpen(true)}
-            className="bg-[#00346F] hover:bg-[#004A99] text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all active:scale-[0.98]"
-          >
-            <Plus className="w-4 h-4" />
-            Nueva Orden de Servicio (Recepción)
-          </button>
+          {!readOnly && currentUser.rol !== 'TECNICO' && (
+            <button
+              onClick={() => setIsNewOrderModalOpen(true)}
+              className="bg-[#00346F] hover:bg-[#004A99] text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all active:scale-[0.98]"
+            >
+              <Plus className="w-4 h-4" />
+              Nuevo ticket / ingreso de equipo
+            </button>
+          )}
         </div>
       </div>
 
@@ -566,19 +729,21 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
               <option value="ENTREGADO_COBRADO">8. Entregado & Cobrado</option>
             </select>
 
-            <select
-              value={technicianFilter}
-              onChange={(e) => setTechnicianFilter(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none"
-            >
-              <option value="TODOS">Todos los Técnicos</option>
-              <option value="MIS_ORDENES">👤 Mis Órdenes Asignadas</option>
-              {tecnicos.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.nombreCompleto}
-                </option>
-              ))}
-            </select>
+            {currentUser.rol !== 'TECNICO' && (
+              <select
+                value={technicianFilter}
+                onChange={(e) => setTechnicianFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none"
+              >
+                <option value="TODOS">Todos los Técnicos</option>
+                <option value="MIS_ORDENES">Mis Órdenes Asignadas</option>
+                {tecnicos.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombreCompleto}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
       </div>
@@ -612,7 +777,15 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
               {filteredOrders.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-8 text-center text-slate-400">
-                    No se encontraron órdenes de servicio con los filtros aplicados.
+                    {readOnly ? 'No hay órdenes disponibles.' : 'No se encontraron órdenes de servicio con los filtros aplicados.'}
+                    {!readOnly && (
+                      <button
+                        onClick={() => setIsNewOrderModalOpen(true)}
+                        className="mt-2 block mx-auto text-xs text-[#00346F] font-bold hover:underline"
+                      >
+                        Crear Orden
+                      </button>
+                    )}
                   </td>
                 </tr>
               ) : (
@@ -701,15 +874,6 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          <a
-                            href={getWhatsAppLink(o)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                            title="Contactar al cliente por WhatsApp"
-                          >
-                            <MessageSquare className="w-4 h-4" />
-                          </a>
                         </div>
                       </td>
                     </tr>
@@ -729,7 +893,7 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
               <div className="flex items-center gap-2">
                 <Wrench className="w-5 h-5 text-emerald-400" />
                 <h3 className="text-sm font-bold">
-                  Recepción de Equipo • Nueva Orden de Servicio Técnico
+                  Recepción de equipo • Nuevo ticket de servicio
                 </h3>
               </div>
               <button
@@ -741,29 +905,187 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
             </div>
 
             <form onSubmit={handleCreateOrder} className="p-6 overflow-y-auto flex-1 space-y-4 text-xs bg-[#F8F9FF]">
-              {/* Cliente Selector */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200">
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Cliente Solicitante *
-                </label>
-                <select
-                  value={newOrderClienteId}
-                  onChange={(e) => setNewOrderClienteId(Number(e.target.value))}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-800 font-medium focus:outline-none focus:border-[#00346F]"
-                >
-                  {clientes.map((c) => (
-                    <option key={c.id} value={c.id} disabled={c.estado === 'INACTIVO'}>
-                      [{c.tipoDocumento} {c.numeroDocumento}] {c.razonSocial} {c.estado === 'INACTIVO' ? '(INACTIVO)' : ''}
-                    </option>
-                  ))}
-                </select>
+              {/* Cliente Selector Inteligente con Buscador y Registro Rápido */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase tracking-wider text-[11px]">
+                      Cliente Solicitante *
+                    </label>
+                    <span className="text-[11px] text-slate-500">
+                      Busque por RUC, DNI o razón social entre todos los clientes registrados.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsQuickClientModalOpen(true)}
+                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 shadow-xs transition-all active:scale-95"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    + Nuevo Cliente
+                  </button>
+                </div>
+
+                {/* Tarjeta de Cliente Seleccionado */}
+                {selectedClient && !isClientSearchDropdownOpen && (
+                  <div className="p-3 bg-[#EFF4FF] border border-blue-200 rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            selectedClient.tipoDocumento === 'RUC'
+                              ? 'bg-[#00346F] text-white'
+                              : 'bg-emerald-600 text-white'
+                          }`}
+                        >
+                          {selectedClient.tipoDocumento} {selectedClient.numeroDocumento}
+                        </span>
+                        <span className="font-bold text-slate-900 text-xs">
+                          {selectedClient.razonSocial}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600">
+                        📞 {selectedClient.telefono || 'Sin teléfono'} • 📍 {selectedClient.direccion || 'Sin dirección registrada'}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsClientSearchDropdownOpen(true)}
+                      className="px-3 py-1 bg-white hover:bg-slate-100 text-[#00346F] border border-blue-300 font-bold rounded-lg text-[11px] flex items-center gap-1 shadow-xs"
+                    >
+                      <Search className="w-3.5 h-3.5" />
+                      Cambiar / Buscar otro
+                    </button>
+                  </div>
+                )}
+
+                {/* Input de Búsqueda de Clientes */}
+                {(isClientSearchDropdownOpen || !selectedClient) && (
+                  <div className="relative">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        autoFocus
+                        value={clientSearchQuery}
+                        onChange={(e) => setClientSearchQuery(e.target.value)}
+                        placeholder="Escriba RUC, DNI, nombre o teléfono para buscar cliente..."
+                        className="w-full pl-9 pr-8 py-2 bg-white border border-[#00346F] rounded-lg text-xs font-medium focus:outline-none shadow-xs"
+                      />
+                      {selectedClient && (
+                        <button
+                          type="button"
+                          onClick={() => setIsClientSearchDropdownOpen(false)}
+                          className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 text-[11px] font-bold"
+                        >
+                          Cerrar
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Lista desplegable de clientes filtrados */}
+                    <div className="mt-1 max-h-52 overflow-y-auto border border-slate-200 rounded-lg bg-white shadow-lg divide-y divide-slate-100 z-20">
+                      {filteredClients.length > 0 ? (
+                        filteredClients.map((c) => (
+                          <div
+                            key={c.id}
+                            onClick={() => {
+                              setNewOrderClienteId(c.id);
+                              setIsClientSearchDropdownOpen(false);
+                              setClientSearchQuery('');
+                            }}
+                            className={`p-2.5 hover:bg-blue-50 cursor-pointer transition-colors flex items-center justify-between ${
+                              newOrderClienteId === c.id ? 'bg-[#EFF4FF]' : ''
+                            }`}
+                          >
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${
+                                    c.tipoDocumento === 'RUC'
+                                      ? 'bg-blue-100 text-[#00346F]'
+                                      : 'bg-emerald-100 text-emerald-800'
+                                  }`}
+                                >
+                                  {c.tipoDocumento} {c.numeroDocumento}
+                                </span>
+                                <span className="font-bold text-slate-800 text-xs">{c.razonSocial}</span>
+                              </div>
+                              <p className="text-[10px] text-slate-500">
+                                Tel: {c.telefono || '—'} • Dir: {c.direccion || '—'}
+                              </p>
+                            </div>
+                            {newOrderClienteId === c.id && (
+                              <Check className="w-4 h-4 text-[#00346F] flex-shrink-0" />
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-4 text-center text-slate-500">
+                          <p className="font-semibold text-xs">No se encontró cliente con "{clientSearchQuery}"</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setQuickClientForm((prev) => ({
+                                ...prev,
+                                razonSocial: isNaN(Number(clientSearchQuery)) ? clientSearchQuery : '',
+                                numeroDocumento: !isNaN(Number(clientSearchQuery)) ? clientSearchQuery : '',
+                              }));
+                              setIsQuickClientModalOpen(true);
+                            }}
+                            className="mt-2 px-3 py-1 bg-[#00346F] text-white rounded text-xs font-bold"
+                          >
+                            + Registrar a "{clientSearchQuery}" ahora
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Historial de Equipos Previos del Cliente (Autocompletar en 1 Clic) */}
+                {allClientEquipos.length > 0 && (
+                  <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-lg">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <History className="w-4 h-4 text-amber-700" />
+                      <span className="font-bold text-amber-900 text-[11px]">
+                        Equipos previos registrados de este cliente (clic para autocompletar):
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {allClientEquipos.map((eq, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleSelectPreExistingEquipo(eq)}
+                          className="px-2.5 py-1.5 bg-white hover:bg-amber-100 border border-amber-300 rounded-lg text-left text-[11px] font-medium text-slate-800 flex items-center gap-1.5 shadow-2xs transition-all active:scale-95"
+                          title="Clic para cargar especificaciones de este equipo"
+                        >
+                          <span className="font-bold text-[#00346F]">[{eq.tipo}]</span>
+                          <span>{eq.marca} {eq.modelo}</span>
+                          {eq.numeroSerie && (
+                            <span className="font-mono text-slate-500 text-[10px]">
+                              (S/N: {eq.numeroSerie})
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Equipo Info */}
+              {/* Equipo Info con Marcas y Productos Registrados */}
               <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
-                <span className="font-bold text-slate-800 block border-b border-slate-100 pb-1">
-                  Especificaciones del Equipo
-                </span>
+                <div className="flex justify-between items-center border-b border-slate-100 pb-1">
+                  <span className="font-bold text-slate-800 text-xs">
+                    Especificaciones del Equipo
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    Seleccione marcas o modelos sugeridos del catálogo
+                  </span>
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
@@ -784,27 +1106,66 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-600 mb-1">Marca *</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block font-semibold text-slate-600">Marca *</label>
+                      <span className="text-[10px] text-slate-400">Catálogo o personalizada</span>
+                    </div>
                     <input
                       type="text"
                       required
+                      list="registered-marcas-list"
                       value={newOrderMarca}
-                      onChange={(e) => setNewOrderMarca(e.target.value)}
+                      onChange={(e) => setNewOrderMarca(e.target.value.toUpperCase())}
                       placeholder="Ej: ASUS, HP, LENOVO, EPSON"
                       className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium uppercase"
                     />
+                    <datalist id="registered-marcas-list">
+                      {marcas
+                        .filter((m) => m.estado === 'ACTIVO')
+                        .map((m) => (
+                          <option key={m.id} value={m.nombre} />
+                        ))}
+                    </datalist>
+                    {/* Chips rápidos de marcas principales */}
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {['ASUS', 'LENOVO', 'HP', 'EPSON', 'DELL', 'CANON', 'ACER'].map((brand) => (
+                        <button
+                          key={brand}
+                          type="button"
+                          onClick={() => setNewOrderMarca(brand)}
+                          className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors ${
+                            newOrderMarca === brand
+                              ? 'bg-[#00346F] text-white border-[#00346F]'
+                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {brand}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-600 mb-1">Modelo *</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block font-semibold text-slate-600">Modelo *</label>
+                      <span className="text-[10px] text-slate-400">Sugerencias del catálogo</span>
+                    </div>
                     <input
                       type="text"
                       required
+                      list="registered-products-list"
                       value={newOrderModelo}
                       onChange={(e) => setNewOrderModelo(e.target.value)}
                       placeholder="Ej: TUF Gaming FX506 / Pavilion 15"
                       className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium"
                     />
+                    <datalist id="registered-products-list">
+                      {productos.slice(0, 50).map((prod) => (
+                        <option key={prod.id} value={prod.nombre}>
+                          SKU: {prod.codigo}
+                        </option>
+                      ))}
+                    </datalist>
                   </div>
                 </div>
 
@@ -956,15 +1317,6 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                <a
-                  href={getWhatsAppLink(selectedOrder)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow"
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  WhatsApp
-                </a>
                 <button
                   onClick={() => setIsDetailModalOpen(false)}
                   className="text-white/70 hover:text-white p-1"
@@ -1018,7 +1370,7 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
                 }`}
               >
                 <Printer className="w-4 h-4" />
-                Ticket Impreso
+                Ficha de servicio
               </button>
             </div>
 
@@ -1176,7 +1528,7 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
                         onChange={(e) => setSelectedProdId(Number(e.target.value))}
                         className="flex-1 p-2 bg-white border border-slate-300 rounded-lg text-xs"
                       >
-                        {productos.map((p) => (
+                        {productos.filter((p) => p.estado === 'ACTIVO').map((p) => (
                           <option key={p.id} value={p.id}>
                             [{p.codigo}] {p.nombre} - S/ {p.precioUnitario.toFixed(2)} (Stock: {p.stock})
                           </option>
@@ -1293,7 +1645,7 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Summary Bar & Facturación Trigger */}
+                  {/* Summary Bar */}
                   <div className="bg-[#EFF4FF] p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
                     <div>
                       <span className="text-[11px] text-slate-500 block">Resumen Económico de la Orden:</span>
@@ -1307,16 +1659,6 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => {
-                        setIsDetailModalOpen(false);
-                        onOpenInvoiceForOrder(selectedOrder);
-                      }}
-                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow"
-                    >
-                      <FileText className="w-4 h-4" />
-                      Generar Factura / Boleta SUNAT
-                    </button>
                   </div>
                 </div>
               )}
@@ -1339,7 +1681,6 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
                               onChange={(e) => setComunicacionCanal(e.target.value as any)}
                               className="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold"
                             >
-                              <option value="WHATSAPP">WhatsApp</option>
                               <option value="LLAMADA">Llamada Telefónica</option>
                               <option value="PRESENCIAL">Presencial en Tienda</option>
                             </select>
@@ -1384,23 +1725,6 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
                       </form>
                     </div>
 
-                    <a
-                      href={getWhatsAppLink(selectedOrder)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-800 flex items-center justify-between hover:bg-emerald-100 transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <MessageSquare className="w-5 h-5 text-emerald-600" />
-                        <div>
-                          <span className="font-bold block">Abrir Chat de WhatsApp</span>
-                          <span className="text-[11px] text-emerald-700">
-                            Número: +51 {selectedOrder.clienteTelefono}
-                          </span>
-                        </div>
-                      </div>
-                      <ExternalLink className="w-4 h-4 text-emerald-600" />
-                    </a>
                   </div>
 
                   <div className="lg:col-span-6 bg-white p-4 rounded-xl border border-slate-200">
@@ -1513,11 +1837,150 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
                     className="w-full py-2 bg-[#00346F] text-white rounded font-sans font-bold text-xs flex items-center justify-center gap-1.5"
                   >
                     <Printer className="w-4 h-4" />
-                    Imprimir Comprobante de Taller
+                    Imprimir ficha de servicio
                   </button>
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+      {/* Modal de Registro Rápido de Cliente */}
+      {isQuickClientModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-[#00346F] text-white">
+              <div className="flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-sm font-bold">Registro Rápido de Cliente</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsQuickClientModalOpen(false)}
+                className="text-white/70 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickClientSubmit} className="p-5 space-y-3.5 text-xs bg-white">
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Tipo Doc
+                  </label>
+                  <select
+                    value={quickClientForm.tipoDocumento}
+                    onChange={(e) =>
+                      setQuickClientForm({
+                        ...quickClientForm,
+                        tipoDocumento: e.target.value as 'DNI' | 'RUC',
+                      })
+                    }
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 focus:outline-none focus:border-[#00346F]"
+                  >
+                    <option value="DNI">DNI</option>
+                    <option value="RUC">RUC</option>
+                  </select>
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    N° Documento *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={quickClientForm.numeroDocumento}
+                    onChange={(e) =>
+                      setQuickClientForm({ ...quickClientForm, numeroDocumento: e.target.value })
+                    }
+                    placeholder={quickClientForm.tipoDocumento === 'DNI' ? '8 dígitos' : '11 dígitos'}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-[#00346F] focus:outline-none focus:border-[#00346F]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  {quickClientForm.tipoDocumento === 'RUC' ? 'Razón Social *' : 'Nombre Completo *'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={quickClientForm.razonSocial}
+                  onChange={(e) =>
+                    setQuickClientForm({ ...quickClientForm, razonSocial: e.target.value })
+                  }
+                  placeholder="Ej: JUAN CARLOS PÉREZ / TECH SOLUTIONS S.A.C."
+                  className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Teléfono / WhatsApp
+                  </label>
+                  <input
+                    type="text"
+                    value={quickClientForm.telefono}
+                    onChange={(e) =>
+                      setQuickClientForm({ ...quickClientForm, telefono: e.target.value })
+                    }
+                    placeholder="987654321"
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Email (Opcional)
+                  </label>
+                  <input
+                    type="email"
+                    value={quickClientForm.email}
+                    onChange={(e) =>
+                      setQuickClientForm({ ...quickClientForm, email: e.target.value })
+                    }
+                    placeholder="cliente@correo.com"
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Dirección
+                </label>
+                <input
+                  type="text"
+                  value={quickClientForm.direccion}
+                  onChange={(e) =>
+                    setQuickClientForm({ ...quickClientForm, direccion: e.target.value })
+                  }
+                  placeholder="Av. Balta 123, Chiclayo"
+                  className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsQuickClientModalOpen(false)}
+                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition-all active:scale-95"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  Guardar y Seleccionar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

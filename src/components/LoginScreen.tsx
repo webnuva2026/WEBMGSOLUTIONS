@@ -5,9 +5,10 @@ import { Usuario } from '../types';
 interface LoginScreenProps {
   usuarios: Usuario[];
   onLoginSuccess: (user: Usuario) => void;
+  onBackToClient: () => void;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ usuarios, onLoginSuccess }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ usuarios, onLoginSuccess, onBackToClient }) => {
   const [username, setUsername] = useState('tmilagros');
   const [password, setPassword] = useState('admin123');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -30,6 +31,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ usuarios, onLoginSucce
         return;
       }
 
+      if (foundUser.password && password !== foundUser.password) {
+        setErrorMsg('Usuario o contraseña incorrectos. Verifique sus credenciales.');
+        return;
+      }
+
       // Validar Estado ACTIVO / INACTIVO
       if (foundUser.estado !== 'ACTIVO') {
         setErrorMsg(
@@ -44,12 +50,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ usuarios, onLoginSucce
 
   const handleQuickFill = (user: Usuario) => {
     setUsername(user.username);
-    setPassword('password123');
+    setPassword(user.password || 'password123');
     setErrorMsg(null);
   };
 
   return (
     <div className="min-h-screen bg-[#F1F5F9] flex flex-col items-center justify-center p-4">
+      <button
+        type="button"
+        onClick={onBackToClient}
+        className="mb-4 text-xs font-semibold text-[#004A99] hover:underline"
+      >
+        ← Volver a consulta de clientes
+      </button>
       {/* Login Card */}
       <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-[440px] overflow-hidden flex flex-col relative z-10">
         {/* Header / Logo Area matching Screenshot */}
@@ -61,7 +74,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ usuarios, onLoginSucce
             MG SOLUTIONS GROUP
           </h1>
           <p className="text-xs font-semibold text-slate-500 text-center uppercase tracking-widest mt-1">
-            Sistema de Facturación Electrónica
+            Portal de trabajadores
           </p>
         </div>
 

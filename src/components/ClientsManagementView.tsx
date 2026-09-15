@@ -12,21 +12,30 @@ import {
   Save,
   X,
   RefreshCw,
+  Wrench,
 } from 'lucide-react';
-import { Cliente, TipoDocumentoCliente, EstadoRegistro } from '../types';
+import { Cliente, Equipo, TipoDocumentoCliente, EstadoRegistro, OrdenServicio, Usuario } from '../types';
 
 interface ClientsManagementViewProps {
   clientes: Cliente[];
+  ordenes: OrdenServicio[];
+  equipos: Equipo[];
+  currentUser: Usuario;
   onSaveCliente: (c: Cliente) => void;
   onToggleClienteEstado: (id: number) => void;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+  onGoToServices: (clientId?: number) => void;
 }
 
 export const ClientsManagementView: React.FC<ClientsManagementViewProps> = ({
   clientes,
+  ordenes,
+  equipos,
+  currentUser,
   onSaveCliente,
   onToggleClienteEstado,
   onShowToast,
+  onGoToServices,
 }) => {
   const [search, setSearch] = useState('');
   const [estadoFilter, setEstadoFilter] = useState<'ALL' | 'ACTIVO' | 'INACTIVO'>('ALL');
@@ -52,6 +61,15 @@ export const ClientsManagementView: React.FC<ClientsManagementViewProps> = ({
     const matchEstado = estadoFilter === 'ALL' || c.estado === estadoFilter;
     return matchSearch && matchEstado;
   });
+
+  const serviceCountByClient = ordenes.reduce((counts, order) => {
+    counts.set(order.clienteId, (counts.get(order.clienteId) || 0) + 1);
+    return counts;
+  }, new Map<number, number>());
+  const equipmentCountByClient = equipos.reduce((counts, equipment) => {
+    counts.set(equipment.clienteId, (counts.get(equipment.clienteId) || 0) + 1);
+    return counts;
+  }, new Map<number, number>());
 
   const handleOpenNew = () => {
     setEditingCliente(null);
@@ -107,29 +125,40 @@ export const ClientsManagementView: React.FC<ClientsManagementViewProps> = ({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-[#0B1C30] tracking-tight">
-            Directorio de Clientes (RUC / DNI)
+            Directorio de Clientes
           </h1>
           <p className="text-slate-500 text-xs mt-0.5">
-            Gestión de clientes autorizados para facturación electrónica SUNAT.
+            Gestión de clientes y contactos asociados a servicios técnicos y ventas.
           </p>
         </div>
 
-        <button
-          onClick={handleOpenNew}
-          className="bg-[#00346F] hover:bg-[#004A99] text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
-        >
-          <UserPlus className="w-4 h-4" />
-          Nuevo Cliente
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => onGoToServices()}
+            className="bg-white border border-[#00346F] text-[#00346F] hover:bg-[#EFF4FF] px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
+          >
+            <Wrench className="w-4 h-4" />
+            Registrar servicio
+          </button>
+          {(currentUser.rol === 'ADMIN' || currentUser.rol === 'SECRETARIA') && (
+            <button
+              onClick={handleOpenNew}
+              className="bg-[#00346F] hover:bg-[#004A99] text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
+            >
+              <UserPlus className="w-4 h-4" />
+              Nuevo Cliente
+            </button>
+          )}
+        </div>
       </div>
 
       {/* State Rule Banner */}
       <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-3">
         <ShieldAlert className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
         <div>
-          <h4 className="font-bold text-amber-900">Validación de Estado para Facturación</h4>
+          <h4 className="font-bold text-amber-900">Validación de estado para servicios</h4>
           <p className="mt-0.5 text-amber-800">
-            Un cliente con estado <strong>INACTIVO</strong> no puede recibir nuevas Facturas ni Boletas Electrónicas hasta que sea reactivado por un Administrador.
+            Un cliente con estado <strong>INACTIVO</strong> no puede registrar nuevos servicios ni realizar operaciones hasta que sea reactivado por un Administrador.
           </p>
         </div>
       </div>
@@ -179,6 +208,8 @@ export const ClientsManagementView: React.FC<ClientsManagementViewProps> = ({
                 <th className="py-3 px-4">Razón Social / Nombres</th>
                 <th className="py-3 px-4">Dirección Fiscal</th>
                 <th className="py-3 px-4">Email / Teléfono</th>
+                <th className="py-3 px-4 text-center">Servicios</th>
+                <th className="py-3 px-4 text-center">Equipos</th>
                 <th className="py-3 px-4 text-center">Estado</th>
                 <th className="py-3 px-4 text-right">Acciones</th>
               </tr>
@@ -206,44 +237,78 @@ export const ClientsManagementView: React.FC<ClientsManagementViewProps> = ({
                   </td>
                   <td className="py-3 px-4 text-center">
                     <button
-                      onClick={() => {
-                        onToggleClienteEstado(c.id);
-                        onShowToast(
-                          'Estado modificado',
-                          `Cliente '${c.razonSocial}' ahora está ${
-                            c.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO'
-                          }.`,
-                          'info'
-                        );
-                      }}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold cursor-pointer transition-transform hover:scale-105 ${
-                        c.estado === 'ACTIVO'
-                          ? 'bg-[#DCFCE7] text-[#166534]'
-                          : 'bg-[#FEE2E2] text-[#991B1B]'
-                      }`}
-                      title="Haga clic para alternar Estado"
+                      type="button"
+                      onClick={() => onGoToServices(c.id)}
+                      className="inline-flex items-center gap-1 rounded-full bg-[#EFF4FF] px-2.5 py-1 text-[11px] font-bold text-[#00346F] hover:bg-blue-100"
+                      title="Ver servicios técnicos"
                     >
-                      {c.estado === 'ACTIVO' ? (
-                        <>
-                          <CheckCircle2 className="w-3 h-3" />
-                          <span>Activo</span>
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="w-3 h-3" />
-                          <span>Inactivo</span>
-                        </>
-                      )}
+                      <Wrench className="h-3 w-3" />
+                      {serviceCountByClient.get(c.id) || 0}
                     </button>
                   </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">
+                      {equipmentCountByClient.get(c.id) || 0}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    {(currentUser.rol === 'ADMIN' || currentUser.rol === 'SECRETARIA') ? (
+                      <button
+                        onClick={() => {
+                          onToggleClienteEstado(c.id);
+                          onShowToast(
+                            'Estado modificado',
+                            `Cliente '${c.razonSocial}' ahora está ${
+                              c.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO'
+                            }.`,
+                            'info'
+                          );
+                        }}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold cursor-pointer transition-transform hover:scale-105 ${
+                          c.estado === 'ACTIVO'
+                            ? 'bg-[#DCFCE7] text-[#166534]'
+                            : 'bg-[#FEE2E2] text-[#991B1B]'
+                        }`}
+                        title="Haga clic para alternar Estado"
+                      >
+                        {c.estado === 'ACTIVO' ? (
+                          <>
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>Activo</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="w-3 h-3" />
+                            <span>Inactivo</span>
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                          c.estado === 'ACTIVO'
+                            ? 'bg-[#DCFCE7] text-[#166534]'
+                            : 'bg-[#FEE2E2] text-[#991B1B]'
+                        }`}
+                      >
+                        {c.estado === 'ACTIVO' ? (
+                          <><CheckCircle2 className="w-3 h-3" /><span>Activo</span></>
+                        ) : (
+                          <><XCircle className="w-3 h-3" /><span>Inactivo</span></>
+                        )}
+                      </span>
+                    )}
+                  </td>
                   <td className="py-3 px-4 text-right">
-                    <button
-                      onClick={() => handleOpenEdit(c)}
-                      className="text-slate-500 hover:text-[#00346F] p-1.5 rounded-lg hover:bg-slate-200 transition-colors"
-                      title="Editar Cliente"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
+                    {(currentUser.rol === 'ADMIN' || currentUser.rol === 'SECRETARIA') && (
+                      <button
+                        onClick={() => handleOpenEdit(c)}
+                        className="text-slate-500 hover:text-[#00346F] p-1.5 rounded-lg hover:bg-slate-200 transition-colors"
+                        title="Editar Cliente"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -368,7 +433,7 @@ export const ClientsManagementView: React.FC<ClientsManagementViewProps> = ({
                       checked={formData.estado === 'ACTIVO'}
                       onChange={() => setFormData({ ...formData, estado: 'ACTIVO' })}
                     />
-                    <span className="font-semibold text-emerald-800">ACTIVO (Permite Facturación)</span>
+                    <span className="font-semibold text-emerald-800">ACTIVO (Puede registrar servicios)</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input

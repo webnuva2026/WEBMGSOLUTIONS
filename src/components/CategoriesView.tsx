@@ -7,6 +7,7 @@ interface CategoriesViewProps {
   onSaveCategoria: (cat: Categoria) => void;
   onToggleEstado: (id: number) => void;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+  readOnly?: boolean;
 }
 
 export const CategoriesView: React.FC<CategoriesViewProps> = ({
@@ -14,6 +15,7 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
   onSaveCategoria,
   onToggleEstado,
   onShowToast,
+  readOnly = false,
 }) => {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -66,13 +68,15 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
           <p className="text-slate-500 text-xs mt-0.5">Clasificación de productos del inventario y almacén.</p>
         </div>
 
-        <button
-          onClick={handleOpenNew}
-          className="bg-[#00346F] hover:bg-[#004A99] text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Nueva Categoría
-        </button>
+        {!readOnly && (
+          <button
+            onClick={handleOpenNew}
+            className="bg-[#00346F] hover:bg-[#004A99] text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Nueva Categoría
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
@@ -126,12 +130,14 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                   </button>
                 </td>
                 <td className="py-3 px-4 text-right">
-                  <button
-                    onClick={() => handleOpenEdit(cat)}
-                    className="p-1.5 text-slate-500 hover:text-[#00346F] rounded"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
+                  {!readOnly && (
+                    <button
+                      onClick={() => handleOpenEdit(cat)}
+                      className="p-1.5 text-slate-500 hover:text-[#00346F] rounded"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

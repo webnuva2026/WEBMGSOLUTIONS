@@ -7,7 +7,8 @@ import {
   INITIAL_MARCAS,
   INITIAL_PRODUCTOS,
   INITIAL_CLIENTES,
-  INITIAL_COMPROBANTES,
+  INITIAL_ORDENES_SERVICIO,
+  INITIAL_VENTAS,
 } from './data/initialData';
 import {
   Usuario,
@@ -15,23 +16,30 @@ import {
   Categoria,
   Marca,
   Producto,
-  Comprobante,
   EmpresaConfig,
   Sucursal,
+  MovimientoInventario,
+  Equipo,
+  Venta,
 } from './types';
 import { TopNavBar } from './components/TopNavBar';
 import { SideNavBar } from './components/SideNavBar';
 import { LoginScreen } from './components/LoginScreen';
-import { DashboardView } from './components/DashboardView';
+import { OperationsDashboardView } from './components/OperationsDashboardView';
+import { SalesPOSView } from './components/SalesPOSView';
 import { ProductsView } from './components/ProductsView';
 import { CompanySettingsView } from './components/CompanySettingsView';
 import { UsersManagementView } from './components/UsersManagementView';
 import { ClientsManagementView } from './components/ClientsManagementView';
 import { CategoriesView } from './components/CategoriesView';
 import { BrandsView } from './components/BrandsView';
-import { InvoiceModal } from './components/InvoiceModal';
-import { InvoiceDetailModal } from './components/InvoiceDetailModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
+import { ServiceTrackingView } from './components/ServiceTrackingView';
+import { TechnicalWorkshopView } from './components/TechnicalWorkshopView';
+import { InventoryTransfersView } from './components/InventoryTransfersView';
+import { EquipmentManagementView } from './components/EquipmentManagementView';
+import { ReceptionDashboardView } from './components/ReceptionDashboardView';
+import { WarehouseDashboardView } from './components/WarehouseDashboardView';
 
 export function App() {
   // Persistence state loaders
@@ -47,7 +55,32 @@ export function App() {
 
   const [usuarios, setUsuarios] = useState<Usuario[]>(() => {
     const saved = localStorage.getItem('mg_usuarios');
-    return saved ? JSON.parse(saved) : INITIAL_USUARIOS;
+    if (!saved) return INITIAL_USUARIOS;
+    const allowedModules = new Set([
+      'ventas',
+      'panel-recepcion',
+      'panel-almacen',
+      'taller',
+      'clientes',
+      'productos',
+      'categorias',
+      'marcas',
+      'usuarios',
+      'config-empresa',
+      'sucursales',
+      'movimientos',
+      'equipos',
+    ]);
+    return JSON.parse(saved).map((user: Usuario) => {
+      const modules = user.modulosPermitidos.filter((moduleId) => allowedModules.has(moduleId));
+      const rolePanel = user.rol === 'SECRETARIA' ? 'panel-recepcion' : user.rol === 'ALMACEN' ? 'panel-almacen' : null;
+      if (user.rol === 'ALMACEN' && !modules.includes('movimientos')) modules.push('movimientos');
+      if (user.rol === 'ADMIN' && !modules.includes('movimientos')) modules.push('movimientos');
+      return {
+        ...user,
+        modulosPermitidos: rolePanel && !modules.includes(rolePanel) ? [rolePanel, ...modules] : modules,
+      };
+    });
   });
 
   const [categorias, setCategorias] = useState<Categoria[]>(() => {
@@ -62,7 +95,11 @@ export function App() {
 
   const [productos, setProductos] = useState<Producto[]>(() => {
     const saved = localStorage.getItem('mg_productos');
-    return saved ? JSON.parse(saved) : INITIAL_PRODUCTOS;
+    const source = saved ? JSON.parse(saved) : INITIAL_PRODUCTOS;
+    return source.map((product: Producto) => ({
+      ...product,
+      stockPorSede: product.stockPorSede || { [product.sucursal]: product.stock },
+    }));
   });
 
   const [clientes, setClientes] = useState<Cliente[]>(() => {
@@ -70,29 +107,52 @@ export function App() {
     return saved ? JSON.parse(saved) : INITIAL_CLIENTES;
   });
 
-  const [comprobantes, setComprobantes] = useState<Comprobante[]>(() => {
-    const saved = localStorage.getItem('mg_comprobantes');
-    return saved ? JSON.parse(saved) : INITIAL_COMPROBANTES;
+  const [ordenes, setOrdenes] = useState(() => {
+    const saved = localStorage.getItem('mg_ordenes_servicio');
+    return saved ? JSON.parse(saved) : INITIAL_ORDENES_SERVICIO;
+  });
+  const [equipos, setEquipos] = useState<Equipo[]>(() => {
+    const saved = localStorage.getItem('mg_equipos');
+    if (saved) return JSON.parse(saved);
+    return INITIAL_ORDENES_SERVICIO.map((order) => ({
+      id: order.id,
+      clienteId: order.clienteId,
+      tipo: order.tipoEquipo,
+      marca: order.marca,
+      modelo: order.modelo,
+      numeroSerie: order.numeroSerie,
+      accesorios: order.accesoriosDejados,
+      estado: order.estado === 'ENTREGADO_COBRADO' ? 'ENTREGADO' : 'EN_SERVICIO',
+      fechaRegistro: order.fechaIngreso,
+    }));
+  });
+  const [movimientos, setMovimientos] = useState<MovimientoInventario[]>(() => {
+    const saved = localStorage.getItem('mg_movimientos_inventario');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [ventas, setVentas] = useState<Venta[]>(() => {
+    const saved = localStorage.getItem('mg_ventas');
+    return saved ? JSON.parse(saved) : INITIAL_VENTAS;
   });
 
   // Current session
-  const [currentUser, setCurrentUser] = useState<Usuario | null>(() => {
-    const saved = localStorage.getItem('mg_current_user');
-    return saved ? JSON.parse(saved) : INITIAL_USUARIOS[0];
-  });
+  const [currentUser, setCurrentUser] = useState<Usuario | null>(null);
+  const [isWorkerAccess, setIsWorkerAccess] = useState(false);
 
   // View Navigation
   const [activeView, setActiveView] = useState<string>('ventas');
+  const [serviceClientId, setServiceClientId] = useState<number | undefined>();
   const [sidebarOpenMobile, setSidebarOpenMobile] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Modals & Notifications
-  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
-  const [invoiceModalInitialType, setInvoiceModalInitialType] = useState<'FACTURA' | 'BOLETA'>('FACTURA');
-  const [selectedInvoiceForDetail, setSelectedInvoiceForDetail] = useState<Comprobante | null>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   // Sync to LocalStorage
+  useEffect(() => {
+    localStorage.setItem('mg_ventas', JSON.stringify(ventas));
+  }, [ventas]);
+
   useEffect(() => {
     localStorage.setItem('mg_empresa', JSON.stringify(empresa));
   }, [empresa]);
@@ -122,8 +182,16 @@ export function App() {
   }, [clientes]);
 
   useEffect(() => {
-    localStorage.setItem('mg_comprobantes', JSON.stringify(comprobantes));
-  }, [comprobantes]);
+    localStorage.setItem('mg_ordenes_servicio', JSON.stringify(ordenes));
+  }, [ordenes]);
+
+  useEffect(() => {
+    localStorage.setItem('mg_equipos', JSON.stringify(equipos));
+  }, [equipos]);
+
+  useEffect(() => {
+    localStorage.setItem('mg_movimientos_inventario', JSON.stringify(movimientos));
+  }, [movimientos]);
 
   useEffect(() => {
     if (currentUser) {
@@ -132,6 +200,12 @@ export function App() {
       localStorage.removeItem('mg_current_user');
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    if (currentUser && currentUser.rol !== 'ADMIN' && !currentUser.modulosPermitidos.includes(activeView)) {
+      setActiveView(currentUser.modulosPermitidos[0] || 'ventas');
+    }
+  }, [activeView, currentUser]);
 
   // Toast Helper
   const showToast = (
@@ -159,12 +233,79 @@ export function App() {
   // Handlers
   const handleLoginSuccess = (user: Usuario) => {
     setCurrentUser(user);
+    setActiveView(
+      user.rol === 'TECNICO'
+        ? 'taller'
+        : user.rol === 'SECRETARIA'
+        ? 'panel-recepcion'
+        : user.rol === 'ALMACEN'
+        ? 'panel-almacen'
+        : 'ventas'
+    );
+    setIsWorkerAccess(false);
     showToast('Bienvenido al Sistema', `Sesión iniciada como ${user.nombreCompleto} (${user.rol}).`, 'success');
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setActiveView('ventas');
+    setIsWorkerAccess(false);
     showToast('Sesión Finalizada', 'Ha cerrado sesión en el sistema ERP de forma segura.', 'info');
+  };
+
+  const handleSaveOrden = (orden: typeof INITIAL_ORDENES_SERVICIO[number]) => {
+    setOrdenes((prev) => {
+      const exists = prev.find((item) => item.id === orden.id);
+      return exists ? prev.map((item) => (item.id === orden.id ? orden : item)) : [orden, ...prev];
+    });
+    setEquipos((previous) => {
+      const equipment: Equipo = {
+        id: orden.id,
+        clienteId: orden.clienteId,
+        tipo: orden.tipoEquipo,
+        marca: orden.marca,
+        modelo: orden.modelo,
+        numeroSerie: orden.numeroSerie,
+        accesorios: orden.accesoriosDejados,
+        estado: orden.estado === 'ENTREGADO_COBRADO' ? 'ENTREGADO' : orden.estado === 'LISTO_ENTREGA' ? 'LISTO_ENTREGA' : 'EN_SERVICIO',
+        fechaRegistro: orden.fechaIngreso,
+      };
+      const exists = previous.some((item) => item.id === equipment.id);
+      return exists ? previous.map((item) => item.id === equipment.id ? equipment : item) : [equipment, ...previous];
+    });
+  };
+
+  const handleOpenServices = (clientId?: number) => {
+    setServiceClientId(clientId);
+    setActiveView('taller');
+  };
+
+  const handleSaveMovimiento = (movimiento: MovimientoInventario) => {
+    setMovimientos((previous) => [movimiento, ...previous]);
+  };
+
+  const handleUpdateMovimiento = (movimiento: MovimientoInventario) => {
+    setMovimientos((previous) => {
+      const previousMovement = previous.find((item) => item.id === movimiento.id);
+      if (previousMovement && previousMovement.estado !== 'RECIBIDO' && movimiento.estado === 'RECIBIDO') {
+        updateProductBranchStock(previousMovement.productoId, previousMovement.sedeOrigen, -previousMovement.cantidad);
+        updateProductBranchStock(previousMovement.productoId, previousMovement.sedeDestino, previousMovement.cantidad);
+      }
+      if (previousMovement?.estado === 'RECIBIDO' && movimiento.estado !== 'RECIBIDO') {
+        updateProductBranchStock(previousMovement.productoId, previousMovement.sedeOrigen, previousMovement.cantidad);
+        updateProductBranchStock(previousMovement.productoId, previousMovement.sedeDestino, -previousMovement.cantidad);
+      }
+      return previous.map((item) => item.id === movimiento.id ? movimiento : item);
+    });
+  };
+
+  const updateProductBranchStock = (productoId: number, branch: string, delta: number) => {
+    setProductos((previous) => previous.map((product) => {
+      if (product.id !== productoId) return product;
+      const branchStock: Record<string, number> = { ...(product.stockPorSede || { [product.sucursal]: product.stock }) };
+      branchStock[branch] = Math.max(0, (branchStock[branch] || 0) + delta);
+      return { ...product, stockPorSede: branchStock, stock: Object.values(branchStock).reduce((total, value) => total + value, 0) };
+    }));
   };
 
   // Product Actions
@@ -186,10 +327,27 @@ export function App() {
     );
   };
 
+  const handleUpdateProductoStock = (productoId: number, delta: number) => {
+    setProductos((previous) => previous.map((producto) => {
+      if (producto.id !== productoId) return producto;
+      const branchStock: Record<string, number> = { ...(producto.stockPorSede || { [producto.sucursal]: producto.stock }) };
+      // El taller opera desde la sede principal
+      const sedePrincipal = Object.keys(branchStock)[0] || producto.sucursal || 'Principal';
+      branchStock[sedePrincipal] = Math.max(0, (branchStock[sedePrincipal] || 0) + delta);
+      const nuevoStockTotal = Object.values(branchStock).reduce((total, value) => total + value, 0);
+      return { ...producto, stock: nuevoStockTotal, stockPorSede: branchStock };
+    }));
+  };
+
   const handleDeleteProducto = (id: number) => {
     setProductos((prev) =>
       prev.map((p) => (p.id === id ? { ...p, estado: 'INACTIVO' } : p))
     );
+  };
+
+  // Sales Actions
+  const handleSaveVenta = (newVenta: Venta) => {
+    setVentas((prev) => [newVenta, ...prev]);
   };
 
   // Client Actions
@@ -268,20 +426,18 @@ export function App() {
     );
   };
 
-  // Invoice Actions
-  const handleOpenNewInvoice = (type: 'FACTURA' | 'BOLETA' = 'FACTURA') => {
-    setInvoiceModalInitialType(type);
-    setIsInvoiceModalOpen(true);
-  };
-
-  const handleEmitInvoice = (newComp: Comprobante) => {
-    setComprobantes((prev) => [newComp, ...prev]);
-  };
-
   if (!currentUser) {
     return (
       <div className="font-sans antialiased text-[#0B1C30]">
-        <LoginScreen usuarios={usuarios} onLoginSuccess={handleLoginSuccess} />
+        {isWorkerAccess ? (
+          <LoginScreen
+            usuarios={usuarios}
+            onLoginSuccess={handleLoginSuccess}
+            onBackToClient={() => setIsWorkerAccess(false)}
+          />
+        ) : (
+          <ServiceTrackingView ordenes={ordenes} onWorkerAccess={() => setIsWorkerAccess(true)} />
+        )}
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       </div>
     );
@@ -298,7 +454,9 @@ export function App() {
         setActiveView={setActiveView}
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
-        sunatConnected={empresa.estadoSunat === 'CONECTADO'}
+        ordenes={ordenes}
+        productos={productos}
+        clientes={clientes}
       />
 
       {/* Main Layout Area */}
@@ -309,17 +467,73 @@ export function App() {
           setActiveView={setActiveView}
           isOpenMobile={sidebarOpenMobile}
           onCloseMobile={() => setSidebarOpenMobile(false)}
+          currentUser={currentUser}
         />
 
         {/* View Switcher Container */}
         <main className="flex-1 flex flex-col md:pl-[260px] transition-all min-h-[calc(100vh-4rem)]">
           {activeView === 'ventas' && (
-            <DashboardView
-              comprobantes={comprobantes}
+            <SalesPOSView
+              currentUser={currentUser}
+              productos={productos}
+              clientes={clientes}
+              sucursales={sucursales}
               empresa={empresa}
-              onOpenNewInvoice={handleOpenNewInvoice}
-              onViewInvoiceDetail={(comp) => setSelectedInvoiceForDetail(comp)}
+              ventas={ventas}
+              onSaveVenta={handleSaveVenta}
+              onUpdateProductoStock={handleUpdateProductoStock}
+              onSaveCliente={handleSaveCliente}
+              onShowToast={showToast}
               setActiveView={setActiveView}
+            />
+          )}
+
+          {activeView === 'dashboard' && (
+            <OperationsDashboardView
+              currentUser={currentUser}
+              ordenes={ordenes}
+              productos={productos}
+              clientes={clientes}
+              setActiveView={setActiveView}
+            />
+          )}
+
+          {activeView === 'panel-recepcion' && (
+            <ReceptionDashboardView
+              currentUser={currentUser}
+              ordenes={ordenes}
+              equipos={equipos}
+              clientes={clientes}
+              setActiveView={setActiveView}
+              onOpenServices={handleOpenServices}
+            />
+          )}
+
+          {activeView === 'panel-almacen' && (
+            <WarehouseDashboardView
+              currentUser={currentUser}
+              productos={productos}
+              movimientos={movimientos}
+              sucursales={sucursales}
+              setActiveView={setActiveView}
+            />
+          )}
+
+          {activeView === 'taller' && currentUser && (
+            <TechnicalWorkshopView
+              ordenes={ordenes}
+              usuarios={usuarios}
+              clientes={clientes}
+              productos={productos}
+              marcas={marcas}
+              equipos={equipos}
+              currentUser={currentUser}
+              onSaveOrden={handleSaveOrden}
+              onUpdateProductoStock={handleUpdateProductoStock}
+              onShowToast={showToast}
+              onSaveCliente={handleSaveCliente}
+              preselectedClientId={serviceClientId}
+              onClearPreselectedClient={() => setServiceClientId(undefined)}
             />
           )}
 
@@ -332,6 +546,29 @@ export function App() {
               onToggleStatus={handleToggleProductStatus}
               onDeleteProducto={handleDeleteProducto}
               onShowToast={showToast}
+              readOnly={currentUser.rol === 'TECNICO' || currentUser.rol === 'SECRETARIA'}
+            />
+          )}
+
+          {activeView === 'equipos' && (
+            <EquipmentManagementView
+              equipos={equipos}
+              clientes={clientes}
+              ordenes={ordenes}
+              onOpenService={handleOpenServices}
+            />
+          )}
+
+          {activeView === 'movimientos' && (
+            <InventoryTransfersView
+              productos={productos}
+              sucursales={sucursales}
+              movimientos={movimientos}
+              onSaveMovimiento={handleSaveMovimiento}
+              onUpdateMovimiento={handleUpdateMovimiento}
+              onShowToast={showToast}
+              currentUserName={currentUser.nombreCompleto}
+              currentUserRole={currentUser.rol}
             />
           )}
 
@@ -341,6 +578,7 @@ export function App() {
               onSaveCategoria={handleSaveCategoria}
               onToggleEstado={handleToggleCategoriaStatus}
               onShowToast={showToast}
+              readOnly={currentUser.rol !== 'ADMIN' && currentUser.rol !== 'ALMACEN'}
             />
           )}
 
@@ -350,6 +588,7 @@ export function App() {
               onSaveMarca={handleSaveMarca}
               onToggleEstado={handleToggleMarcaStatus}
               onShowToast={showToast}
+              readOnly={currentUser.rol !== 'ADMIN' && currentUser.rol !== 'ALMACEN'}
             />
           )}
 
@@ -359,7 +598,17 @@ export function App() {
               sucursales={sucursales}
               onSaveEmpresa={(updated) => setEmpresa(updated)}
               onSaveSucursal={(suc) =>
-                setSucursales((prev) => prev.map((s) => (s.id === suc.id ? suc : s)))
+                setSucursales((prev) => {
+                  const exists = prev.find((s) => s.id === suc.id);
+                  return exists ? prev.map((s) => (s.id === suc.id ? suc : s)) : [...prev, suc];
+                })
+              }
+              onToggleSucursalEstado={(id) =>
+                setSucursales((prev) =>
+                  prev.map((s) =>
+                    s.id === id ? { ...s, estado: s.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO' } : s
+                  )
+                )
               }
               onShowToast={showToast}
               setActiveView={setActiveView}
@@ -378,63 +627,19 @@ export function App() {
           {activeView === 'clientes' && (
             <ClientsManagementView
               clientes={clientes}
+              ordenes={ordenes}
+              equipos={equipos}
+              currentUser={currentUser}
               onSaveCliente={handleSaveCliente}
               onToggleClienteEstado={handleToggleClienteStatus}
               onShowToast={showToast}
+              onGoToServices={handleOpenServices}
             />
           )}
 
-          {/* Placeholders for ancillary ERP modules with quick action to return */}
-          {['logistica', 'compras', 'cpe-sunat', 'cuentas', 'caja-bancos', 'contabilidad', 'reportes'].includes(
-            activeView
-          ) && (
-            <div className="flex-1 p-8 max-w-5xl mx-auto w-full flex flex-col items-center justify-center text-center">
-              <div className="w-16 h-16 rounded-2xl bg-[#EFF4FF] text-[#00346F] flex items-center justify-center mb-4 shadow-sm">
-                <span className="text-2xl font-bold uppercase">{activeView.slice(0, 2)}</span>
-              </div>
-              <h2 className="text-xl font-bold text-slate-800 capitalize mb-2">
-                Módulo de {activeView.replace('-', ' ')}
-              </h2>
-              <p className="text-xs text-slate-500 max-w-md mb-6 leading-relaxed">
-                Módulo empresarial integrado al sistema ERP de MG SOLUTIONS GROUP S.A.C. Todas las operaciones verifican el estado activo de usuarios, clientes y productos.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setActiveView('ventas')}
-                  className="px-4 py-2 bg-[#00346F] text-white text-xs font-semibold rounded-lg hover:bg-[#004A99] shadow"
-                >
-                  Ir al Panel de Ventas
-                </button>
-                <button
-                  onClick={() => setActiveView('productos')}
-                  className="px-4 py-2 bg-white border border-slate-300 text-[#00346F] text-xs font-semibold rounded-lg hover:bg-slate-50"
-                >
-                  Ver Productos
-                </button>
-              </div>
-            </div>
-          )}
+
         </main>
       </div>
-
-      {/* Invoice Emission Modal */}
-      <InvoiceModal
-        isOpen={isInvoiceModalOpen}
-        onClose={() => setIsInvoiceModalOpen(false)}
-        clientes={clientes}
-        productos={productos}
-        initialType={invoiceModalInitialType}
-        onEmitInvoice={handleEmitInvoice}
-        onShowToast={showToast}
-      />
-
-      {/* Invoice Detail / PDF Modal */}
-      <InvoiceDetailModal
-        comprobante={selectedInvoiceForDetail}
-        empresa={empresa}
-        onClose={() => setSelectedInvoiceForDetail(null)}
-        onShowToast={showToast}
-      />
 
       {/* Toast Notification Queue */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
