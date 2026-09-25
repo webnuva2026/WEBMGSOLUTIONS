@@ -1832,13 +1832,28 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
                     <p>* Garantía de servicio: {selectedOrder.garantiaDias || 90} días calendario.</p>
                   </div>
 
-                  <button
-                    onClick={() => window.print()}
-                    className="w-full py-2 bg-[#00346F] text-white rounded font-sans font-bold text-xs flex items-center justify-center gap-1.5"
-                  >
-                    <Printer className="w-4 h-4" />
-                    Imprimir ficha de servicio
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => window.print()}
+                      className="flex-1 py-2 bg-[#00346F] text-white rounded font-sans font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-[#004A99]"
+                    >
+                      <Printer className="w-4 h-4" />
+                      Imprimir Ficha
+                    </button>
+                    {selectedOrder.clienteTelefono && (
+                      <a
+                        href={`https://wa.me/51${selectedOrder.clienteTelefono.replace(/\D/g, '')}?text=${encodeURIComponent(
+                          `Estimado(a) ${selectedOrder.clienteNombre}, le saludamos de MG Solutions. Le informamos sobre su equipo ${selectedOrder.tipoEquipo} ${selectedOrder.marca} ${selectedOrder.modelo} (Ticket: ${selectedOrder.codigo}). Estado actual: ${selectedOrder.estado}. Saldo a liquidar: S/ ${selectedOrder.saldoPendiente.toFixed(2)}. Puede consultar el avance aquí o acercarse a nuestra sede.`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 py-2 bg-[#25D366] text-white rounded font-sans font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-[#1EBE5D] transition-colors"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        Avisar por WhatsApp
+                      </a>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

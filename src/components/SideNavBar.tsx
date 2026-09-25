@@ -13,6 +13,14 @@ import {
   ArrowLeftRight,
   LayoutDashboard,
   ShoppingCart,
+  Truck,
+  DollarSign,
+  ClipboardList,
+  Layers,
+  Laptop,
+  Receipt,
+  Store,
+  Boxes,
 } from 'lucide-react';
 import { Usuario } from '../types';
 
@@ -32,28 +40,60 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
   currentUser,
 }) => {
   const [almacenOpen, setAlmacenOpen] = React.useState(true);
-  const [configOpen, setConfigOpen] = React.useState(true);
+  const [tallerOpen, setTallerOpen] = React.useState(true);
+  const [configOpen, setConfigOpen] = React.useState(false);
+
   const isRestrictedUser = currentUser.rol !== 'ADMIN';
-  const moduleLabels: Record<string, string> = {
-    taller: currentUser.rol === 'TECNICO' ? 'Mis servicios técnicos' : 'Servicio técnico',
-    'panel-recepcion': 'Panel de recepción',
-    'panel-almacen': 'Panel de almacén',
-    equipos: 'Equipos registrados',
-    ventas: 'Punto de Venta (POS)',
-    dashboard: 'Dashboard Operativo',
-    clientes: 'Clientes',
-    productos: currentUser.rol === 'TECNICO' ? 'Consultar inventario' : 'Productos e inventario',
-    categorias: 'Categorías',
-    marcas: 'Marcas',
-    usuarios: 'Usuarios',
-    'config-empresa': 'Empresa',
-    sucursales: 'Sucursales',
-    movimientos: 'Movimientos entre sedes',
+
+  const moduleLabels: Record<string, { label: string; icon: React.ReactNode }> = {
+    dashboard: { label: 'Dashboard Operativo', icon: <LayoutDashboard className="w-5 h-5 shrink-0" /> },
+    ventas: { label: 'Punto de Venta (POS)', icon: <Receipt className="w-5 h-5 shrink-0" /> },
+    caja: { label: 'Caja & Finanzas', icon: <DollarSign className="w-5 h-5 shrink-0" /> },
+    taller: {
+      label: currentUser.rol === 'TECNICO' ? 'Mis servicios técnicos' : 'Taller & Órdenes de Servicio',
+      icon: <Wrench className="w-5 h-5 shrink-0" />,
+    },
+    'panel-recepcion': { label: 'Panel de recepción', icon: <ClipboardList className="w-5 h-5 shrink-0" /> },
+    'panel-almacen': { label: 'Panel de almacén', icon: <Boxes className="w-5 h-5 shrink-0" /> },
+    equipos: { label: 'Equipos de Clientes', icon: <Laptop className="w-5 h-5 shrink-0" /> },
+    productos: {
+      label: currentUser.rol === 'TECNICO' ? 'Consultar inventario' : 'Productos & Stock por Sede',
+      icon: <Package className="w-5 h-5 shrink-0" />,
+    },
+    compras: { label: 'Compras & Proveedores', icon: <Truck className="w-5 h-5 shrink-0" /> },
+    movimientos: { label: 'Movimientos entre sedes', icon: <ArrowLeftRight className="w-5 h-5 shrink-0" /> },
+    categorias: { label: 'Categorías', icon: <Layers className="w-5 h-5 shrink-0" /> },
+    marcas: { label: 'Marcas', icon: <Tag className="w-5 h-5 shrink-0" /> },
+    clientes: { label: 'Directorio de Clientes', icon: <Users className="w-5 h-5 shrink-0" /> },
+    usuarios: { label: 'Usuarios & Permisos', icon: <ShieldCheck className="w-5 h-5 shrink-0" /> },
+    'config-empresa': { label: 'Datos de Empresa', icon: <Building2 className="w-5 h-5 shrink-0" /> },
+    sucursales: { label: 'Sedes & Sucursales', icon: <Store className="w-5 h-5 shrink-0" /> },
   };
 
   const handleNavClick = (viewName: string) => {
     setActiveView(viewName);
     onCloseMobile();
+  };
+
+  const renderNavItem = (viewId: string, label?: string, icon?: React.ReactNode) => {
+    const info = moduleLabels[viewId] || { label: label || viewId, icon: icon || <Package className="w-5 h-5" /> };
+    const isActive = activeView === viewId;
+
+    return (
+      <button
+        key={viewId}
+        type="button"
+        onClick={() => handleNavClick(viewId)}
+        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-left text-sm font-semibold cursor-pointer ${
+          isActive
+            ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-bold shadow-md'
+            : 'text-slate-200/90 hover:bg-white/10 hover:text-white'
+        }`}
+      >
+        {info.icon}
+        <span className="truncate">{info.label}</span>
+      </button>
+    );
   };
 
   return (
@@ -68,11 +108,11 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 w-[260px] bg-[#00346F] text-white z-50 flex flex-col shadow-2xl transition-transform duration-300 md:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 w-[285px] bg-[#00346F] text-white z-50 flex flex-col shadow-2xl transition-transform duration-300 md:translate-x-0 ${
           isOpenMobile ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
-        {/* Company Header matching Screenshot */}
+        {/* Company Header */}
         <div className="p-5 border-b border-blue-900/40 flex flex-col items-center justify-center text-center relative">
           <button
             onClick={onCloseMobile}
@@ -81,246 +121,136 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
             <X className="w-5 h-5" />
           </button>
 
-          <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center mb-2 shadow-md">
-            <span className="font-extrabold text-[#00346F] text-xl tracking-tight">MG</span>
+          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center mb-2 shadow-md">
+            <span className="font-black text-[#00346F] text-xl tracking-tight">MG</span>
           </div>
-          <h2 className="font-bold text-sm text-white tracking-wide">MG SOLUTIONS GROUP</h2>
-          <p className="text-[10px] font-semibold text-blue-200/80 uppercase tracking-widest mt-0.5">
-            ERP System
+          <h2 className="font-black text-sm text-white tracking-wide">MG SOLUTIONS GROUP</h2>
+          <p className="text-[10px] font-bold text-blue-200/80 uppercase tracking-widest mt-0.5">
+            ERP System • Chiclayo
           </p>
         </div>
 
         {/* Navigation list */}
-        <div className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 text-xs font-medium">
+        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-4 text-sm">
           {isRestrictedUser ? (
-            <>
-              <p className="px-3.5 pb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-200/70">
-                Módulos disponibles
+            <div>
+              <p className="px-3 pb-2 text-xs font-bold uppercase tracking-wider text-blue-200/70">
+                Módulos Habilitados
               </p>
-              {currentUser.modulosPermitidos.map((moduleId) => (
-                <button
-                  key={moduleId}
-                  onClick={() => handleNavClick(moduleId)}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
-                    activeView === moduleId
-                      ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
-                      : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  <Package className="w-4 h-4 flex-shrink-0" />
-                  <span>{moduleLabels[moduleId] || moduleId}</span>
-                </button>
-              ))}
-            </>
+              <div className="space-y-1">
+                {currentUser.modulosPermitidos.map((moduleId) => renderNavItem(moduleId))}
+              </div>
+            </div>
           ) : (
             <>
-          {/* Configuración */}
-          <div>
-            <button
-              onClick={() => {
-                setConfigOpen(!configOpen);
-                handleNavClick('config-empresa');
-              }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg transition-all text-left ${
-                activeView.startsWith('config')
-                  ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
-                  : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Settings className="w-4 h-4 flex-shrink-0" />
-                <span>Configuración</span>
+              {/* Resumen Principal */}
+              <div>
+                <p className="px-3 pb-1.5 text-xs font-bold uppercase tracking-wider text-blue-200/70">
+                  Principal
+                </p>
+                <div className="space-y-1">
+                  {renderNavItem('dashboard', 'Dashboard Operativo', <LayoutDashboard className="w-5 h-5" />)}
+                  {renderNavItem('ventas', 'Punto de Venta (POS)', <Receipt className="w-5 h-5" />)}
+                  {renderNavItem('caja', 'Caja & Finanzas', <DollarSign className="w-5 h-5" />)}
+                </div>
               </div>
-              {configOpen ? (
-                <ChevronDown className="w-3.5 h-3.5 text-white/60" />
-              ) : (
-                <ChevronRight className="w-3.5 h-3.5 text-white/60" />
-              )}
-            </button>
 
-            {configOpen && (
-              <div className="pl-9 pr-2 py-1 space-y-0.5">
-                <button
-                  onClick={() => handleNavClick('config-empresa')}
-                  className={`w-full text-left py-1.5 px-2 rounded text-[11px] transition-colors ${
-                    activeView === 'config-empresa'
-                      ? 'text-white font-bold bg-white/15'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
-                >
-                  Datos de la Empresa
-                </button>
-                <button
-                  onClick={() => handleNavClick('sucursales')}
-                  className={`w-full text-left py-1.5 px-2 rounded text-[11px] transition-colors ${
-                    activeView === 'sucursales'
-                      ? 'text-white font-bold bg-white/15'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
-                >
-                  Sucursales
-                </button>
+              {/* Taller y Servicio Técnico */}
+              <div>
+                <div className="flex items-center justify-between px-3 pb-1.5">
+                  <p className="text-xs font-bold uppercase tracking-wider text-blue-200/70">
+                    Servicio Técnico
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setTallerOpen(!tallerOpen)}
+                    className="text-white/60 hover:text-white cursor-pointer"
+                  >
+                    {tallerOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </button>
+                </div>
+                {tallerOpen && (
+                  <div className="space-y-1">
+                    {renderNavItem('taller', 'Taller & Órdenes', <Wrench className="w-5 h-5" />)}
+                    {renderNavItem('panel-recepcion', 'Panel de Recepción', <ClipboardList className="w-5 h-5" />)}
+                    {renderNavItem('equipos', 'Equipos Registrados', <Laptop className="w-5 h-5" />)}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Administración / Usuarios */}
-          <button
-            onClick={() => handleNavClick('usuarios')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
-              activeView === 'usuarios'
-                ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
-                : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4 flex-shrink-0" />
-            <span>Administración / Usuarios</span>
-          </button>
-
-          {/* Clientes */}
-          <button
-            onClick={() => handleNavClick('clientes')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
-              activeView === 'clientes'
-                ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
-                : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <Users className="w-4 h-4 flex-shrink-0" />
-            <span>Clientes</span>
-          </button>
-
-          {/* Servicio técnico */}
-          <button
-            onClick={() => handleNavClick('taller')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
-              activeView === 'taller'
-                ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
-                : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <Wrench className="w-4 h-4 flex-shrink-0" />
-            <span>Servicio técnico</span>
-          </button>
-
-          <button
-            onClick={() => handleNavClick('equipos')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
-              activeView === 'equipos'
-                ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
-                : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <Package className="w-4 h-4 flex-shrink-0" />
-            <span>Equipos registrados</span>
-          </button>
-
-          {/* Almacén (Productos, Categorías, Marcas) */}
-          <div>
-            <button
-              onClick={() => {
-                setAlmacenOpen(!almacenOpen);
-                handleNavClick('productos');
-              }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg transition-all text-left ${
-                activeView === 'productos' || activeView === 'categorias' || activeView === 'marcas'
-                  ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
-                  : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Package className="w-4 h-4 flex-shrink-0" />
-                <span>Almacén</span>
+              {/* Almacén e Inventario */}
+              <div>
+                <div className="flex items-center justify-between px-3 pb-1.5">
+                  <p className="text-xs font-bold uppercase tracking-wider text-blue-200/70">
+                    Almacén & Sedes
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setAlmacenOpen(!almacenOpen)}
+                    className="text-white/60 hover:text-white cursor-pointer"
+                  >
+                    {almacenOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </button>
+                </div>
+                {almacenOpen && (
+                  <div className="space-y-1">
+                    {renderNavItem('productos', 'Productos & Stock', <Package className="w-5 h-5" />)}
+                    {renderNavItem('compras', 'Compras & Abastecimiento', <Truck className="w-5 h-5" />)}
+                    {renderNavItem('movimientos', 'Traslados entre Sedes', <ArrowLeftRight className="w-5 h-5" />)}
+                    {renderNavItem('panel-almacen', 'Panel de Almacén', <Boxes className="w-5 h-5" />)}
+                    {renderNavItem('categorias', 'Categorías', <Layers className="w-5 h-5" />)}
+                    {renderNavItem('marcas', 'Marcas', <Tag className="w-5 h-5" />)}
+                  </div>
+                )}
               </div>
-              {almacenOpen ? (
-                <ChevronDown className="w-3.5 h-3.5 text-white/60" />
-              ) : (
-                <ChevronRight className="w-3.5 h-3.5 text-white/60" />
-              )}
-            </button>
 
-            {almacenOpen && (
-              <div className="pl-9 pr-2 py-1 space-y-0.5">
-                <button
-                  onClick={() => handleNavClick('productos')}
-                  className={`w-full text-left py-1.5 px-2 rounded text-[11px] transition-colors ${
-                    activeView === 'productos'
-                      ? 'text-white font-bold bg-white/15'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
-                >
-                  Productos
-                </button>
-                <button
-                  onClick={() => handleNavClick('categorias')}
-                  className={`w-full text-left py-1.5 px-2 rounded text-[11px] transition-colors ${
-                    activeView === 'categorias'
-                      ? 'text-white font-bold bg-white/15'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
-                >
-                  Categorías
-                </button>
-                <button
-                  onClick={() => handleNavClick('marcas')}
-                  className={`w-full text-left py-1.5 px-2 rounded text-[11px] transition-colors ${
-                    activeView === 'marcas'
-                      ? 'text-white font-bold bg-white/15'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
-                >
-                  Marcas
-                </button>
+              {/* Comercial */}
+              <div>
+                <p className="px-3 pb-1.5 text-xs font-bold uppercase tracking-wider text-blue-200/70">
+                  Comercial
+                </p>
+                <div className="space-y-1">
+                  {renderNavItem('clientes', 'Directorio de Clientes', <Users className="w-5 h-5" />)}
+                </div>
               </div>
-            )}
-          </div>
 
-          {/* Movimientos de inventario */}
-          <button
-            onClick={() => handleNavClick('movimientos')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
-              activeView === 'movimientos'
-                ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
-                : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <ArrowLeftRight className="w-4 h-4 flex-shrink-0" />
-            <span>Movimientos entre sedes</span>
-          </button>
-
-          {/* Dashboard Operativo (Estadísticas y Resumen) */}
-          <button
-            onClick={() => handleNavClick('dashboard')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
-              activeView === 'dashboard'
-                ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
-                : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <LayoutDashboard className="w-4 h-4 flex-shrink-0" />
-            <span>Dashboard Operativo</span>
-          </button>
-
-          {/* Punto de Venta (POS) */}
-          <button
-            onClick={() => handleNavClick('ventas')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all text-left ${
-              activeView === 'ventas'
-                ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-semibold shadow-inner'
-                : 'text-slate-200/85 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <ShoppingCart className="w-4 h-4 flex-shrink-0" />
-            <span>Punto de Venta (POS)</span>
-          </button>
-
+              {/* Administración */}
+              <div>
+                <div className="flex items-center justify-between px-3 pb-1.5">
+                  <p className="text-xs font-bold uppercase tracking-wider text-blue-200/70">
+                    Administración
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setConfigOpen(!configOpen)}
+                    className="text-white/60 hover:text-white cursor-pointer"
+                  >
+                    {configOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  {renderNavItem('usuarios', 'Usuarios & Paneles', <ShieldCheck className="w-5 h-5" />)}
+                  {configOpen && (
+                    <>
+                      {renderNavItem('config-empresa', 'Datos de Empresa', <Building2 className="w-5 h-5" />)}
+                      {renderNavItem('sucursales', 'Sedes & Sucursales', <Store className="w-5 h-5" />)}
+                    </>
+                  )}
+                </div>
+              </div>
             </>
           )}
         </div>
 
-        {/* Footer info */}
-        <div className="p-3 bg-black/20 border-t border-blue-900/40 text-[10px] text-blue-200/70 text-center">
-          <span>v2.5.0 • MG SOLUTIONS GROUP ERP</span>
+        {/* User Card Footer */}
+        <div className="p-4 border-t border-blue-900/40 bg-blue-950/40 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center font-black text-sm text-blue-200">
+            {currentUser.nombreCompleto.charAt(0)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-white truncate">{currentUser.nombreCompleto}</p>
+            <p className="text-xs font-semibold text-blue-200/70 truncate">{currentUser.rol}</p>
+          </div>
         </div>
       </aside>
     </>

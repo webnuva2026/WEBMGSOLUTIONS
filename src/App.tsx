@@ -6,10 +6,14 @@ import {
   INITIAL_CATEGORIAS,
   INITIAL_MARCAS,
   INITIAL_PRODUCTOS,
-  INITIAL_CLIENTES,
   INITIAL_ORDENES_SERVICIO,
   INITIAL_VENTAS,
+  INITIAL_PROVEEDORES,
+  INITIAL_COMPRAS,
+  INITIAL_CAJA_TURNOS,
+  INITIAL_MOVIMIENTOS_CAJA,
 } from './data/initialData';
+import { clientService } from './services/client.service';
 import {
   Usuario,
   Cliente,
@@ -21,6 +25,10 @@ import {
   MovimientoInventario,
   Equipo,
   Venta,
+  Proveedor,
+  Compra,
+  CajaTurno,
+  MovimientoCaja,
 } from './types';
 import { TopNavBar } from './components/TopNavBar';
 import { SideNavBar } from './components/SideNavBar';
@@ -40,6 +48,10 @@ import { InventoryTransfersView } from './components/InventoryTransfersView';
 import { EquipmentManagementView } from './components/EquipmentManagementView';
 import { ReceptionDashboardView } from './components/ReceptionDashboardView';
 import { WarehouseDashboardView } from './components/WarehouseDashboardView';
+import { PurchasesView } from './components/PurchasesView';
+import { CashRegisterView } from './components/CashRegisterView';
+import { ForceChangePasswordModal } from './components/ForceChangePasswordModal';
+import { authService } from './services/auth.service';
 
 export function App() {
   // Persistence state loaders
@@ -58,11 +70,13 @@ export function App() {
     if (!saved) return INITIAL_USUARIOS;
     const allowedModules = new Set([
       'ventas',
+      'caja',
       'panel-recepcion',
       'panel-almacen',
       'taller',
       'clientes',
       'productos',
+      'compras',
       'categorias',
       'marcas',
       'usuarios',
@@ -75,7 +89,12 @@ export function App() {
       const modules = user.modulosPermitidos.filter((moduleId) => allowedModules.has(moduleId));
       const rolePanel = user.rol === 'SECRETARIA' ? 'panel-recepcion' : user.rol === 'ALMACEN' ? 'panel-almacen' : null;
       if (user.rol === 'ALMACEN' && !modules.includes('movimientos')) modules.push('movimientos');
-      if (user.rol === 'ADMIN' && !modules.includes('movimientos')) modules.push('movimientos');
+      if (user.rol === 'ALMACEN' && !modules.includes('compras')) modules.push('compras');
+      if (user.rol === 'ADMIN') {
+        if (!modules.includes('movimientos')) modules.push('movimientos');
+        if (!modules.includes('compras')) modules.push('compras');
+        if (!modules.includes('caja')) modules.push('caja');
+      }
       return {
         ...user,
         modulosPermitidos: rolePanel && !modules.includes(rolePanel) ? [rolePanel, ...modules] : modules,
@@ -102,10 +121,21 @@ export function App() {
     }));
   });
 
-  const [clientes, setClientes] = useState<Cliente[]>(() => {
+const [clientes, setClientes] = useState<Cliente[]>(() => {
     const saved = localStorage.getItem('mg_clientes');
-    return saved ? JSON.parse(saved) : INITIAL_CLIENTES;
+    return saved ? JSON.parse(saved) : [];
   });
+
+  const [total, setTotal] = useState(0);
+
+  useEffect(() => {
+    clientService.getClients().then(res => {
+      if (res.success) {
+        setClientes(res.data);
+        setTotal(res.pagination.total);
+      }
+    });
+  }, []);
 
   const [ordenes, setOrdenes] = useState(() => {
     const saved = localStorage.getItem('mg_ordenes_servicio');
@@ -135,9 +165,32 @@ export function App() {
     return saved ? JSON.parse(saved) : INITIAL_VENTAS;
   });
 
+  const [proveedores, setProveedores] = useState<Proveedor[]>(() => {
+    const saved = localStorage.getItem('mg_proveedores');
+    return saved ? JSON.parse(saved) : INITIAL_PROVEEDORES;
+  });
+
+  const [compras, setCompras] = useState<Compra[]>(() => {
+    const saved = localStorage.getItem('mg_compras');
+    return saved ? JSON.parse(saved) : INITIAL_COMPRAS;
+  });
+
+  const [cajasTurnos, setCajasTurnos] = useState<CajaTurno[]>(() => {
+    const saved = localStorage.getItem('mg_cajas_turnos');
+    return saved ? JSON.parse(saved) : INITIAL_CAJA_TURNOS;
+  });
+
+  const [movimientosCaja, setMovimientosCaja] = useState<MovimientoCaja[]>(() => {
+    const saved = localStorage.getItem('mg_movimientos_caja');
+    return saved ? JSON.parse(saved) : INITIAL_MOVIMIENTOS_CAJA;
+  });
+
   // Current session
   const [currentUser, setCurrentUser] = useState<Usuario | null>(null);
   const [isWorkerAccess, setIsWorkerAccess] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [showForceChangePassword, setShowForceChangePassword] = useState(false);
+
 
   // View Navigation
   const [activeView, setActiveView] = useState<string>('ventas');
@@ -152,6 +205,22 @@ export function App() {
   useEffect(() => {
     localStorage.setItem('mg_ventas', JSON.stringify(ventas));
   }, [ventas]);
+
+  useEffect(() => {
+    localStorage.setItem('mg_proveedores', JSON.stringify(proveedores));
+  }, [proveedores]);
+
+  useEffect(() => {
+    localStorage.setItem('mg_compras', JSON.stringify(compras));
+  }, [compras]);
+
+  useEffect(() => {
+    localStorage.setItem('mg_cajas_turnos', JSON.stringify(cajasTurnos));
+  }, [cajasTurnos]);
+
+  useEffect(() => {
+    localStorage.setItem('mg_movimientos_caja', JSON.stringify(movimientosCaja));
+  }, [movimientosCaja]);
 
   useEffect(() => {
     localStorage.setItem('mg_empresa', JSON.stringify(empresa));
@@ -176,10 +245,6 @@ export function App() {
   useEffect(() => {
     localStorage.setItem('mg_productos', JSON.stringify(productos));
   }, [productos]);
-
-  useEffect(() => {
-    localStorage.setItem('mg_clientes', JSON.stringify(clientes));
-  }, [clientes]);
 
   useEffect(() => {
     localStorage.setItem('mg_ordenes_servicio', JSON.stringify(ordenes));
@@ -230,9 +295,29 @@ export function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // Validar sesión activa al cargar la app
+  useEffect(() => {
+    const token = authService.getToken();
+    if (token) {
+      authService.getProfile().then((res) => {
+        if (res.success && res.user) {
+          setCurrentUser(res.user);
+          if (res.user.requiereCambioPassword) {
+            setShowForceChangePassword(true);
+          }
+        }
+      });
+    }
+  }, []);
+
   // Handlers
   const handleLoginSuccess = (user: Usuario) => {
     setCurrentUser(user);
+    // Si requiere cambio de contraseña, mostrar modal bloqueante
+    if (user.requiereCambioPassword) {
+      setShowForceChangePassword(true);
+      return;
+    }
     setActiveView(
       user.rol === 'TECNICO'
         ? 'taller'
@@ -243,15 +328,38 @@ export function App() {
         : 'ventas'
     );
     setIsWorkerAccess(false);
-    showToast('Bienvenido al Sistema', `Sesión iniciada como ${user.nombreCompleto} (${user.rol}).`, 'success');
+    showToast('Bienvenido al Sistema', `Sesion iniciada como ${user.nombreCompleto} (${user.rol}).`, 'success');
   };
 
-  const handleLogout = () => {
+  const handleForceChangeSuccess = () => {
+    setShowForceChangePassword(false);
+    if (currentUser) {
+      const updatedUser = { ...currentUser, requiereCambioPassword: false };
+      setCurrentUser(updatedUser);
+      const rol = updatedUser.rol;
+      setActiveView(
+        rol === 'TECNICO'
+          ? 'taller'
+          : rol === 'SECRETARIA'
+          ? 'panel-recepcion'
+          : rol === 'ALMACEN'
+          ? 'panel-almacen'
+          : 'ventas'
+      );
+      setIsWorkerAccess(false);
+      showToast('Contrasena actualizada', 'Su nueva contrasena ha sido guardada. Bienvenido al sistema.', 'success');
+    }
+  };
+
+  const handleLogout = async () => {
+    await authService.logout();
     setCurrentUser(null);
     setActiveView('ventas');
     setIsWorkerAccess(false);
+    setShowForceChangePassword(false);
     showToast('Sesión Finalizada', 'Ha cerrado sesión en el sistema ERP de forma segura.', 'info');
   };
+
 
   const handleSaveOrden = (orden: typeof INITIAL_ORDENES_SERVICIO[number]) => {
     setOrdenes((prev) => {
@@ -348,25 +456,186 @@ export function App() {
   // Sales Actions
   const handleSaveVenta = (newVenta: Venta) => {
     setVentas((prev) => [newVenta, ...prev]);
+    // Also record in active cash register turn if open
+    const openShift = cajasTurnos.find((c) => c.estado === 'ABIERTA');
+    if (openShift) {
+      const newMov: MovimientoCaja = {
+        id: `caja-v-${Date.now()}`,
+        cajaTurnoId: openShift.id,
+        tipo: 'INGRESO',
+        concepto: `Venta POS ${newVenta.tipoComprobante} ${newVenta.codigoComprobante}`,
+        categoria: 'VENTA_POS',
+        monto: newVenta.total,
+        metodoPago: newVenta.metodoPago,
+        fecha: newVenta.fecha,
+        registradoPor: newVenta.vendedorNombre,
+        referenciaCodigo: newVenta.codigoComprobante,
+      };
+      setMovimientosCaja((prev) => [newMov, ...prev]);
+    }
   };
 
-  // Client Actions
-  const handleSaveCliente = (cli: Cliente) => {
-    setClientes((prev) => {
-      const exists = prev.find((c) => c.id === cli.id);
-      if (exists) {
-        return prev.map((c) => (c.id === cli.id ? cli : c));
-      }
-      return [cli, ...prev];
+  // Purchases Actions
+  const handleSaveCompra = (newCompra: Compra) => {
+    setCompras((prev) => [newCompra, ...prev]);
+    // Increase stock in target branch and update unit cost
+    setProductos((prev) =>
+      prev.map((prod) => {
+        const item = newCompra.items.find((it) => it.productoId === prod.id);
+        if (!item) return prod;
+        const branchStock: Record<string, number> = { ...(prod.stockPorSede || { [prod.sucursal]: prod.stock }) };
+        branchStock[newCompra.sucursalDestino] = (branchStock[newCompra.sucursalDestino] || 0) + item.cantidad;
+        const newTotalStock = Object.values(branchStock).reduce((a: number, b: number) => a + b, 0);
+        return {
+          ...prod,
+          stock: newTotalStock,
+          stockPorSede: branchStock,
+          precioCosto: item.precioCostoUnitario,
+        };
+      })
+    );
+  };
+
+  const handleAnularCompra = (compraId: number) => {
+    const target = compras.find((c) => c.id === compraId);
+    if (!target || target.estado === 'ANULADA') return;
+
+    setCompras((prev) =>
+      prev.map((c) => (c.id === compraId ? { ...c, estado: 'ANULADA' } : c))
+    );
+
+    // Revert stock
+    setProductos((prev) =>
+      prev.map((prod) => {
+        const item = target.items.find((it) => it.productoId === prod.id);
+        if (!item) return prod;
+        const branchStock: Record<string, number> = { ...(prod.stockPorSede || { [prod.sucursal]: prod.stock }) };
+        branchStock[target.sucursalDestino] = Math.max(
+          0,
+          (branchStock[target.sucursalDestino] || 0) - item.cantidad
+        );
+        const newTotalStock = Object.values(branchStock).reduce((a: number, b: number) => a + b, 0);
+        return {
+          ...prod,
+          stock: newTotalStock,
+          stockPorSede: branchStock,
+        };
+      })
+    );
+  };
+
+  // Suppliers Actions
+  const handleSaveProveedor = (prov: Proveedor) => {
+    setProveedores((prev) => {
+      const exists = prev.find((p) => p.id === prov.id);
+      return exists ? prev.map((p) => (p.id === prov.id ? prov : p)) : [prov, ...prev];
     });
   };
 
-  const handleToggleClienteStatus = (id: number) => {
-    setClientes((prev) =>
-      prev.map((c) =>
-        c.id === id ? { ...c, estado: c.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO' } : c
-      )
+  const handleToggleProveedorEstado = (id: number) => {
+    setProveedores((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, estado: p.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO' } : p))
     );
+  };
+
+  // Cash Register Actions
+  const handleAbrirCaja = (montoApertura: number, sucursal: string, observaciones?: string) => {
+    const newTurno: CajaTurno = {
+      id: Date.now(),
+      sucursal,
+      fechaApertura: new Date().toLocaleString('es-PE'),
+      montoApertura,
+      totalIngresosEfectivo: 0,
+      totalIngresosDigital: 0,
+      totalEgresos: 0,
+      saldoEsperado: montoApertura,
+      estado: 'ABIERTA',
+      abiertaPor: currentUser?.nombreCompleto || 'Usuario',
+      observaciones,
+    };
+    setCajasTurnos((prev) => [newTurno, ...prev]);
+    showToast('Turno de Caja Abierto', `Fondo inicial registrado en S/ ${montoApertura.toFixed(2)}.`, 'success');
+  };
+
+  const handleCerrarCaja = (cajaId: number, montoEfectivoReal: number, observaciones?: string) => {
+    setCajasTurnos((prev) =>
+      prev.map((c) => {
+        if (c.id !== cajaId) return c;
+        const diff = montoEfectivoReal - c.saldoEsperado;
+        return {
+          ...c,
+          fechaCierre: new Date().toLocaleString('es-PE'),
+          montoCierreEfectivo: montoEfectivoReal,
+          diferencia: diff,
+          estado: 'CERRADA',
+          cerradaPor: currentUser?.nombreCompleto || 'Usuario',
+          observaciones: observaciones ? `${c.observaciones || ''} | Cierre: ${observaciones}` : c.observaciones,
+        };
+      })
+    );
+    showToast('Turno de Caja Cerrado', `Arqueo finalizado con S/ ${montoEfectivoReal.toFixed(2)}.`, 'info');
+  };
+
+  const handleRegistrarMovimientoCaja = (mov: Omit<MovimientoCaja, 'id' | 'cajaTurnoId' | 'fecha' | 'registradoPor'>) => {
+    const openShift = cajasTurnos.find((c) => c.estado === 'ABIERTA');
+    const newMov: MovimientoCaja = {
+      ...mov,
+      id: `mov-${Date.now()}`,
+      cajaTurnoId: openShift ? openShift.id : 0,
+      fecha: new Date().toLocaleString('es-PE'),
+      registradoPor: currentUser?.nombreCompleto || 'Usuario',
+    };
+    setMovimientosCaja((prev) => [newMov, ...prev]);
+
+    if (openShift) {
+      setCajasTurnos((prev) =>
+        prev.map((c) => {
+          if (c.id !== openShift.id) return c;
+          let incEfectivo = 0;
+          let incDigital = 0;
+          let incEgreso = 0;
+          if (mov.tipo === 'INGRESO') {
+            if (mov.metodoPago === 'EFECTIVO') incEfectivo = mov.monto;
+            else incDigital = mov.monto;
+          } else {
+            incEgreso = mov.monto;
+          }
+          const nuevoEsperado = c.montoApertura + (c.totalIngresosEfectivo + incEfectivo) - (c.totalEgresos + incEgreso);
+          return {
+            ...c,
+            totalIngresosEfectivo: c.totalIngresosEfectivo + incEfectivo,
+            totalIngresosDigital: c.totalIngresosDigital + incDigital,
+            totalEgresos: c.totalEgresos + incEgreso,
+            saldoEsperado: nuevoEsperado,
+          };
+        })
+      );
+    }
+  };
+
+  // Client Actions
+  const handleSaveCliente = async (cli: Cliente) => {
+    setActionLoading(true);
+    const res = await clientService.createClient(cli as any);
+    setActionLoading(false);
+    if (res.success) {
+      setClientes(prev => [res.data, ...prev]);
+      showToast('Cliente registrado', `Cliente ${res.data.razonSocial} creado.`, 'success');
+    } else {
+      showToast('Error', res.message || 'Error al crear cliente.', 'error');
+    }
+  };
+
+  const handleToggleClienteStatus = async (id: number) => {
+    setActionLoading(true);
+    const res = await clientService.toggleStatus(id);
+    setActionLoading(false);
+    if (res.success) {
+      setClientes(prev => prev.map(c => c.id === id ? { ...c, estado: res.data.estado as any } : c));
+      showToast('Estado actualizado', `Cliente ${res.data.estado === 'ACTIVO' ? 'activado' : 'desactivado'}.`, 'success');
+    } else {
+      showToast('Error', res.message || 'Error al cambiar estado.', 'error');
+    }
   };
 
   // User Actions
@@ -443,6 +712,20 @@ export function App() {
     );
   }
 
+  // Modal de cambio obligatorio de contrasena (bloquea acceso al sistema)
+  if (showForceChangePassword && currentUser) {
+    return (
+      <div className="font-sans antialiased">
+        <ForceChangePasswordModal
+          username={currentUser.username}
+          onSuccess={handleForceChangeSuccess}
+          onLogout={handleLogout}
+        />
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F8F9FF] font-sans antialiased flex flex-col">
       {/* Top Navigation Bar */}
@@ -471,7 +754,7 @@ export function App() {
         />
 
         {/* View Switcher Container */}
-        <main className="flex-1 flex flex-col md:pl-[260px] transition-all min-h-[calc(100vh-4rem)]">
+        <main className="flex-1 flex flex-col md:pl-[285px] transition-all min-h-[calc(100vh-4rem)]">
           {activeView === 'ventas' && (
             <SalesPOSView
               currentUser={currentUser}
@@ -637,6 +920,35 @@ export function App() {
             />
           )}
 
+          {activeView === 'compras' && (
+            <PurchasesView
+              currentUser={currentUser}
+              compras={compras}
+              proveedores={proveedores}
+              productos={productos}
+              sucursales={sucursales}
+              onSaveCompra={handleSaveCompra}
+              onAnularCompra={handleAnularCompra}
+              onSaveProveedor={handleSaveProveedor}
+              onToggleProveedorEstado={handleToggleProveedorEstado}
+              onShowToast={showToast}
+              readOnly={currentUser.rol === 'TECNICO' || currentUser.rol === 'SECRETARIA'}
+            />
+          )}
+
+          {activeView === 'caja' && (
+            <CashRegisterView
+              currentUser={currentUser}
+              sucursales={sucursales}
+              cajasTurnos={cajasTurnos}
+              movimientosCaja={movimientosCaja}
+              onAbrirCaja={handleAbrirCaja}
+              onCerrarCaja={handleCerrarCaja}
+              onRegistrarMovimientoCaja={handleRegistrarMovimientoCaja}
+              onShowToast={showToast}
+              readOnly={currentUser.rol === 'TECNICO'}
+            />
+          )}
 
         </main>
       </div>

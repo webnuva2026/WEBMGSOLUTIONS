@@ -100,7 +100,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   }, [searchTerm, ordenes, productos, clientes]);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 md:px-6 h-16 bg-white border-b border-slate-200 shadow-sm w-full md:pl-[260px] transition-all">
+    <header className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 md:px-6 h-16 bg-white border-b border-slate-200 shadow-sm w-full md:pl-[285px] transition-all">
       {/* Left section: mobile hamburger & title */}
       <div className="flex items-center gap-3">
         <button

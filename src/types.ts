@@ -1,6 +1,16 @@
 export type EstadoRegistro = 'ACTIVO' | 'INACTIVO';
 
-export type UserRole = 'ADMIN' | 'SECRETARIA' | 'TECNICO' | 'FACTURADOR' | 'ALMACEN' | 'CAJERO';
+export type UserRole = 'SUPERADMIN' | 'ADMIN' | 'SECRETARIA' | 'TECNICO' | 'FACTURADOR' | 'ALMACEN' | 'CAJERO' | (string & {});
+
+export interface Rol {
+  id: number;
+  codigo: string;
+  nombre: string;
+  descripcion: string;
+  modulosPredeterminados: string[];
+  esSistema: boolean;
+  estado: string;
+}
 
 export interface ModuloSistemaDef {
   id: string;
@@ -12,6 +22,8 @@ export interface ModuloSistemaDef {
 
 export const MODULOS_DISPONIBLES: ModuloSistemaDef[] = [
   { id: 'ventas', nombre: 'Ventas', descripcion: 'Gestión de ventas y operaciones comerciales', icono: 'Receipt', categoria: 'Operaciones' },
+  { id: 'caja', nombre: 'Caja & Finanzas', descripcion: 'Apertura, arqueo, turnos y balance de caja', icono: 'DollarSign', categoria: 'Operaciones' },
+  { id: 'compras', nombre: 'Compras & Proveedores', descripcion: 'Registro de facturas de compra, abastecimiento y proveedores', icono: 'Truck', categoria: 'Almacén' },
   { id: 'panel-recepcion', nombre: 'Panel de recepción', descripcion: 'Ingresos y seguimiento inicial de equipos', icono: 'ClipboardList', categoria: 'Taller' },
   { id: 'panel-almacen', nombre: 'Panel de almacén', descripcion: 'Stock y movimientos entre sedes', icono: 'Package', categoria: 'Almacén' },
   { id: 'taller', nombre: 'Servicio Técnico & Taller', descripcion: 'Recepción, bandeja del técnico, avances y entregas', icono: 'Wrench', categoria: 'Taller' },
@@ -38,6 +50,7 @@ export interface Usuario {
   avatar?: string;
   ultimoAcceso: string;
   modulosPermitidos: string[]; // IDs de paneles permitidos: ['ventas', 'taller', ...]
+  requiereCambioPassword?: boolean;
 }
 
 export type TipoEquipo = 'LAPTOP' | 'PC_ESCRITORIO' | 'IMPRESORA' | 'MONITOR' | 'COMPONENTE' | 'SERVIDOR' | 'OTRO';
@@ -258,5 +271,78 @@ export interface Venta {
   montoRecibido?: number;
   vuelto?: number;
   estado: 'EMITIDO' | 'ANULADO';
+}
+
+export interface Proveedor {
+  id: number;
+  ruc: string;
+  razonSocial: string;
+  contacto?: string;
+  telefono: string;
+  email: string;
+  direccion: string;
+  estado: EstadoRegistro;
+  fechaRegistro: string;
+}
+
+export interface ItemCompra {
+  productoId: number;
+  codigo: string;
+  nombre: string;
+  categoria: string;
+  marca: string;
+  cantidad: number;
+  precioCostoUnitario: number;
+  subtotal: number;
+}
+
+export interface Compra {
+  id: number;
+  codigoComprobante: string; // Ej: FC01-00124 o GUIA-0089
+  tipoComprobante: 'FACTURA' | 'BOLETA' | 'GUIA_REMISION';
+  proveedorId: number;
+  proveedorRuc: string;
+  proveedorRazonSocial: string;
+  sucursalDestino: string;
+  compradorId: number;
+  compradorNombre: string;
+  fecha: string;
+  items: ItemCompra[];
+  subtotal: number;
+  igv: number;
+  total: number;
+  estado: 'REGISTRADA' | 'ANULADA';
+  observaciones?: string;
+}
+
+export interface MovimientoCaja {
+  id: string;
+  cajaTurnoId: number;
+  tipo: 'INGRESO' | 'EGRESO';
+  concepto: string;
+  categoria: 'VENTA_POS' | 'TALLER_ADELANTO' | 'TALLER_LIQUIDACION' | 'GASTO_OPERATIVO' | 'COMPRA_SUMINISTRO' | 'OTRO';
+  monto: number;
+  metodoPago: MetodoPago;
+  fecha: string;
+  registradoPor: string;
+  referenciaCodigo?: string;
+}
+
+export interface CajaTurno {
+  id: number;
+  sucursal: string;
+  fechaApertura: string;
+  fechaCierre?: string;
+  montoApertura: number;
+  montoCierreEfectivo?: number;
+  totalIngresosEfectivo: number;
+  totalIngresosDigital: number;
+  totalEgresos: number;
+  saldoEsperado: number;
+  diferencia?: number;
+  estado: 'ABIERTA' | 'CERRADA';
+  abiertaPor: string;
+  cerradaPor?: string;
+  observaciones?: string;
 }
 
