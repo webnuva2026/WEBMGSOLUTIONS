@@ -68,7 +68,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 // ─── STATIC CLIENT (PRODUCCIÓN & RENDER) ───
-const distPath = path.resolve(__dirname, '../dist');
+const distPath = path.resolve(process.cwd(), 'dist');
 if (fs.existsSync(distPath)) {
   console.log(`📦 Sirviendo frontend de producción desde: ${distPath}`);
   app.use(express.static(distPath));
