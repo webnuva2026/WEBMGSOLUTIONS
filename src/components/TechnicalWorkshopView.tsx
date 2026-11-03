@@ -2711,115 +2711,160 @@ _Por favor responda a este mensaje con SÍ para comenzar o indíquenos si tiene 
 
                     {/* Add Avance Form (For Technicians / Secretary) */}
                     <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
-                      <div className="flex items-center gap-2 font-bold text-slate-800 border-b border-slate-100 pb-2">
-                        <Edit3 className="w-4 h-4 text-[#00346F]" />
-                        Subir Estado y Avance de Reparación
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <div className="flex items-center gap-2 font-bold text-slate-800">
+                          <Edit3 className="w-4 h-4 text-[#00346F]" />
+                          Subir Estado y Avance de Reparación
+                        </div>
+                        {currentUser.rol === 'TECNICO' && selectedOrder.estado === 'PRESUPUESTADO' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                            <Lock className="w-3 h-3" />
+                            Bloqueado por Recepción
+                          </span>
+                        )}
                       </div>
 
                       {/* Banner de Presupuesto Pendiente de Autorización */}
                       {selectedOrder.estado === 'PRESUPUESTADO' && (
-                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
-                          <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
-                            <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
-                            <span>Presupuesto Registrado (Esperando Aprobación)</span>
+                        currentUser.rol === 'TECNICO' ? (
+                          <div className="p-4 bg-amber-50/90 border-2 border-amber-300 rounded-xl space-y-2 shadow-2xs">
+                            <div className="flex items-center gap-2 text-amber-950 font-extrabold text-xs">
+                              <div className="p-1.5 bg-amber-500 text-white rounded-lg shrink-0">
+                                <Lock className="w-4 h-4" />
+                              </div>
+                              <span>🔒 En Espera de Confirmación de Recepción (S/ {selectedOrder.costoTotal.toFixed(2)})</span>
+                            </div>
+                            <p className="text-[11px] text-amber-900 leading-relaxed">
+                              El presupuesto ya fue enviado a <strong>Recepción</strong>. Esta orden se encuentra <strong>bloqueada temporalmente</strong> hasta que Recepción se comunique con el cliente y confirme en el sistema si <strong>ACEPTÓ</strong> o <strong>RECHAZÓ</strong> la cotización.
+                            </p>
+                            <div className="pt-1 flex items-center gap-1.5 text-[10px] font-bold text-amber-800">
+                              <Clock className="w-3.5 h-3.5 animate-pulse text-amber-600" />
+                              <span>Se desbloqueará automáticamente cuando Recepción apruebe el presupuesto.</span>
+                            </div>
                           </div>
-                          <p className="text-[11px] text-amber-800 leading-tight">
-                            Si el cliente ya autorizó mediante Recepción, seleccione una acción rápida para iniciar los trabajos:
-                          </p>
-                          <div className="flex flex-wrap gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => handleAprobarPresupuesto(false)}
-                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              Cliente Aprobó (Iniciar Reparación)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleAprobarPresupuesto(true)}
-                              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors"
-                            >
-                              <Clock className="w-3.5 h-3.5" />
-                              Requiere Espera Repuestos
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (confirm('¿Confirmar que el cliente rechazó el presupuesto? Se pasará la orden a Rechazado / Sin Reparación.')) {
-                                  handleChangeOrderEstado(
-                                    'RECHAZADO_DEVUELTO',
-                                    '❌ Presupuesto Rechazado por Cliente',
-                                    'El cliente no aceptó los costos de reparación. El equipo se reensambla y se deja disponible para devolución en recepción.'
-                                  );
-                                }
-                              }}
-                              className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-bold text-[11px] flex items-center gap-1 border border-red-300 transition-colors"
-                            >
-                              <XCircle className="w-3.5 h-3.5" />
-                              Cliente Rechazó
-                            </button>
+                        ) : (
+                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+                            <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
+                              <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
+                              <span>Presupuesto Registrado por Técnico (S/ {selectedOrder.costoTotal.toFixed(2)}) — Esperando Confirmación de Recepción</span>
+                            </div>
+                            <p className="text-[11px] text-amber-800 leading-tight">
+                              Confirme la decisión del cliente para desbloquear la orden al técnico o proceder a su devolución:
+                            </p>
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => handleAprobarPresupuesto(false)}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                Cliente Aceptó (Iniciar Reparación)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleAprobarPresupuesto(true)}
+                                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                              >
+                                <Clock className="w-3.5 h-3.5" />
+                                Aceptó (Espera Repuestos)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm('¿Confirmar que el cliente rechazó el presupuesto? Se pasará la orden a Rechazado / Sin Reparación.')) {
+                                    handleChangeOrderEstado(
+                                      'RECHAZADO_DEVUELTO',
+                                      '❌ Presupuesto Rechazado por Cliente',
+                                      'El cliente no aceptó los costos de reparación. El equipo se reensambla y se deja disponible para devolución en recepción.'
+                                    );
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-bold text-[11px] flex items-center gap-1 border border-red-300 transition-colors cursor-pointer"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                Cliente Rechazó
+                              </button>
+                            </div>
                           </div>
-                        </div>
+                        )
                       )}
 
-                      <form onSubmit={handleAddAvance} className="space-y-3">
-                        <div>
-                          <label className="block font-semibold text-slate-600 mb-1">
-                            Cambiar Estado del Proceso *
-                          </label>
-                          <select
-                            value={newAvanceEstado}
-                            onChange={(e) => setNewAvanceEstado(e.target.value as any)}
-                            className="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-800"
-                          >
-                            <option value="EN_DIAGNOSTICO">2. En Diagnóstico (Revisando hardware)</option>
-                            <option value="PRESUPUESTADO">3. Presupuestado (Esperando autorización)</option>
-                            <option value="APROBADO_EN_REPARACION">4. En Reparación (Trabajando en taller)</option>
-                            <option value="ESPERA_REPUESTOS">5. Espera Repuestos (Falta stock)</option>
-                            <option value="REPARADO_PROBADO">6. Reparado & Probado (Listo para entrega)</option>
-                            <option value="LISTO_ENTREGA">7. Listo para Entrega (Pasar a Recepción)</option>
-                            <option value="RECHAZADO_DEVUELTO">Rechazado / Sin Reparación</option>
-                          </select>
-                        </div>
+                      {!(currentUser.rol === 'TECNICO' && selectedOrder.estado === 'PRESUPUESTADO') && (
+                        <form onSubmit={handleAddAvance} className="space-y-3">
+                          <div>
+                            <label className="block font-semibold text-slate-600 mb-1">
+                              Cambiar Estado del Proceso *
+                            </label>
+                            <select
+                              value={newAvanceEstado}
+                              onChange={(e) => setNewAvanceEstado(e.target.value as any)}
+                              className="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-800"
+                            >
+                              {currentUser.rol === 'TECNICO' &&
+                              (selectedOrder.estado === 'RECEPCIONADO' || selectedOrder.estado === 'EN_DIAGNOSTICO') ? (
+                                <>
+                                  <option value="EN_DIAGNOSTICO">2. En Diagnóstico (Revisando hardware)</option>
+                                  <option value="PRESUPUESTADO">3. Presupuestado (Enviar a Recepción para aprobación)</option>
+                                </>
+                              ) : currentUser.rol === 'TECNICO' ? (
+                                <>
+                                  <option value="APROBADO_EN_REPARACION">4. En Reparación (Trabajando en taller)</option>
+                                  <option value="ESPERA_REPUESTOS">5. Espera Repuestos (Falta stock)</option>
+                                  <option value="REPARADO_PROBADO">6. Reparado & Probado (Listo para entrega)</option>
+                                  <option value="LISTO_ENTREGA">7. Listo para Entrega (Pasar a Recepción)</option>
+                                </>
+                              ) : (
+                                <>
+                                  <option value="EN_DIAGNOSTICO">2. En Diagnóstico (Revisando hardware)</option>
+                                  <option value="PRESUPUESTADO">3. Presupuestado (Esperando autorización)</option>
+                                  <option value="APROBADO_EN_REPARACION">4. En Reparación (Trabajando en taller)</option>
+                                  <option value="ESPERA_REPUESTOS">5. Espera Repuestos (Falta stock)</option>
+                                  <option value="REPARADO_PROBADO">6. Reparado & Probado (Listo para entrega)</option>
+                                  <option value="LISTO_ENTREGA">7. Listo para Entrega (Pasar a Recepción)</option>
+                                  <option value="RECHAZADO_DEVUELTO">Rechazado / Sin Reparación</option>
+                                </>
+                              )}
+                            </select>
+                          </div>
 
-                        <div>
-                          <label className="block font-semibold text-slate-600 mb-1">
-                            Título del Avance *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={newAvanceTitulo}
-                            onChange={(e) => setNewAvanceTitulo(e.target.value)}
-                            placeholder="Ej: Diagnóstico concluido / Cambio de pasta térmica y limpieza"
-                            className="w-full p-2 bg-white border border-slate-300 rounded-lg"
-                          />
-                        </div>
+                          <div>
+                            <label className="block font-semibold text-slate-600 mb-1">
+                              Título del Avance *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={newAvanceTitulo}
+                              onChange={(e) => setNewAvanceTitulo(e.target.value)}
+                              placeholder="Ej: Diagnóstico concluido / Cambio de pasta térmica y limpieza"
+                              className="w-full p-2 bg-white border border-slate-300 rounded-lg"
+                            />
+                          </div>
 
-                        <div>
-                          <label className="block font-semibold text-slate-600 mb-1">
-                            Descripción Técnica del Trabajo Realizado
-                          </label>
-                          <textarea
-                            rows={3}
-                            value={newAvanceDesc}
-                            onChange={(e) => setNewAvanceDesc(e.target.value)}
-                            placeholder="Detalle los hallazgos técnicos, componentes intervenidos, pruebas realizadas..."
-                            className="w-full p-2 bg-white border border-slate-300 rounded-lg"
-                          />
-                        </div>
+                          <div>
+                            <label className="block font-semibold text-slate-600 mb-1">
+                              Descripción Técnica del Trabajo Realizado
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={newAvanceDesc}
+                              onChange={(e) => setNewAvanceDesc(e.target.value)}
+                              placeholder="Detalle los hallazgos técnicos, componentes intervenidos, pruebas realizadas..."
+                              className="w-full p-2 bg-white border border-slate-300 rounded-lg"
+                            />
+                          </div>
 
-                        <div className="flex justify-end">
-                          <button
-                            type="submit"
-                            className="px-4 py-2 bg-[#00346F] hover:bg-[#004A99] text-white rounded-lg font-bold flex items-center gap-1.5 shadow"
-                          >
-                            <SaveIcon className="w-3.5 h-3.5" />
-                            Guardar Avance en Bitácora
-                          </button>
-                        </div>
-                      </form>
+                          <div className="flex justify-end">
+                            <button
+                              type="submit"
+                              className="px-4 py-2 bg-[#00346F] hover:bg-[#004A99] text-white rounded-lg font-bold flex items-center gap-1.5 shadow cursor-pointer"
+                            >
+                              <SaveIcon className="w-3.5 h-3.5" />
+                              Guardar Avance en Bitácora
+                            </button>
+                          </div>
+                        </form>
+                      )}
                     </div>
                   </div>
 
@@ -2872,45 +2917,47 @@ _Por favor responda a este mensaje con SÍ para comenzar o indíquenos si tiene 
                       </span>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <select
-                        value={selectedProdId}
-                        onChange={(e) => setSelectedProdId(Number(e.target.value))}
-                        disabled={repuestosDisponibles.length === 0}
-                        className="flex-1 p-2 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      >
-                        {repuestosDisponibles.length === 0 ? (
-                          <option value={0} disabled>
-                            ⚠️ No hay repuestos ni insumos de taller registrados en almacén
-                          </option>
-                        ) : (
-                          repuestosDisponibles.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              [{p.codigo}] {p.nombre} - S/ {p.precioUnitario.toFixed(2)} (Stock: {p.stock})
-                            </option>
-                          ))
-                        )}
-                      </select>
-
-
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min="1"
-                          value={repuestoCantidad}
-                          onChange={(e) => setRepuestoCantidad(parseInt(e.target.value) || 1)}
-                          className="w-16 p-2 bg-white border border-slate-300 rounded-lg text-center font-bold"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleAddRepuesto}
-                          className="px-3 py-2 bg-[#00346F] hover:bg-[#004A99] text-white rounded-lg font-bold flex items-center gap-1 text-xs"
+                    {!(currentUser.rol === 'TECNICO' && selectedOrder.estado === 'PRESUPUESTADO') && (
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <select
+                          value={selectedProdId}
+                          onChange={(e) => setSelectedProdId(Number(e.target.value))}
+                          disabled={repuestosDisponibles.length === 0}
+                          className="flex-1 p-2 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         >
-                          <Plus className="w-3.5 h-3.5" />
-                          Agregar Repuesto
-                        </button>
+                          {repuestosDisponibles.length === 0 ? (
+                            <option value={0} disabled>
+                              ⚠️ No hay repuestos ni insumos de taller registrados en almacén
+                            </option>
+                          ) : (
+                            repuestosDisponibles.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                [{p.codigo}] {p.nombre} - S/ {p.precioUnitario.toFixed(2)} (Stock: {p.stock})
+                              </option>
+                            ))
+                          )}
+                        </select>
+
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            value={repuestoCantidad}
+                            onChange={(e) => setRepuestoCantidad(parseInt(e.target.value) || 1)}
+                            className="w-16 p-2 bg-white border border-slate-300 rounded-lg text-center font-bold"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddRepuesto}
+                            className="px-3 py-2 bg-[#00346F] hover:bg-[#004A99] text-white rounded-lg font-bold flex items-center gap-1 text-xs cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            Agregar Repuesto
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Repuestos List */}
                     <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
@@ -2929,12 +2976,14 @@ _Por favor responda a este mensaje con SÍ para comenzar o indíquenos si tiene 
                             </div>
                             <div className="flex items-center gap-3 font-mono">
                               <span className="font-bold text-slate-900">S/ {r.total.toFixed(2)}</span>
-                              <button
-                                onClick={() => handleRemoveRepuesto(r.id)}
-                                className="text-red-500 hover:text-red-700"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              {!(currentUser.rol === 'TECNICO' && selectedOrder.estado === 'PRESUPUESTADO') && (
+                                <button
+                                  onClick={() => handleRemoveRepuesto(r.id)}
+                                  className="text-red-500 hover:text-red-700 cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))
@@ -2954,34 +3003,36 @@ _Por favor responda a este mensaje con SÍ para comenzar o indíquenos si tiene 
                       </span>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <input
-                        type="text"
-                        value={newServicioDesc}
-                        onChange={(e) => setNewServicioDesc(e.target.value)}
-                        placeholder="Descripción: ej. Mantenimiento profundo, Reballing, Reinstalación S.O."
-                        className="flex-1 p-2 bg-white border border-slate-300 rounded-lg text-xs"
-                      />
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={newServicioPrecio}
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) => setNewServicioPrecio(e.target.value)}
-                        placeholder="Precio S/"
-                        className="w-24 p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-right focus:border-[#00346F] focus:outline-none"
-                      />
+                    {!(currentUser.rol === 'TECNICO' && selectedOrder.estado === 'PRESUPUESTADO') && (
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="text"
+                          value={newServicioDesc}
+                          onChange={(e) => setNewServicioDesc(e.target.value)}
+                          placeholder="Descripción: ej. Mantenimiento profundo, Reballing, Reinstalación S.O."
+                          className="flex-1 p-2 bg-white border border-slate-300 rounded-lg text-xs"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={newServicioPrecio}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => setNewServicioPrecio(e.target.value)}
+                          placeholder="Precio S/"
+                          className="w-24 p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-right focus:border-[#00346F] focus:outline-none"
+                        />
 
-                      <button
-                        type="button"
-                        onClick={handleAddServicio}
-                        className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold flex items-center gap-1 text-xs"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Agregar Servicio
-                      </button>
-                    </div>
+                        <button
+                          type="button"
+                          onClick={handleAddServicio}
+                          className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold flex items-center gap-1 text-xs cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Agregar Servicio
+                        </button>
+                      </div>
+                    )}
 
                     <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
                       {selectedOrder.serviciosManoObra.length === 0 ? (
@@ -2992,12 +3043,14 @@ _Por favor responda a este mensaje con SÍ para comenzar o indíquenos si tiene 
                             <span className="font-bold text-slate-800">{m.descripcion}</span>
                             <div className="flex items-center gap-3 font-mono">
                               <span className="font-bold text-slate-900">S/ {m.precio.toFixed(2)}</span>
-                              <button
-                                onClick={() => handleRemoveServicio(m.id)}
-                                className="text-red-500 hover:text-red-700"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              {!(currentUser.rol === 'TECNICO' && selectedOrder.estado === 'PRESUPUESTADO') && (
+                                <button
+                                  onClick={() => handleRemoveServicio(m.id)}
+                                  className="text-red-500 hover:text-red-700 cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))
@@ -3052,73 +3105,89 @@ _Por favor responda a este mensaje con SÍ para comenzar o indíquenos si tiene 
 
                       {/* CASO 2: Ya está en PRESUPUESTADO (Esperando confirmación del cliente) */}
                       {selectedOrder.estado === 'PRESUPUESTADO' && (
-                        <div className="space-y-3">
-                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-                            <div className="flex items-center gap-2 text-amber-900 text-xs">
-                              <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                        currentUser.rol === 'TECNICO' ? (
+                          <div className="p-4 bg-amber-50/90 border-2 border-amber-300 rounded-xl space-y-2 shadow-2xs">
+                            <div className="flex items-center gap-2 text-amber-950 font-extrabold text-xs">
+                              <div className="p-1.5 bg-amber-500 text-white rounded-lg shrink-0">
+                                <Lock className="w-4 h-4" />
+                              </div>
                               <span>
-                                <strong>Orden en Espera de Aprobación:</strong> El presupuesto de <strong>S/ {selectedOrder.costoTotal.toFixed(2)}</strong> está listo. Envíelo al cliente y registre su respuesta:
+                                🔒 Presupuesto Enviado a Recepción (S/ {selectedOrder.costoTotal.toFixed(2)}) — Esperando Confirmación
                               </span>
                             </div>
+                            <p className="text-[11px] text-amber-900 leading-relaxed">
+                              La cotización ya fue registrada y está siendo gestionada por <strong>Recepción</strong>. Una vez que Recepción confirme si el cliente <strong>aceptó o rechazó</strong> el presupuesto, se habilitará el siguiente paso.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                              <div className="flex items-center gap-2 text-amber-900 text-xs">
+                                <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                                <span>
+                                  <strong>Orden en Espera de Aprobación:</strong> El presupuesto de <strong>S/ {selectedOrder.costoTotal.toFixed(2)}</strong> está listo. Envíelo al cliente y registre su respuesta:
+                                </span>
+                              </div>
 
-                            {/* Botones de Envío de Cotización */}
-                            <div className="flex items-center gap-2 w-full md:w-auto">
-                              {selectedOrder.clienteTelefono && (
-                                <a
-                                  href={getCotizacionWhatsAppUrl()}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex-1 md:flex-none px-3 py-1.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                              {/* Botones de Envío de Cotización */}
+                              <div className="flex items-center gap-2 w-full md:w-auto">
+                                {selectedOrder.clienteTelefono && (
+                                  <a
+                                    href={getCotizacionWhatsAppUrl()}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex-1 md:flex-none px-3 py-1.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                                  >
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                    Cotizar por WhatsApp
+                                  </a>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTicketModalOrder(selectedOrder);
+                                    setTicketEmailInput(selectedOrder.clienteEmail || '');
+                                    setTicketEmailSent(false);
+                                  }}
+                                  className="flex-1 md:flex-none px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                                 >
-                                  <MessageSquare className="w-3.5 h-3.5" />
-                                  Cotizar por WhatsApp
-                                </a>
-                              )}
+                                  <Mail className="w-3.5 h-3.5" />
+                                  Cotizar por Correo
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Botones de Decisión del Cliente */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setTicketModalOrder(selectedOrder);
-                                  setTicketEmailInput(selectedOrder.clienteEmail || '');
-                                  setTicketEmailSent(false);
-                                }}
-                                className="flex-1 md:flex-none px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                                onClick={() => handleAprobarPresupuesto(false)}
+                                className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
                               >
-                                <Mail className="w-3.5 h-3.5" />
-                                Cotizar por Correo
+                                <CheckCircle2 className="w-4 h-4" />
+                                ✓ Cliente Aceptó (Iniciar Reparación)
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleAprobarPresupuesto(true)}
+                                className="py-2.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                              >
+                                <Package className="w-4 h-4" />
+                                📦 Cliente Aceptó (Espera Repuestos)
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={handleRechazarPresupuesto}
+                                className="py-2.5 px-3 bg-red-100 hover:bg-red-200 text-red-800 border border-red-300 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                              >
+                                <XCircle className="w-4 h-4 text-red-600" />
+                                ✕ Cliente Rechazó Presupuesto
                               </button>
                             </div>
                           </div>
-
-                          {/* Botones de Decisión del Cliente */}
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => handleAprobarPresupuesto(false)}
-                              className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
-                            >
-                              <CheckCircle2 className="w-4 h-4" />
-                              ✓ Cliente Aprobó (Iniciar Reparación)
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleAprobarPresupuesto(true)}
-                              className="py-2.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
-                            >
-                              <Package className="w-4 h-4" />
-                              📦 Cliente Aprobó (Espera Repuestos)
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={handleRechazarPresupuesto}
-                              className="py-2.5 px-3 bg-red-100 hover:bg-red-200 text-red-800 border border-red-300 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-colors"
-                            >
-                              <XCircle className="w-4 h-4 text-red-600" />
-                              ✕ Cliente Rechazó Presupuesto
-                            </button>
-                          </div>
-                        </div>
+                        )
                       )}
 
                       {/* CASO 3: Presupuesto Aprobado (En Reparación, Espera Repuestos o Reparado) */}
