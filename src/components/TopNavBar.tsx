@@ -56,8 +56,8 @@ const MODULE_METADATA: Record<string, ModuleMeta> = {
     badge: 'Atención al Cliente',
   },
   'panel-almacen': {
-    title: 'Panel de Almacén & Logística',
-    subtitle: 'Control de existencias, stock disponible y reposiciones',
+    title: 'Almacén & Inventario',
+    subtitle: 'Control de existencias por sede, series físicas y reposiciones',
     icon: Boxes,
   },
   taller: {
@@ -68,8 +68,8 @@ const MODULE_METADATA: Record<string, ModuleMeta> = {
   },
   productos: {
     title: 'Almacén & Inventario',
-    subtitle: 'Catálogo de productos, repuestos, precios y números de serie',
-    icon: Package,
+    subtitle: 'Control de existencias por sede, series físicas y reposiciones',
+    icon: Boxes,
   },
   equipos: {
     title: 'Equipos Registrados',

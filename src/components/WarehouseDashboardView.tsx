@@ -24,6 +24,7 @@ interface WarehouseDashboardViewProps {
   setActiveView: (view: string) => void;
   readOnly?: boolean;
   onShowToast?: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+  onProductCreated?: () => void;
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -50,6 +51,7 @@ export const WarehouseDashboardView: React.FC<WarehouseDashboardViewProps> = ({
   setActiveView,
   readOnly = false,
   onShowToast,
+  onProductCreated,
 }) => {
   const [activeTab, setActiveTab] = useState<'inventario' | 'resumen'>('inventario');
 
@@ -103,6 +105,7 @@ export const WarehouseDashboardView: React.FC<WarehouseDashboardViewProps> = ({
           sucursales={sucursales}
           onShowToast={onShowToast || (() => {})}
           readOnly={readOnly}
+          onProductCreated={onProductCreated}
         />
       ) : (
         <div className="flex-1 overflow-y-auto p-6 md:p-8">

@@ -40,7 +40,6 @@ import { SideNavBar } from './components/SideNavBar';
 import { LoginScreen } from './components/LoginScreen';
 import { OperationsDashboardView } from './components/OperationsDashboardView';
 import { SalesPOSView } from './components/SalesPOSView';
-import { ProductsView } from './components/ProductsView';
 import { CompanySettingsView } from './components/CompanySettingsView';
 import { UsersManagementView } from './components/UsersManagementView';
 import { ClientsManagementView } from './components/ClientsManagementView';
@@ -152,39 +151,45 @@ export function App() {
 
     // Cargar inventario desde MySQL filtrado por sede
     warehouseService.getInventario({ sucursal_id: sedeFilter }).then((res) => {
-      if (res.success && res.inventario && res.inventario.length > 0) {
-        const mappedProds: Producto[] = res.inventario.map((item) => {
-          const branchRecord: Record<string, number> = {};
-          if (item.stockPorSede) {
-            item.stockPorSede.forEach((s) => {
-              branchRecord[s.sucursalNombre || 'Principal'] = s.stock;
-            });
-          }
+      if (res.success && res.inventario) {
+        if (res.inventario.length === 0) {
+          setProductos([]);
+          localStorage.setItem('mg_productos', JSON.stringify([]));
+        } else {
+          const mappedProds: Producto[] = res.inventario.map((item) => {
+            const branchRecord: Record<string, number> = {};
+            if (item.stockPorSede) {
+              item.stockPorSede.forEach((s) => {
+                branchRecord[s.sucursalNombre || 'Principal'] = s.stock;
+              });
+            }
 
-          return {
-            id: item.id,
-            codigo: item.codigo,
-            codigoBarra: item.codigo,
-            nombre: item.nombre,
-            categoriaId: item.categoria?.id || 1,
-            categoriaNombre: item.categoria?.nombre || 'General',
-            marcaId: item.marca?.id || 1,
-            marcaNombre: item.marca?.nombre || 'General',
-            modeloId: item.modelo?.id || null,
-            modeloNombre: item.modelo?.nombre || null,
-            sucursal: 'Principal - Chiclayo Centro',
-            precioUnitario: item.precioVenta || 0,
-            precioCosto: item.precioCosto || 0,
-            stock: sedeFilter ? (item.stockSede ?? item.stockTotal) : (item.stockTotal || 0),
-            stockPorSede: branchRecord,
-            unidadMedida: 'NIU',
-            estado: (item.estado as any) || 'ACTIVO',
-            requiereSerie: item.requiereSerie || item.categoria?.requiereSerie || false,
-            disponibleVenta: item.disponibleVenta !== false,
-            tipoDestino: item.tipoDestino || 'VENTA',
-          };
-        });
-        setProductos(mappedProds);
+            return {
+              id: item.id,
+              codigo: item.codigo,
+              codigoBarra: item.codigo,
+              nombre: item.nombre,
+              categoriaId: item.categoria?.id || 1,
+              categoriaNombre: item.categoria?.nombre || 'General',
+              marcaId: item.marca?.id || 1,
+              marcaNombre: item.marca?.nombre || 'General',
+              modeloId: item.modelo?.id || null,
+              modeloNombre: item.modelo?.nombre || null,
+              sucursal: 'Principal - Chiclayo Centro',
+              precioUnitario: item.precioVenta || 0,
+              precioCosto: item.precioCosto || 0,
+              stock: sedeFilter ? (item.stockSede ?? item.stockTotal) : (item.stockTotal || 0),
+              stockPorSede: branchRecord,
+              unidadMedida: 'NIU',
+              estado: (item.estado as any) || 'ACTIVO',
+              requiereSerie: item.requiereSerie || item.categoria?.requiereSerie || false,
+              disponibleVenta: item.disponibleVenta !== false,
+              tipoDestino: item.tipoDestino || 'VENTA',
+            };
+          });
+          setProductos(mappedProds);
+          localStorage.setItem('mg_productos', JSON.stringify(mappedProds));
+        }
       }
     });
 
@@ -981,7 +986,7 @@ export function App() {
             />
           )}
 
-          {activeView === 'panel-almacen' && (
+          {(activeView === 'panel-almacen' || activeView === 'productos') && (
             <WarehouseDashboardView
               currentUser={currentUser}
               productos={productos}
@@ -989,6 +994,8 @@ export function App() {
               sucursales={sucursales}
               setActiveView={setActiveView}
               onShowToast={showToast}
+              onProductCreated={() => loadDatabaseData(selectedSedeId)}
+              readOnly={currentUser.rol === 'TECNICO' || currentUser.rol === 'SECRETARIA'}
             />
           )}
 
@@ -1009,19 +1016,6 @@ export function App() {
               onSaveCliente={handleSaveCliente}
               preselectedClientId={serviceClientId}
               onClearPreselectedClient={() => setServiceClientId(undefined)}
-            />
-          )}
-
-          {activeView === 'productos' && (
-            <ProductsView
-              productos={productos}
-              categorias={categorias}
-              marcas={marcas}
-              onSaveProducto={handleSaveProducto}
-              onToggleStatus={handleToggleProductStatus}
-              onDeleteProducto={handleDeleteProducto}
-              onShowToast={showToast}
-              readOnly={currentUser.rol === 'TECNICO' || currentUser.rol === 'SECRETARIA'}
             />
           )}
 

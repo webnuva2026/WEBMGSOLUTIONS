@@ -15,9 +15,9 @@ export function getMailTransporter() {
   const host = process.env.SMTP_HOST || 'smtp.gmail.com';
   const port = parseInt(process.env.SMTP_PORT || '465', 10);
   const secure = process.env.SMTP_SECURE === 'true' || port === 465;
-  const user = process.env.SMTP_USER ? process.env.SMTP_USER.trim() : '';
+  const user = (process.env.SMTP_USER || 'mgsolutionsg@gmail.com').trim();
   // Eliminar espacios que Google suele colocar en las contraseñas de app (ej: "abcd efgh ijkl mnop")
-  const pass = process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s+/g, '') : '';
+  const pass = (process.env.SMTP_PASS || 'qpulsrkfhicknmox').replace(/\s+/g, '');
 
   if (!user || !pass) {
     console.warn('⚠️ SMTP_USER o SMTP_PASS no encontrados en process.env');
@@ -73,7 +73,7 @@ export async function sendRecoveryCodeEmail(
     return { success: true, simulated: true };
   }
 
-  const fromEmail = process.env.EMAIL_FROM || `"MG Solutions Security" <${process.env.SMTP_USER}>`;
+  const fromEmail = process.env.EMAIL_FROM || `"MG Solutions Security" <${process.env.SMTP_USER || 'mgsolutionsg@gmail.com'}>`;
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -261,7 +261,7 @@ export async function sendWelcomeCredentialsEmail(params: {
     return { success: true, simulated: true };
   }
 
-  const fromEmail = process.env.EMAIL_FROM || `"MG Solutions ERP" <${process.env.SMTP_USER}>`;
+  const fromEmail = process.env.EMAIL_FROM || `"MG Solutions ERP" <${process.env.SMTP_USER || 'mgsolutionsg@gmail.com'}>`;
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -586,7 +586,7 @@ export async function sendWorkshopTicketEmail(params: {
     return { success: true, simulated: true };
   }
 
-  const fromEmail = process.env.EMAIL_FROM || `"MG Solutions Taller" <${process.env.SMTP_USER}>`;
+  const fromEmail = process.env.EMAIL_FROM || `"MG Solutions Taller" <${process.env.SMTP_USER || 'mgsolutionsg@gmail.com'}>`;
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -913,7 +913,7 @@ export async function sendSaleReceiptEmail(params: {
     return { success: true, simulated: true };
   }
 
-  const fromEmail = process.env.EMAIL_FROM || `"MG Solutions Comprobantes" <${process.env.SMTP_USER}>`;
+  const fromEmail = process.env.EMAIL_FROM || `"MG Solutions Comprobantes" <${process.env.SMTP_USER || 'mgsolutionsg@gmail.com'}>`;
 
   // Construir filas de productos
   const itemsHtml = items

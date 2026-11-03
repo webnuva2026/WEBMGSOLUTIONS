@@ -97,8 +97,8 @@ function getMailTransporter() {
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
   const port = parseInt(process.env.SMTP_PORT || "465", 10);
   const secure = process.env.SMTP_SECURE === "true" || port === 465;
-  const user = process.env.SMTP_USER ? process.env.SMTP_USER.trim() : "";
-  const pass = process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s+/g, "") : "";
+  const user = (process.env.SMTP_USER || "mgsolutionsg@gmail.com").trim();
+  const pass = (process.env.SMTP_PASS || "qpulsrkfhicknmox").replace(/\s+/g, "");
   if (!user || !pass) {
     console.warn("\u26A0\uFE0F SMTP_USER o SMTP_PASS no encontrados en process.env");
     return null;
@@ -137,7 +137,7 @@ async function sendRecoveryCodeEmail(toEmail, nombreUsuario, codigoOtp) {
     console.log("========================================================\n");
     return { success: true, simulated: true };
   }
-  const fromEmail = process.env.EMAIL_FROM || `"MG Solutions Security" <${process.env.SMTP_USER}>`;
+  const fromEmail = process.env.EMAIL_FROM || `"MG Solutions Security" <${process.env.SMTP_USER || "mgsolutionsg@gmail.com"}>`;
   const htmlContent = `
 <!DOCTYPE html>
 <html lang="es">
@@ -308,7 +308,7 @@ async function sendWelcomeCredentialsEmail(params) {
     console.log("========================================================\n");
     return { success: true, simulated: true };
   }
-  const fromEmail = process.env.EMAIL_FROM || `"MG Solutions ERP" <${process.env.SMTP_USER}>`;
+  const fromEmail = process.env.EMAIL_FROM || `"MG Solutions ERP" <${process.env.SMTP_USER || "mgsolutionsg@gmail.com"}>`;
   const htmlContent = `
 <!DOCTYPE html>
 <html lang="es">
@@ -613,7 +613,7 @@ async function sendWorkshopTicketEmail(params) {
     console.log("========================================================\n");
     return { success: true, simulated: true };
   }
-  const fromEmail = process.env.EMAIL_FROM || `"MG Solutions Taller" <${process.env.SMTP_USER}>`;
+  const fromEmail = process.env.EMAIL_FROM || `"MG Solutions Taller" <${process.env.SMTP_USER || "mgsolutionsg@gmail.com"}>`;
   const htmlContent = `
 <!DOCTYPE html>
 <html lang="es">
@@ -913,7 +913,7 @@ async function sendSaleReceiptEmail(params) {
     console.log("========================================================\n");
     return { success: true, simulated: true };
   }
-  const fromEmail = process.env.EMAIL_FROM || `"MG Solutions Comprobantes" <${process.env.SMTP_USER}>`;
+  const fromEmail = process.env.EMAIL_FROM || `"MG Solutions Comprobantes" <${process.env.SMTP_USER || "mgsolutionsg@gmail.com"}>`;
   const itemsHtml = items.map(
     (it) => `
       <tr style="border-bottom: 1px dashed #E2E8F0;">
@@ -5271,6 +5271,29 @@ async function createVenta(req, res) {
     }
     const subtotal = Math.round(totalGeneral / 1.18 * 100) / 100;
     const igv = Math.round((totalGeneral - subtotal) * 100) / 100;
+    for (const it of items) {
+      const prodId = Number(it.productoId);
+      if (!prodId || isNaN(prodId)) {
+        await connection.rollback();
+        res.status(400).json({
+          success: false,
+          error: `ID de producto inv\xE1lido en el carrito (${it.productoId}).`
+        });
+        return;
+      }
+      const [prodRows] = await connection.query(
+        "SELECT id, nombre FROM productos WHERE id = ?",
+        [prodId]
+      );
+      if (prodRows.length === 0) {
+        await connection.rollback();
+        res.status(400).json({
+          success: false,
+          error: `El producto '${it.nombre || "ID " + prodId}' no existe en la base de datos de almac\xE9n. Aseg\xFArese de registrar el producto en 'Almac\xE9n & Inventario' antes de venderlo.`
+        });
+        return;
+      }
+    }
     const [ventaResult] = await connection.query(
       `INSERT INTO ventas 
        (codigo_comprobante, tipo_comprobante_id, cliente_id, usuario_id, sucursal_id,
@@ -5353,7 +5376,7 @@ async function createVenta(req, res) {
   } catch (error) {
     await connection.rollback();
     console.error("Error al registrar venta:", error);
-    res.status(500).json({ success: false, message: "Error interno al registrar la venta." });
+    res.status(500).json({ success: false, error: error.message || "Error interno al registrar la venta.", message: error.message || "Error interno al registrar la venta." });
   } finally {
     connection.release();
   }
@@ -6026,6 +6049,7 @@ async function sendTicketEmail(req, res) {
     if (result.success) {
       res.json({
         success: true,
+        simulated: !!result.simulated,
         message: result.simulated ? `Ticket simulado en consola (sin SMTP activo). Destino: ${toEmail}` : `Ticket de servicio enviado exitosamente al correo ${toEmail}`
       });
     } else {

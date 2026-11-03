@@ -40,7 +40,10 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
     caja: { label: 'Caja & Finanzas', icon: <DollarSign className="w-5 h-5 shrink-0" /> },
     compras: { label: 'Compras & Proveedores', icon: <Truck className="w-5 h-5 shrink-0" /> },
     'panel-recepcion': { label: 'Panel de recepción', icon: <ClipboardList className="w-5 h-5 shrink-0" /> },
-    'panel-almacen': { label: 'Panel de almacén', icon: <Boxes className="w-5 h-5 shrink-0" /> },
+    'panel-almacen': {
+      label: currentUser.rol === 'TECNICO' ? 'Consultar inventario' : 'Almacén & Inventario',
+      icon: <Boxes className="w-5 h-5 shrink-0" />,
+    },
     taller: {
       label: currentUser.rol === 'TECNICO' ? 'Mis servicios técnicos' : 'Taller & Órdenes de Servicio',
       icon: <Wrench className="w-5 h-5 shrink-0" />,
@@ -49,7 +52,7 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
     clientes: { label: 'Directorio de Clientes', icon: <Users className="w-5 h-5 shrink-0" /> },
     productos: {
       label: currentUser.rol === 'TECNICO' ? 'Consultar inventario' : 'Almacén & Inventario',
-      icon: <Package className="w-5 h-5 shrink-0" />,
+      icon: <Boxes className="w-5 h-5 shrink-0" />,
     },
     movimientos: { label: 'Movimientos entre sedes', icon: <ArrowLeftRight className="w-5 h-5 shrink-0" /> },
     catalogo: { label: 'Catálogo Maestro', icon: <Layers className="w-5 h-5 shrink-0" /> },
@@ -65,6 +68,8 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
       setActiveView('sucursales');
     } else if (viewName === 'categorias' || viewName === 'marcas') {
       setActiveView('catalogo');
+    } else if (viewName === 'productos') {
+      setActiveView('panel-almacen');
     } else {
       setActiveView(viewName);
     }
@@ -77,10 +82,13 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
         ? 'sucursales'
         : viewId === 'categorias' || viewId === 'marcas'
         ? 'catalogo'
+        : viewId === 'productos'
+        ? 'panel-almacen'
         : viewId;
     const info = moduleLabels[effectiveId] || { label: effectiveId, icon: <Package className="w-5 h-5 shrink-0" /> };
     const isActive =
       activeView === effectiveId ||
+      (effectiveId === 'panel-almacen' && activeView === 'productos') ||
       (effectiveId === 'sucursales' && activeView === 'config-empresa') ||
       (effectiveId === 'catalogo' && (activeView === 'categorias' || activeView === 'marcas' || activeView === 'catalogo'));
 
@@ -124,18 +132,18 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
         'taller',
         'equipos',
         'clientes',
-        'productos',
         'movimientos',
         'catalogo',
         'usuarios',
         'sucursales',
       ];
     } else {
-      // Para otros roles, tomar sus módulos asignados y mapear a catalogo/sucursales
+      // Para otros roles, tomar sus módulos asignados y mapear a catalogo/sucursales/panel-almacen
       const userModules = currentUser.modulosPermitidos || [];
       const mapped = userModules.map((m) => {
         if (m === 'config-empresa') return 'sucursales';
         if (m === 'categorias' || m === 'marcas') return 'catalogo';
+        if (m === 'productos') return 'panel-almacen';
         return m;
       });
       list = Array.from<string>(new Set(mapped));

@@ -114,6 +114,7 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
   const [ticketEmailInput, setTicketEmailInput] = useState<string>('');
   const [isSendingTicketEmail, setIsSendingTicketEmail] = useState<boolean>(false);
   const [ticketEmailSent, setTicketEmailSent] = useState<boolean>(false);
+  const [ticketEmailSimulated, setTicketEmailSimulated] = useState<boolean>(false);
   const [isSavingOrder, setIsSavingOrder] = useState<boolean>(false);
 
   // Filtrar técnicos
@@ -581,6 +582,7 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
       setTicketGenerado(newOrder);
       setTicketEmailInput(selectedClient.email || '');
       setTicketEmailSent(false);
+      setTicketEmailSimulated(false);
 
       onShowToast(
         ingresoModo === 'GARANTIA' ? 'Garantía Registrada' : 'Ticket Emitido',
@@ -623,7 +625,12 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
       });
       if (res.success) {
         setTicketEmailSent(true);
-        onShowToast('Correo Enviado', `Comprobante de ingreso enviado a ${email}`, 'success');
+        setTicketEmailSimulated(!!(res as any).simulated);
+        if ((res as any).simulated) {
+          onShowToast('Modo Simulación', (res as any).message || 'SMTP no configurado en servidor. Revise la consola.', 'warning');
+        } else {
+          onShowToast('Correo Enviado', `Comprobante de ingreso enviado exitosamente a ${email}`, 'success');
+        }
       } else {
         onShowToast('Error', res.message || 'No se pudo enviar el correo.', 'error');
       }
@@ -1580,7 +1587,9 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
                       </button>
                     </div>
                     {ticketEmailSent && (
-                      <p className="text-[10px] text-emerald-600 font-bold mt-1">✓ Correo enviado con éxito</p>
+                      <p className={`text-[10px] font-bold mt-1 ${ticketEmailSimulated ? 'text-amber-600' : 'text-emerald-600'}`}>
+                        {ticketEmailSimulated ? '⚠️ Simulado (SMTP pendiente en servidor)' : '✓ Correo enviado con éxito'}
+                      </p>
                     )}
                   </div>
                 </div>

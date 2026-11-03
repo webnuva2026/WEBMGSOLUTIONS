@@ -297,6 +297,31 @@ export async function createVenta(req: AuthenticatedRequest, res: Response): Pro
     const subtotal = Math.round((totalGeneral / 1.18) * 100) / 100;
     const igv = Math.round((totalGeneral - subtotal) * 100) / 100;
 
+    // 2.5. Validar que todos los productos existan en la tabla 'productos'
+    for (const it of items) {
+      const prodId = Number(it.productoId);
+      if (!prodId || isNaN(prodId)) {
+        await connection.rollback();
+        res.status(400).json({
+          success: false,
+          error: `ID de producto inválido en el carrito (${it.productoId}).`,
+        });
+        return;
+      }
+      const [prodRows] = await connection.query<RowDataPacket[]>(
+        'SELECT id, nombre FROM productos WHERE id = ?',
+        [prodId]
+      );
+      if (prodRows.length === 0) {
+        await connection.rollback();
+        res.status(400).json({
+          success: false,
+          error: `El producto '${it.nombre || ('ID ' + prodId)}' no existe en la base de datos de almacén. Asegúrese de registrar el producto en 'Almacén & Inventario' antes de venderlo.`,
+        });
+        return;
+      }
+    }
+
     // 3. Insertar venta
     const [ventaResult] = await connection.query<ResultSetHeader>(
       `INSERT INTO ventas 
@@ -394,7 +419,7 @@ export async function createVenta(req: AuthenticatedRequest, res: Response): Pro
   } catch (error: any) {
     await connection.rollback();
     console.error('Error al registrar venta:', error);
-    res.status(500).json({ success: false, message: 'Error interno al registrar la venta.' });
+    res.status(500).json({ success: false, error: error.message || 'Error interno al registrar la venta.', message: error.message || 'Error interno al registrar la venta.' });
   } finally {
     connection.release();
   }

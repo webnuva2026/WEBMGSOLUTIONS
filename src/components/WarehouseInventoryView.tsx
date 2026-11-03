@@ -47,12 +47,14 @@ interface WarehouseInventoryViewProps {
   sucursales?: Sucursal[];
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   readOnly?: boolean;
+  onProductCreated?: () => void;
 }
 
 export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
   sucursales = [],
   onShowToast,
   readOnly = false,
+  onProductCreated,
 }) => {
   // ─── ESTADOS PRINCIPALES ───
   const [inventario, setInventario] = useState<ItemInventarioAlmacen[]>([]);
@@ -376,6 +378,9 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
         onShowToast('Producto Creado', 'El producto ha sido registrado en el almacén.', 'success');
         setIsNewProdModalOpen(false);
         fetchAllData(true);
+        if (onProductCreated) {
+          onProductCreated();
+        }
       } else {
         onShowToast('Error', res.message || 'No se pudo crear el producto.', 'error');
       }

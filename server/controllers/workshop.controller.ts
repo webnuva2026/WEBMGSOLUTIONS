@@ -687,6 +687,7 @@ export async function sendTicketEmail(req: AuthenticatedRequest, res: Response):
     if (result.success) {
       res.json({
         success: true,
+        simulated: !!result.simulated,
         message: result.simulated
           ? `Ticket simulado en consola (sin SMTP activo). Destino: ${toEmail}`
           : `Ticket de servicio enviado exitosamente al correo ${toEmail}`,
