@@ -180,7 +180,7 @@ export async function updateEmpresa(req: Request, res: Response): Promise<void> 
 export async function getSucursales(_req: Request, res: Response): Promise<void> {
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT s.id, s.codigo, s.nombre, s.direccion, s.telefono, s.es_principal,
+      `SELECT s.id, s.codigo, s.nombre, s.direccion, s.telefono, s.es_principal, s.estado_id,
               COALESCE(e.nombre, 'ACTIVO') AS estado
        FROM sucursales s
        LEFT JOIN estados e ON s.estado_id = e.id
@@ -194,7 +194,10 @@ export async function getSucursales(_req: Request, res: Response): Promise<void>
       direccion: r.direccion,
       telefono: r.telefono || '',
       esPrincipal: Boolean(r.es_principal),
-      estado: r.estado === 'INACTIVO' ? 'INACTIVO' : 'ACTIVO',
+      estado:
+        Number(r.estado_id) === 2 || String(r.estado).toUpperCase() === 'INACTIVO'
+          ? 'INACTIVO'
+          : 'ACTIVO',
     }));
 
     res.json({
@@ -373,7 +376,7 @@ export async function updateSucursal(req: Request, res: Response): Promise<void>
 
     // Obtener sucursal actualizada
     const [updatedRows] = await pool.query<RowDataPacket[]>(
-      `SELECT s.id, s.codigo, s.nombre, s.direccion, s.telefono, s.es_principal,
+      `SELECT s.id, s.codigo, s.nombre, s.direccion, s.telefono, s.es_principal, s.estado_id,
               COALESCE(e.nombre, 'ACTIVO') AS estado
        FROM sucursales s
        LEFT JOIN estados e ON s.estado_id = e.id
@@ -392,7 +395,10 @@ export async function updateSucursal(req: Request, res: Response): Promise<void>
         direccion: r.direccion,
         telefono: r.telefono || '',
         esPrincipal: Boolean(r.es_principal),
-        estado: r.estado === 'INACTIVO' ? 'INACTIVO' : 'ACTIVO',
+        estado:
+          Number(r.estado_id) === 2 || String(r.estado).toUpperCase() === 'INACTIVO'
+            ? 'INACTIVO'
+            : 'ACTIVO',
       },
     });
   } catch (error: any) {

@@ -414,7 +414,9 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
 
                       <div className="my-1 border-t border-slate-100" />
 
-                      {sucursales.map((suc) => {
+                      {sucursales
+                        .filter((suc) => suc.estado === 'ACTIVO')
+                        .map((suc) => {
                         const isSelected = selectedSedeId === suc.id;
                         return (
                           <button

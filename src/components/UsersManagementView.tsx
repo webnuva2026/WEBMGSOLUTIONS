@@ -47,6 +47,7 @@ import { consultaService } from '../services/consulta.service';
 
 interface UsersManagementViewProps {
   usuarios: Usuario[];
+  sucursales?: Sucursal[];
   onSaveUsuario: (u: Usuario) => void;
   onToggleUsuarioEstado: (id: number) => void;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
@@ -92,6 +93,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
 
 export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
   usuarios: initialUsuarios,
+  sucursales: propSucursales,
   onSaveUsuario,
   onToggleUsuarioEstado,
   onShowToast,
@@ -115,8 +117,10 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
   const [editingRole, setEditingRole] = useState<Rol | null>(null);
   const [roleModalLoading, setRoleModalLoading] = useState(false);
 
-  // Sucursales State
-  const [sucursalesList, setSucursalesList] = useState<Sucursal[]>([]);
+  // Sucursales State (Solo activas para asignación operativa)
+  const [sucursalesList, setSucursalesList] = useState<Sucursal[]>(
+    (propSucursales || []).filter((s) => s.estado === 'ACTIVO')
+  );
   const [loadingSucursales, setLoadingSucursales] = useState(false);
 
   // Modal de Restablecer Contraseña (Llave)
@@ -185,13 +189,13 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
     }
   }, []);
 
-  // Load Sucursales from backend
+  // Load Sucursales from backend (solo activas)
   const loadSucursales = useCallback(async () => {
     setLoadingSucursales(true);
     try {
       const res = await companyService.getSucursales();
       if (res.success && res.sucursales) {
-        setSucursalesList(res.sucursales);
+        setSucursalesList(res.sucursales.filter((s) => s.estado === 'ACTIVO'));
       }
     } catch (err) {
       console.error('Error cargando sucursales:', err);
@@ -199,6 +203,12 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
       setLoadingSucursales(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (propSucursales && propSucursales.length > 0) {
+      setSucursalesList(propSucursales.filter((s) => s.estado === 'ACTIVO'));
+    }
+  }, [propSucursales]);
 
   // Load Users from backend
   const loadUsers = useCallback(async () => {
@@ -1270,11 +1280,13 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                       required
                     >
                       <option value="" disabled>Seleccione una sucursal...</option>
-                      {sucursalesList.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.codigo} - {s.nombre} {s.esPrincipal ? '(Matriz / Principal)' : ''}
-                        </option>
-                      ))}
+                      {sucursalesList
+                        .filter((s) => s.estado === 'ACTIVO')
+                        .map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.codigo} - {s.nombre} {s.esPrincipal ? '(Matriz / Principal)' : ''}
+                          </option>
+                        ))}
                     </select>
                   </div>
 

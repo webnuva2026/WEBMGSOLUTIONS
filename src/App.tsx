@@ -208,6 +208,15 @@ export function App() {
     companyService.getSucursales().then((res) => {
       if (res.success && res.sucursales) {
         setSucursales(res.sucursales);
+        localStorage.setItem('mg_sucursales', JSON.stringify(res.sucursales));
+        if (sedeFilter) {
+          const isStillActive = res.sucursales.some(
+            (s) => s.id === sedeFilter && s.estado === 'ACTIVO'
+          );
+          if (!isStillActive) {
+            handleSelectSede(null);
+          }
+        }
       }
     });
 
@@ -925,6 +934,8 @@ export function App() {
     );
   }
 
+  const sucursalesActivas = sucursales.filter((s) => s.estado === 'ACTIVO');
+
   return (
     <div className="min-h-screen bg-[#F8F9FF] font-sans antialiased flex flex-col">
       {/* Top Navigation Bar */}
@@ -939,7 +950,7 @@ export function App() {
         ordenes={ordenes}
         productos={productos}
         clientes={clientes}
-        sucursales={sucursales}
+        sucursales={sucursalesActivas}
         selectedSedeId={selectedSedeId}
         onSelectSede={handleSelectSede}
       />
@@ -962,7 +973,7 @@ export function App() {
               currentUser={currentUser}
               productos={productos}
               clientes={clientes}
-              sucursales={sucursales}
+              sucursales={sucursalesActivas}
               empresa={empresa}
               ventas={ventas}
               onSaveVenta={handleSaveVenta}
@@ -1005,7 +1016,7 @@ export function App() {
               currentUser={currentUser}
               productos={productos}
               movimientos={movimientos}
-              sucursales={sucursales}
+              sucursales={sucursalesActivas}
               setActiveView={setActiveView}
               onShowToast={showToast}
               onProductCreated={() => loadDatabaseData(selectedSedeId)}
@@ -1045,7 +1056,7 @@ export function App() {
           {activeView === 'movimientos' && (
             <InventoryTransfersView
               productos={productos}
-              sucursales={sucursales}
+              sucursales={sucursalesActivas}
               movimientos={movimientos}
               onSaveMovimiento={handleSaveMovimiento}
               onUpdateMovimiento={handleUpdateMovimiento}
@@ -1083,11 +1094,18 @@ export function App() {
                 })
               }
               onToggleSucursalEstado={(id) =>
-                setSucursales((prev) =>
-                  prev.map((s) =>
-                    s.id === id ? { ...s, estado: s.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO' } : s
-                  )
-                )
+                setSucursales((prev) => {
+                  const updated = prev.map((s) =>
+                    s.id === id ? { ...s, estado: (s.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO') as any } : s
+                  );
+                  if (selectedSedeId === id) {
+                    const target = updated.find((s) => s.id === id);
+                    if (target?.estado === 'INACTIVO') {
+                      handleSelectSede(null);
+                    }
+                  }
+                  return updated;
+                })
               }
               onShowToast={showToast}
               setActiveView={setActiveView}
@@ -1100,6 +1118,7 @@ export function App() {
               currentUser.modulosPermitidos?.includes('usuarios')) && (
             <UsersManagementView
               usuarios={usuarios}
+              sucursales={sucursalesActivas}
               onSaveUsuario={handleSaveUsuario}
               onToggleUsuarioEstado={handleToggleUsuarioStatus}
               onShowToast={showToast}
@@ -1125,7 +1144,7 @@ export function App() {
               compras={compras}
               proveedores={proveedores}
               productos={productos}
-              sucursales={sucursales}
+              sucursales={sucursalesActivas}
               onSaveCompra={handleSaveCompra}
               onAnularCompra={handleAnularCompra}
               onSaveProveedor={handleSaveProveedor}
@@ -1138,7 +1157,7 @@ export function App() {
           {activeView === 'caja' && (
             <CashRegisterView
               currentUser={currentUser}
-              sucursales={sucursales}
+              sucursales={sucursalesActivas}
               cajasTurnos={cajasTurnos}
               movimientosCaja={movimientosCaja}
               onAbrirCaja={handleAbrirCaja}

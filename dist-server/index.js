@@ -3376,7 +3376,7 @@ async function updateEmpresa(req, res) {
 async function getSucursales(_req, res) {
   try {
     const [rows] = await pool.query(
-      `SELECT s.id, s.codigo, s.nombre, s.direccion, s.telefono, s.es_principal,
+      `SELECT s.id, s.codigo, s.nombre, s.direccion, s.telefono, s.es_principal, s.estado_id,
               COALESCE(e.nombre, 'ACTIVO') AS estado
        FROM sucursales s
        LEFT JOIN estados e ON s.estado_id = e.id
@@ -3389,7 +3389,7 @@ async function getSucursales(_req, res) {
       direccion: r.direccion,
       telefono: r.telefono || "",
       esPrincipal: Boolean(r.es_principal),
-      estado: r.estado === "INACTIVO" ? "INACTIVO" : "ACTIVO"
+      estado: Number(r.estado_id) === 2 || String(r.estado).toUpperCase() === "INACTIVO" ? "INACTIVO" : "ACTIVO"
     }));
     res.json({
       success: true,
@@ -3526,7 +3526,7 @@ async function updateSucursal(req, res) {
     );
     await connection.commit();
     const [updatedRows] = await pool.query(
-      `SELECT s.id, s.codigo, s.nombre, s.direccion, s.telefono, s.es_principal,
+      `SELECT s.id, s.codigo, s.nombre, s.direccion, s.telefono, s.es_principal, s.estado_id,
               COALESCE(e.nombre, 'ACTIVO') AS estado
        FROM sucursales s
        LEFT JOIN estados e ON s.estado_id = e.id
@@ -3544,7 +3544,7 @@ async function updateSucursal(req, res) {
         direccion: r.direccion,
         telefono: r.telefono || "",
         esPrincipal: Boolean(r.es_principal),
-        estado: r.estado === "INACTIVO" ? "INACTIVO" : "ACTIVO"
+        estado: Number(r.estado_id) === 2 || String(r.estado).toUpperCase() === "INACTIVO" ? "INACTIVO" : "ACTIVO"
       }
     });
   } catch (error) {
