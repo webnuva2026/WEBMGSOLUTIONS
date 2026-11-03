@@ -28,6 +28,7 @@ import {
   MovimientoInventario,
   EstadoMovimientoInventario,
   Equipo,
+  OrdenServicio,
   Venta,
   Proveedor,
   Compra,
@@ -101,7 +102,7 @@ export function App() {
 
   const [productos, setProductos] = useState<Producto[]>(() => {
     const saved = localStorage.getItem('mg_productos');
-    const source = saved ? JSON.parse(saved) : INITIAL_PRODUCTOS;
+    const source = saved ? JSON.parse(saved) : [];
     return source.map((product: Producto) => ({
       ...product,
       stockPorSede: product.stockPorSede || { [product.sucursal]: product.stock },
@@ -210,14 +211,15 @@ export function App() {
 
     // Cargar órdenes de servicio reales desde MySQL filtradas por sede
     workshopService.getOrdenes({ sucursal_id: sedeFilter }).then((res) => {
-      if (res.success && res.ordenes && res.ordenes.length > 0) {
+      if (res.success && Array.isArray(res.ordenes)) {
         setOrdenes(res.ordenes);
+        localStorage.setItem('mg_ordenes_servicio', JSON.stringify(res.ordenes));
       }
     });
 
     // Cargar movimientos y préstamos de inventario reales desde MySQL
     transferService.getMovimientos().then((res) => {
-      if (res.success && res.movimientos) {
+      if (res.success && Array.isArray(res.movimientos)) {
         setMovimientos(res.movimientos);
         localStorage.setItem('mg_movimientos_inventario', JSON.stringify(res.movimientos));
       }
@@ -225,7 +227,7 @@ export function App() {
 
     // Cargar proveedores reales desde MySQL
     purchaseService.getProveedores().then((res) => {
-      if (res.success && res.proveedores && res.proveedores.length > 0) {
+      if (res.success && Array.isArray(res.proveedores)) {
         setProveedores(res.proveedores);
         localStorage.setItem('mg_proveedores', JSON.stringify(res.proveedores));
       }
@@ -233,7 +235,7 @@ export function App() {
 
     // Cargar compras y reabastecimiento reales desde MySQL
     purchaseService.getCompras().then((res) => {
-      if (res.success && res.compras && res.compras.length > 0) {
+      if (res.success && Array.isArray(res.compras)) {
         setCompras(res.compras);
         localStorage.setItem('mg_compras', JSON.stringify(res.compras));
       }
@@ -260,24 +262,13 @@ export function App() {
     loadDatabaseData(selectedSedeId);
   }, [selectedSedeId]);
 
-  const [ordenes, setOrdenes] = useState(() => {
+  const [ordenes, setOrdenes] = useState<OrdenServicio[]>(() => {
     const saved = localStorage.getItem('mg_ordenes_servicio');
-    return saved ? JSON.parse(saved) : INITIAL_ORDENES_SERVICIO;
+    return saved ? JSON.parse(saved) : [];
   });
   const [equipos, setEquipos] = useState<Equipo[]>(() => {
     const saved = localStorage.getItem('mg_equipos');
-    if (saved) return JSON.parse(saved);
-    return INITIAL_ORDENES_SERVICIO.map((order) => ({
-      id: order.id,
-      clienteId: order.clienteId,
-      tipo: order.tipoEquipo,
-      marca: order.marca,
-      modelo: order.modelo,
-      numeroSerie: order.numeroSerie,
-      accesorios: order.accesoriosDejados,
-      estado: order.estado === 'ENTREGADO_COBRADO' ? 'ENTREGADO' : 'EN_SERVICIO',
-      fechaRegistro: order.fechaIngreso,
-    }));
+    return saved ? JSON.parse(saved) : [];
   });
   const [movimientos, setMovimientos] = useState<MovimientoInventario[]>(() => {
     const saved = localStorage.getItem('mg_movimientos_inventario');
@@ -285,23 +276,47 @@ export function App() {
   });
   const [ventas, setVentas] = useState<Venta[]>(() => {
     const saved = localStorage.getItem('mg_ventas');
-    return saved ? JSON.parse(saved) : INITIAL_VENTAS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [proveedores, setProveedores] = useState<Proveedor[]>(() => {
     const saved = localStorage.getItem('mg_proveedores');
-    return saved ? JSON.parse(saved) : INITIAL_PROVEEDORES;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [compras, setCompras] = useState<Compra[]>(() => {
     const saved = localStorage.getItem('mg_compras');
-    return saved ? JSON.parse(saved) : INITIAL_COMPRAS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [cajasTurnos, setCajasTurnos] = useState<CajaTurno[]>(() => {
     const saved = localStorage.getItem('mg_cajas_turnos');
-    return saved ? JSON.parse(saved) : INITIAL_CAJA_TURNOS;
+    return saved ? JSON.parse(saved) : [];
   });
+
+  // Limpiar cachés viejos de localStorage para sincronizar estrictamente con la base de datos real
+  useEffect(() => {
+    const legacyPurged = localStorage.getItem('mg_legacy_purged_v4');
+    if (!legacyPurged) {
+      localStorage.removeItem('mg_productos');
+      localStorage.removeItem('mg_ordenes_servicio');
+      localStorage.removeItem('mg_equipos');
+      localStorage.removeItem('mg_ventas');
+      localStorage.removeItem('mg_compras');
+      localStorage.removeItem('mg_proveedores');
+      localStorage.removeItem('mg_clientes');
+      localStorage.removeItem('mg_cajas_turnos');
+      localStorage.setItem('mg_legacy_purged_v4', 'true');
+      setProductos([]);
+      setOrdenes([]);
+      setEquipos([]);
+      setVentas([]);
+      setCompras([]);
+      setProveedores([]);
+      setClientes([]);
+      setCajasTurnos([]);
+    }
+  }, []);
 
   const [movimientosCaja, setMovimientosCaja] = useState<MovimientoCaja[]>(() => {
     const saved = localStorage.getItem('mg_movimientos_caja');
