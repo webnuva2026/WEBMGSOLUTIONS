@@ -8,7 +8,7 @@ import {
   maskPhone,
   maskDocument,
 } from '../utils/security';
-import { sendWelcomeCredentialsEmail, getMailTransporter } from '../utils/mailer';
+import { sendWelcomeCredentialsEmail, getMailTransporter, dispatchEmail } from '../utils/mailer';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 // =====================================================================
@@ -374,38 +374,35 @@ export async function updateUser(req: AuthenticatedRequest, res: Response): Prom
 
     // Si el email fue modificado, despachar notificación al nuevo correo en segundo plano
     if (emailChanged && normalizedNewEmail) {
-      const transporter = getMailTransporter();
       const fromEmail = process.env.EMAIL_FROM || 'MG Solutions <mgsolutionsg@gmail.com>';
-      if (transporter) {
-        transporter.sendMail({
-          from: fromEmail,
-          to: normalizedNewEmail,
-          subject: '✉️ Correo electrónico actualizado - MG Solutions ERP',
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-              <div style="text-align: center; margin-bottom: 20px;">
-                <h2 style="color: #00346F; margin: 0;">MG SOLUTIONS GROUP S.A.C.</h2>
-                <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Actualización de Cuenta de Acceso</p>
-              </div>
-              <p style="font-size: 14px; color: #334155;">Estimado(a) <strong>${currentUserData.nombre_completo || currentUserData.username}</strong>,</p>
-              <p style="font-size: 14px; color: #334155; line-height: 1.5;">
-                Le confirmamos que el administrador del sistema ha actualizado su correo electrónico de acceso a:
-              </p>
-              <div style="background-color: #eff6ff; border-left: 4px solid #00346F; padding: 12px 16px; margin: 15px 0; border-radius: 4px;">
-                <span style="font-size: 15px; font-weight: bold; color: #00346F;">${normalizedNewEmail}</span>
-              </div>
-              <p style="font-size: 13px; color: #475569; line-height: 1.5;">
-                A partir de ahora, puede utilizar esta dirección de correo para iniciar sesión o para recibir sus códigos OTP en la opción <em>"¿Olvidé mi contraseña?"</em> de la pantalla de inicio.
-              </p>
-              <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center;">
-                Si usted no solicitó este cambio, por favor contacte de inmediato con la administración de MG Solutions.
-              </div>
+      dispatchEmail({
+        from: fromEmail,
+        to: normalizedNewEmail,
+        subject: '✉️ Correo electrónico actualizado - MG Solutions ERP',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <h2 style="color: #00346F; margin: 0;">MG SOLUTIONS GROUP S.A.C.</h2>
+              <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Actualización de Cuenta de Acceso</p>
             </div>
-          `,
-        }).catch((mailErr: any) => {
-          console.warn('Advertencia al enviar correo de actualización:', mailErr);
-        });
-      }
+            <p style="font-size: 14px; color: #334155;">Estimado(a) <strong>${currentUserData.nombre_completo || currentUserData.username}</strong>,</p>
+            <p style="font-size: 14px; color: #334155; line-height: 1.5;">
+              Le confirmamos que el administrador del sistema ha actualizado su correo electrónico de acceso a:
+            </p>
+            <div style="background-color: #eff6ff; border-left: 4px solid #00346F; padding: 12px 16px; margin: 15px 0; border-radius: 4px;">
+              <span style="font-size: 15px; font-weight: bold; color: #00346F;">${normalizedNewEmail}</span>
+            </div>
+            <p style="font-size: 13px; color: #475569; line-height: 1.5;">
+              A partir de ahora, puede utilizar esta dirección de correo para iniciar sesión o para recibir sus códigos OTP en la opción <em>"¿Olvidé mi contraseña?"</em> de la pantalla de inicio.
+            </p>
+            <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center;">
+              Si usted no solicitó este cambio, por favor contacte de inmediato con la administración de MG Solutions.
+            </div>
+          </div>
+        `,
+      }).catch((mailErr: any) => {
+        console.warn('Advertencia al enviar correo de actualización:', mailErr);
+      });
     }
 
     res.json({ success: true, message: 'Usuario actualizado con éxito.' });

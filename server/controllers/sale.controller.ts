@@ -472,12 +472,12 @@ export async function enviarComprobanteEmail(req: AuthenticatedRequest, res: Res
       [ventaId]
     );
 
-    if (ventaRows.length === 0) {
+    if (ventaRows.length === 0 && !saleData) {
       res.status(404).json({ success: false, message: 'Venta no encontrada en la base de datos.' });
       return;
     }
 
-    const v = ventaRows[0];
+    const v: any = ventaRows[0] || {};
     const destinationEmail = String(customEmail || v.clienteEmail || saleData?.clienteEmail || '').trim();
 
     if (!destinationEmail || !destinationEmail.includes('@')) {
@@ -488,37 +488,52 @@ export async function enviarComprobanteEmail(req: AuthenticatedRequest, res: Res
       return;
     }
 
-    // 2. Obtener productos de la venta
-    const [itemsRows] = await pool.query<RowDataPacket[]>(
-      `SELECT dv.producto_id AS productoId, p.nombre AS productoNombre,
-              dv.cantidad, dv.precio_unitario AS precioUnitario, dv.subtotal
-       FROM detalle_ventas dv
-       INNER JOIN productos p ON dv.producto_id = p.id
-       WHERE dv.venta_id = ?`,
-      [ventaId]
-    );
+    let emailItems: any[] = [];
+    if (ventaRows.length > 0) {
+      // 2. Obtener productos de la venta
+      const [itemsRows] = await pool.query<RowDataPacket[]>(
+        `SELECT dv.producto_id AS productoId, p.nombre AS productoNombre,
+                dv.cantidad, dv.precio_unitario AS precioUnitario, dv.subtotal
+         FROM detalle_ventas dv
+         INNER JOIN productos p ON dv.producto_id = p.id
+         WHERE dv.venta_id = ?`,
+        [ventaId]
+      );
 
-    // 3. Obtener series de garantía
-    const [seriesRows] = await pool.query<RowDataPacket[]>(
-      `SELECT producto_id AS productoId, numero_serie AS numeroSerie
-       FROM producto_series_garantia
-       WHERE venta_id = ?`,
-      [ventaId]
-    );
+      // 3. Obtener series de garantía
+      const [seriesRows] = await pool.query<RowDataPacket[]>(
+        `SELECT producto_id AS productoId, numero_serie AS numeroSerie
+         FROM producto_series_garantia
+         WHERE venta_id = ?`,
+        [ventaId]
+      );
 
-    const seriesMap = new Map<number, string[]>();
-    for (const s of seriesRows) {
-      if (!seriesMap.has(s.productoId)) seriesMap.set(s.productoId, []);
-      seriesMap.get(s.productoId)!.push(s.numeroSerie);
+      const seriesMap = new Map<number, string[]>();
+      for (const s of seriesRows) {
+        if (!seriesMap.has(s.productoId)) seriesMap.set(s.productoId, []);
+        seriesMap.get(s.productoId)!.push(s.numeroSerie);
+      }
+
+      emailItems = itemsRows.map((it) => ({
+        nombre: it.productoNombre,
+        cantidad: Number(it.cantidad) || 1,
+        precioUnitario: Number(it.precioUnitario) || 0,
+        subtotal: Number(it.subtotal) || 0,
+        series: seriesMap.get(it.productoId) || [],
+      }));
+    } else if (Array.isArray(saleData?.items)) {
+      emailItems = saleData.items.map((it: any) => ({
+        nombre: it.nombre || 'Producto',
+        cantidad: Number(it.cantidad) || 1,
+        precioUnitario: Number(it.precioUnitario) || 0,
+        subtotal: Number(it.subtotal) || 0,
+        series: Array.isArray(it.series) ? it.series : [],
+      }));
     }
 
-    const emailItems = itemsRows.map((it) => ({
-      nombre: it.productoNombre,
-      cantidad: Number(it.cantidad) || 1,
-      precioUnitario: Number(it.precioUnitario) || 0,
-      subtotal: Number(it.subtotal) || 0,
-      series: seriesMap.get(it.productoId) || [],
-    }));
+    const totalNum = Number(v.total ?? saleData?.total) || 0;
+    const subtotalNum = Number(v.subtotal ?? saleData?.subtotal) || Math.round((totalNum / 1.18) * 100) / 100;
+    const igvNum = Number(v.igv ?? saleData?.igv) || Math.round((totalNum - subtotalNum) * 100) / 100;
 
     // 4. Enviar email
     const emailResult = await sendSaleReceiptEmail({
@@ -526,15 +541,15 @@ export async function enviarComprobanteEmail(req: AuthenticatedRequest, res: Res
       clienteNombre: v.clienteNombre || saleData?.clienteNombre || 'Estimado(a) Cliente',
       clienteDocumento: v.clienteDocumento || saleData?.clienteDocumento || '',
       clienteDireccion: v.clienteDireccion || saleData?.clienteDireccion || 'Chiclayo, Perú',
-      codigoComprobante: v.codigoComprobante,
-      tipoComprobante: v.tipoComprobanteNombre || 'BOLETA DE VENTA ELECTRÓNICA',
-      fechaVenta: v.fechaVenta ? new Date(v.fechaVenta).toLocaleString('es-PE', { hour12: false }) : new Date().toLocaleString('es-PE', { hour12: false }),
-      vendedorNombre: v.vendedorNombre || 'Cajero MG Solutions',
-      sucursalNombre: v.sucursalNombre || 'Principal - Chiclayo Centro',
-      metodoPago: v.metodoPagoNombre || 'EFECTIVO',
-      subtotal: Number(v.subtotal) || 0,
-      igv: Number(v.igv) || 0,
-      total: Number(v.total) || 0,
+      codigoComprobante: v.codigoComprobante || saleData?.codigoComprobante || 'B001-000101',
+      tipoComprobante: v.tipoComprobanteNombre || saleData?.tipoComprobante || 'BOLETA DE VENTA ELECTRÓNICA',
+      fechaVenta: v.fechaVenta ? new Date(v.fechaVenta).toLocaleString('es-PE', { hour12: false }) : (saleData?.fecha || new Date().toLocaleString('es-PE', { hour12: false })),
+      vendedorNombre: v.vendedorNombre || saleData?.vendedorNombre || 'Cajero MG Solutions',
+      sucursalNombre: v.sucursalNombre || saleData?.sucursal || 'Principal - Chiclayo Centro',
+      metodoPago: v.metodoPagoNombre || saleData?.metodoPago || 'EFECTIVO',
+      subtotal: subtotalNum,
+      igv: igvNum,
+      total: totalNum,
       items: emailItems,
     });
 

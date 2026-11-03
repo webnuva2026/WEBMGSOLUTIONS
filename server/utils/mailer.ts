@@ -4,8 +4,7 @@ import path from 'path';
 import dns from 'dns';
 
 // CRÍTICO PARA RENDER / DOCKER / LINUX:
-// Forzar resolución DNS IPv4 primero. En Render el enrutamiento IPv6 hacia smtp.gmail.com
-// se queda colgado por más de 2 minutos (ETIMEDOUT) y bloquea el envío de correos.
+// Forzar resolución DNS IPv4 primero.
 try {
   dns.setDefaultResultOrder('ipv4first');
 } catch {
@@ -15,18 +14,47 @@ try {
 // Asegurar carga inmediata de variables de entorno
 dotenv.config();
 
+// URL opcional del Puente HTTPS (Puerto 443) en Google Apps Script para saltar bloqueos de puertos SMTP en Render Free Tier
+let runtimeMailBridgeUrl: string = process.env.GOOGLE_MAIL_BRIDGE_URL || '';
+
+export function setRuntimeMailBridgeUrl(url: string) {
+  runtimeMailBridgeUrl = (url || '').trim();
+}
+
+export function getRuntimeMailBridgeUrl(): string {
+  return runtimeMailBridgeUrl || process.env.GOOGLE_MAIL_BRIDGE_URL || '';
+}
+
+/**
+ * Resuelve el hostname SMTP exclusivamente a una dirección IPv4 literal (ej. 142.251.x.x).
+ * IMPORTANTE: En Nodemailer v10, pasar un nombre de dominio ('smtp.gmail.com') hace que Nodemailer
+ * ejecute internamente dns.resolve6() y elija al azar una IPv6 (2607:f8b0:...), causando
+ * "connect ENETUNREACH 2607:f8b0:...:587" en Render. Al pasar una IP IPv4 literal (net.isIP === 4),
+ * Nodemailer omite por completo IPv6.
+ */
+async function resolveSmtpIpv4Host(hostname: string): Promise<string> {
+  try {
+    const ipv4List = await dns.promises.resolve4(hostname);
+    if (ipv4List && ipv4List.length > 0) {
+      return ipv4List[0];
+    }
+  } catch (err) {
+    console.warn(`⚠️ No se pudo resolver IPv4 para ${hostname}, usando hostname directo:`, err);
+  }
+  return hostname;
+}
+
 // Configuración del transporte Nodemailer (Google / Gmail SMTP u otro)
-export function getMailTransporter(overridePort?: number) {
-  // Si no están en process.env (por ejemplo si el servidor no fue reiniciado tras editar el .env), recargar con override
+export function getMailTransporter(overridePort?: number, resolvedIpv4Host?: string) {
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
     dotenv.config({ override: true });
   }
 
-  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const originalHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const connectHost = resolvedIpv4Host || originalHost;
   const port = overridePort || parseInt(process.env.SMTP_PORT || '465', 10);
   const secure = port === 465 ? true : (process.env.SMTP_SECURE === 'true');
   const user = (process.env.SMTP_USER || 'mgsolutionsg@gmail.com').trim();
-  // Eliminar espacios que Google suele colocar en las contraseñas de app (ej: "abcd efgh ijkl mnop")
   const pass = (process.env.SMTP_PASS || 'qpulsrkfhicknmox').replace(/\s+/g, '');
 
   if (!user || !pass) {
@@ -35,39 +63,125 @@ export function getMailTransporter(overridePort?: number) {
   }
 
   return nodemailer.createTransport({
-    host,
+    host: connectHost,
     port,
     secure,
+    servername: originalHost,
     auth: {
       user,
       pass,
     },
     tls: {
+      servername: originalHost,
       rejectUnauthorized: false,
     },
-    family: 4, // Forzar IPv4 estrictamente para evitar cuelgues de 2 min por IPv6 en Render
-    connectionTimeout: 8000,
-    greetingTimeout: 8000,
-    socketTimeout: 10000,
+    connectionTimeout: 7000,
+    greetingTimeout: 7000,
+    socketTimeout: 9000,
   } as any);
 }
 
 /**
- * Envía un correo probando primero el puerto principal (465 SSL IPv4) y, si falla, reintenta por 587 STARTTLS IPv4
+ * Despacha un correo electrónico utilizando:
+ * 1) Puente HTTPS (Puerto 443) si está configurado (Google Apps Script Bridge o Resend/Brevo API),
+ *    el cual nunca es bloqueado por el firewall de Render Free Tier.
+ * 2) Conexión SMTP IPv4 Literal (resuelta con dns.promises.resolve4 para evitar que Nodemailer v10 use IPv6),
+ *    probando el puerto 465 (SSL) y reintentando en 587 (STARTTLS).
  */
-async function sendMailWithRetry(mailOptions: any): Promise<void> {
-  const primaryTransporter = getMailTransporter(465);
+export async function dispatchEmail(mailOptions: {
+  from?: string;
+  to: string;
+  subject: string;
+  text?: string;
+  html: string;
+}): Promise<void> {
+  const bridgeUrl = getRuntimeMailBridgeUrl();
+
+  // 1. PRIORIDAD 1: Puente HTTPS por Puerto 443 (Google Apps Script Web App)
+  if (bridgeUrl && bridgeUrl.startsWith('https://')) {
+    try {
+      const response = await fetch(bridgeUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: mailOptions.to,
+          subject: mailOptions.subject,
+          text: mailOptions.text || '',
+          html: mailOptions.html,
+          fromName: 'MG Solutions Group S.A.C.',
+        }),
+      });
+      if (response.ok) {
+        const resData: any = await response.json().catch(() => ({ success: true }));
+        if (resData.success !== false) {
+          console.log(`✅ Correo enviado vía HTTPS Bridge (Puerto 443) a ${mailOptions.to}`);
+          return;
+        }
+      }
+      console.warn('⚠️ Fallo en HTTPS Bridge, pasando a SMTP IPv4 directo...');
+    } catch (bridgeErr: any) {
+      console.warn('⚠️ Error conectando a HTTPS Bridge, pasando a SMTP IPv4 directo:', bridgeErr?.message);
+    }
+  }
+
+  // 2. PRIORIDAD 2: API HTTP Resend (Puerto 443) si existe RESEND_API_KEY
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        },
+        body: JSON.stringify({
+          from: process.env.RESEND_FROM || 'MG Solutions <onboarding@resend.dev>',
+          to: [mailOptions.to],
+          subject: mailOptions.subject,
+          html: mailOptions.html,
+          text: mailOptions.text,
+        }),
+      });
+      if (response.ok) {
+        console.log(`✅ Correo enviado vía Resend HTTPS API (Puerto 443) a ${mailOptions.to}`);
+        return;
+      }
+    } catch (resendErr: any) {
+      console.warn('⚠️ Error en Resend API:', resendErr?.message);
+    }
+  }
+
+  // 3. PRIORIDAD 3: SMTP con IP IPv4 Literal (evita el bug de IPv6 2607:f8b0:... de Nodemailer v10)
+  const originalHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const ipv4Host = await resolveSmtpIpv4Host(originalHost);
+  const fromEmail =
+    mailOptions.from ||
+    process.env.EMAIL_FROM ||
+    `"MG Solutions ERP" <${process.env.SMTP_USER || 'mgsolutionsg@gmail.com'}>`;
+
+  const fullMailOptions = {
+    ...mailOptions,
+    from: fromEmail,
+  };
+
+  const primaryTransporter = getMailTransporter(465, ipv4Host);
   if (!primaryTransporter) {
     throw new Error('Transporter SMTP no disponible');
   }
+
   try {
-    await primaryTransporter.sendMail(mailOptions);
+    await primaryTransporter.sendMail(fullMailOptions);
+    console.log(`✅ Correo enviado vía SMTP IPv4 (${ipv4Host}:465) a ${mailOptions.to}`);
   } catch (firstErr: any) {
-    console.warn('⚠️ Reintentando envío SMTP por puerto 587 IPv4 tras fallo en 465:', firstErr?.message);
-    const fallbackTransporter = getMailTransporter(587);
+    console.warn(`⚠️ Reintentando envío SMTP por ${ipv4Host}:587 tras fallo en 465:`, firstErr?.message);
+    const fallbackTransporter = getMailTransporter(587, ipv4Host);
     if (!fallbackTransporter) throw firstErr;
-    await fallbackTransporter.sendMail(mailOptions);
+    await fallbackTransporter.sendMail(fullMailOptions);
+    console.log(`✅ Correo enviado vía SMTP IPv4 (${ipv4Host}:587) a ${mailOptions.to}`);
   }
+}
+
+async function sendMailWithRetry(mailOptions: any): Promise<void> {
+  await dispatchEmail(mailOptions);
 }
 
 /**
@@ -957,13 +1071,12 @@ export async function sendSaleReceiptEmail(params: {
       <tr style="border-bottom: 1px dashed #E2E8F0;">
         <td style="padding: 10px 8px; font-size: 13px; color: #1E293B;">
           <strong>${it.cantidad}x</strong> ${it.nombre}
-          ${
-            it.series && it.series.length > 0
-              ? `<div style="margin-top: 4px; font-family: 'Courier New', monospace; font-size: 11px; color: #0284C7; background: #F0F9FF; padding: 3px 6px; border-radius: 4px; display: inline-block;">
+          ${it.series && it.series.length > 0
+          ? `<div style="margin-top: 4px; font-family: 'Courier New', monospace; font-size: 11px; color: #0284C7; background: #F0F9FF; padding: 3px 6px; border-radius: 4px; display: inline-block;">
                   S/N: ${it.series.join(', ')} • <strong>Garantía 12 Meses</strong>
                  </div>`
-              : ''
-          }
+          : ''
+        }
         </td>
         <td style="padding: 10px 8px; font-size: 13px; text-align: right; color: #64748B;">
           S/ ${it.precioUnitario.toFixed(2)}
@@ -1170,9 +1283,8 @@ export async function sendSaleReceiptEmail(params: {
               <td style="padding-top: 6px; font-size: 12px; color: #64748B;">Forma de Pago:</td>
               <td style="padding-top: 6px; text-align: right; font-size: 12px; font-weight: 700; color: #0F172A;">${metodoPago}</td>
             </tr>
-            ${
-              metodoPago === 'EFECTIVO' && montoRecibido
-                ? `
+            ${metodoPago === 'EFECTIVO' && montoRecibido
+      ? `
             <tr>
               <td style="font-size: 12px; color: #64748B;">Monto Recibido:</td>
               <td style="text-align: right; font-size: 12px;">S/ ${montoRecibido.toFixed(2)}</td>
@@ -1182,8 +1294,8 @@ export async function sendSaleReceiptEmail(params: {
               <td style="text-align: right; font-size: 12px; color: #16A34A; font-weight: 700;">S/ ${vuelto.toFixed(2)}</td>
             </tr>
             `
-                : ''
-            }
+      : ''
+    }
           </table>
         </div>
 

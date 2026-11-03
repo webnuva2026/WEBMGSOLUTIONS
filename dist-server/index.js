@@ -81,21 +81,42 @@ var init_security = __esm({
 // server/utils/mailer.ts
 var mailer_exports = {};
 __export(mailer_exports, {
+  dispatchEmail: () => dispatchEmail,
   getMailTransporter: () => getMailTransporter,
+  getRuntimeMailBridgeUrl: () => getRuntimeMailBridgeUrl,
   sendRecoveryCodeEmail: () => sendRecoveryCodeEmail,
   sendSaleReceiptEmail: () => sendSaleReceiptEmail,
   sendWelcomeCredentialsEmail: () => sendWelcomeCredentialsEmail,
   sendWorkshopTicketEmail: () => sendWorkshopTicketEmail,
+  setRuntimeMailBridgeUrl: () => setRuntimeMailBridgeUrl,
   verifySMTPConnection: () => verifySMTPConnection
 });
 import nodemailer from "nodemailer";
 import dotenv4 from "dotenv";
 import dns from "dns";
-function getMailTransporter(overridePort) {
+function setRuntimeMailBridgeUrl(url) {
+  runtimeMailBridgeUrl = (url || "").trim();
+}
+function getRuntimeMailBridgeUrl() {
+  return runtimeMailBridgeUrl || process.env.GOOGLE_MAIL_BRIDGE_URL || "";
+}
+async function resolveSmtpIpv4Host(hostname) {
+  try {
+    const ipv4List = await dns.promises.resolve4(hostname);
+    if (ipv4List && ipv4List.length > 0) {
+      return ipv4List[0];
+    }
+  } catch (err) {
+    console.warn(`\u26A0\uFE0F No se pudo resolver IPv4 para ${hostname}, usando hostname directo:`, err);
+  }
+  return hostname;
+}
+function getMailTransporter(overridePort, resolvedIpv4Host) {
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
     dotenv4.config({ override: true });
   }
-  const host = process.env.SMTP_HOST || "smtp.gmail.com";
+  const originalHost = process.env.SMTP_HOST || "smtp.gmail.com";
+  const connectHost = resolvedIpv4Host || originalHost;
   const port = overridePort || parseInt(process.env.SMTP_PORT || "465", 10);
   const secure = port === 465 ? true : process.env.SMTP_SECURE === "true";
   const user = (process.env.SMTP_USER || "mgsolutionsg@gmail.com").trim();
@@ -105,36 +126,98 @@ function getMailTransporter(overridePort) {
     return null;
   }
   return nodemailer.createTransport({
-    host,
+    host: connectHost,
     port,
     secure,
+    servername: originalHost,
     auth: {
       user,
       pass
     },
     tls: {
+      servername: originalHost,
       rejectUnauthorized: false
     },
-    family: 4,
-    // Forzar IPv4 estrictamente para evitar cuelgues de 2 min por IPv6 en Render
-    connectionTimeout: 8e3,
-    greetingTimeout: 8e3,
-    socketTimeout: 1e4
+    connectionTimeout: 7e3,
+    greetingTimeout: 7e3,
+    socketTimeout: 9e3
   });
 }
-async function sendMailWithRetry(mailOptions) {
-  const primaryTransporter = getMailTransporter(465);
+async function dispatchEmail(mailOptions) {
+  const bridgeUrl = getRuntimeMailBridgeUrl();
+  if (bridgeUrl && bridgeUrl.startsWith("https://")) {
+    try {
+      const response = await fetch(bridgeUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: mailOptions.to,
+          subject: mailOptions.subject,
+          text: mailOptions.text || "",
+          html: mailOptions.html,
+          fromName: "MG Solutions Group S.A.C."
+        })
+      });
+      if (response.ok) {
+        const resData = await response.json().catch(() => ({ success: true }));
+        if (resData.success !== false) {
+          console.log(`\u2705 Correo enviado v\xEDa HTTPS Bridge (Puerto 443) a ${mailOptions.to}`);
+          return;
+        }
+      }
+      console.warn("\u26A0\uFE0F Fallo en HTTPS Bridge, pasando a SMTP IPv4 directo...");
+    } catch (bridgeErr) {
+      console.warn("\u26A0\uFE0F Error conectando a HTTPS Bridge, pasando a SMTP IPv4 directo:", bridgeErr?.message);
+    }
+  }
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`
+        },
+        body: JSON.stringify({
+          from: process.env.RESEND_FROM || "MG Solutions <onboarding@resend.dev>",
+          to: [mailOptions.to],
+          subject: mailOptions.subject,
+          html: mailOptions.html,
+          text: mailOptions.text
+        })
+      });
+      if (response.ok) {
+        console.log(`\u2705 Correo enviado v\xEDa Resend HTTPS API (Puerto 443) a ${mailOptions.to}`);
+        return;
+      }
+    } catch (resendErr) {
+      console.warn("\u26A0\uFE0F Error en Resend API:", resendErr?.message);
+    }
+  }
+  const originalHost = process.env.SMTP_HOST || "smtp.gmail.com";
+  const ipv4Host = await resolveSmtpIpv4Host(originalHost);
+  const fromEmail = mailOptions.from || process.env.EMAIL_FROM || `"MG Solutions ERP" <${process.env.SMTP_USER || "mgsolutionsg@gmail.com"}>`;
+  const fullMailOptions = {
+    ...mailOptions,
+    from: fromEmail
+  };
+  const primaryTransporter = getMailTransporter(465, ipv4Host);
   if (!primaryTransporter) {
     throw new Error("Transporter SMTP no disponible");
   }
   try {
-    await primaryTransporter.sendMail(mailOptions);
+    await primaryTransporter.sendMail(fullMailOptions);
+    console.log(`\u2705 Correo enviado v\xEDa SMTP IPv4 (${ipv4Host}:465) a ${mailOptions.to}`);
   } catch (firstErr) {
-    console.warn("\u26A0\uFE0F Reintentando env\xEDo SMTP por puerto 587 IPv4 tras fallo en 465:", firstErr?.message);
-    const fallbackTransporter = getMailTransporter(587);
+    console.warn(`\u26A0\uFE0F Reintentando env\xEDo SMTP por ${ipv4Host}:587 tras fallo en 465:`, firstErr?.message);
+    const fallbackTransporter = getMailTransporter(587, ipv4Host);
     if (!fallbackTransporter) throw firstErr;
-    await fallbackTransporter.sendMail(mailOptions);
+    await fallbackTransporter.sendMail(fullMailOptions);
+    console.log(`\u2705 Correo enviado v\xEDa SMTP IPv4 (${ipv4Host}:587) a ${mailOptions.to}`);
   }
+}
+async function sendMailWithRetry(mailOptions) {
+  await dispatchEmail(mailOptions);
 }
 async function verifySMTPConnection() {
   const transporter = getMailTransporter();
@@ -1200,6 +1283,7 @@ Gracias por su compra en MG SOLUTIONS GROUP S.A.C.`,
     return { success: false, error: error.message };
   }
 }
+var runtimeMailBridgeUrl;
 var init_mailer = __esm({
   "server/utils/mailer.ts"() {
     try {
@@ -1207,6 +1291,7 @@ var init_mailer = __esm({
     } catch {
     }
     dotenv4.config();
+    runtimeMailBridgeUrl = process.env.GOOGLE_MAIL_BRIDGE_URL || "";
   }
 });
 
@@ -2198,38 +2283,35 @@ async function updateUser(req, res) {
     params.push(userId);
     await pool.query(`UPDATE usuarios SET ${updates.join(", ")} WHERE id = ?`, params);
     if (emailChanged && normalizedNewEmail) {
-      const transporter = getMailTransporter();
       const fromEmail = process.env.EMAIL_FROM || "MG Solutions <mgsolutionsg@gmail.com>";
-      if (transporter) {
-        transporter.sendMail({
-          from: fromEmail,
-          to: normalizedNewEmail,
-          subject: "\u2709\uFE0F Correo electr\xF3nico actualizado - MG Solutions ERP",
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-              <div style="text-align: center; margin-bottom: 20px;">
-                <h2 style="color: #00346F; margin: 0;">MG SOLUTIONS GROUP S.A.C.</h2>
-                <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Actualizaci\xF3n de Cuenta de Acceso</p>
-              </div>
-              <p style="font-size: 14px; color: #334155;">Estimado(a) <strong>${currentUserData.nombre_completo || currentUserData.username}</strong>,</p>
-              <p style="font-size: 14px; color: #334155; line-height: 1.5;">
-                Le confirmamos que el administrador del sistema ha actualizado su correo electr\xF3nico de acceso a:
-              </p>
-              <div style="background-color: #eff6ff; border-left: 4px solid #00346F; padding: 12px 16px; margin: 15px 0; border-radius: 4px;">
-                <span style="font-size: 15px; font-weight: bold; color: #00346F;">${normalizedNewEmail}</span>
-              </div>
-              <p style="font-size: 13px; color: #475569; line-height: 1.5;">
-                A partir de ahora, puede utilizar esta direcci\xF3n de correo para iniciar sesi\xF3n o para recibir sus c\xF3digos OTP en la opci\xF3n <em>"\xBFOlvid\xE9 mi contrase\xF1a?"</em> de la pantalla de inicio.
-              </p>
-              <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center;">
-                Si usted no solicit\xF3 este cambio, por favor contacte de inmediato con la administraci\xF3n de MG Solutions.
-              </div>
+      dispatchEmail({
+        from: fromEmail,
+        to: normalizedNewEmail,
+        subject: "\u2709\uFE0F Correo electr\xF3nico actualizado - MG Solutions ERP",
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <h2 style="color: #00346F; margin: 0;">MG SOLUTIONS GROUP S.A.C.</h2>
+              <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Actualizaci\xF3n de Cuenta de Acceso</p>
             </div>
-          `
-        }).catch((mailErr) => {
-          console.warn("Advertencia al enviar correo de actualizaci\xF3n:", mailErr);
-        });
-      }
+            <p style="font-size: 14px; color: #334155;">Estimado(a) <strong>${currentUserData.nombre_completo || currentUserData.username}</strong>,</p>
+            <p style="font-size: 14px; color: #334155; line-height: 1.5;">
+              Le confirmamos que el administrador del sistema ha actualizado su correo electr\xF3nico de acceso a:
+            </p>
+            <div style="background-color: #eff6ff; border-left: 4px solid #00346F; padding: 12px 16px; margin: 15px 0; border-radius: 4px;">
+              <span style="font-size: 15px; font-weight: bold; color: #00346F;">${normalizedNewEmail}</span>
+            </div>
+            <p style="font-size: 13px; color: #475569; line-height: 1.5;">
+              A partir de ahora, puede utilizar esta direcci\xF3n de correo para iniciar sesi\xF3n o para recibir sus c\xF3digos OTP en la opci\xF3n <em>"\xBFOlvid\xE9 mi contrase\xF1a?"</em> de la pantalla de inicio.
+            </p>
+            <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center;">
+              Si usted no solicit\xF3 este cambio, por favor contacte de inmediato con la administraci\xF3n de MG Solutions.
+            </div>
+          </div>
+        `
+      }).catch((mailErr) => {
+        console.warn("Advertencia al enviar correo de actualizaci\xF3n:", mailErr);
+      });
     }
     res.json({ success: true, message: "Usuario actualizado con \xE9xito." });
   } catch (error) {
@@ -3515,7 +3597,35 @@ async function toggleSucursalEstado(req, res) {
 }
 
 // server/routes/company.routes.ts
+init_mailer();
 var router4 = Router4();
+router4.post("/empresa/mail-bridge", authenticateToken, requireRoles("SUPERADMIN", "ADMIN"), async (req, res) => {
+  try {
+    const { bridgeUrl, testEmail } = req.body;
+    if (bridgeUrl !== void 0) {
+      setRuntimeMailBridgeUrl(String(bridgeUrl));
+    }
+    if (testEmail) {
+      await dispatchEmail({
+        to: String(testEmail).trim(),
+        subject: "\u2705 Prueba de Correo MG Solutions ERP",
+        text: "El servicio de correo electr\xF3nico de MG Solutions ERP est\xE1 operativo.",
+        html: '<div style="font-family:sans-serif;padding:20px;border:1px solid #e2e8f0;border-radius:10px;"><h2 style="color:#00346F;">MG SOLUTIONS GROUP S.A.C.</h2><p>\u2705 El servicio de despacho de correo electr\xF3nico est\xE1 operativo.</p></div>'
+      });
+    }
+    res.json({
+      success: true,
+      bridgeUrl: getRuntimeMailBridgeUrl(),
+      message: "Configuraci\xF3n de correo actualizada y probada con \xE9xito."
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      bridgeUrl: getRuntimeMailBridgeUrl(),
+      message: err?.message || "Error al probar el env\xEDo de correo."
+    });
+  }
+});
 router4.get("/empresa", authenticateToken, getEmpresa);
 router4.put("/empresa", authenticateToken, requireRoles("SUPERADMIN", "ADMIN"), updateEmpresa);
 router4.get("/sucursales", authenticateToken, getSucursales);
@@ -5425,11 +5535,11 @@ async function enviarComprobanteEmail(req, res) {
        LIMIT 1`,
       [ventaId]
     );
-    if (ventaRows.length === 0) {
+    if (ventaRows.length === 0 && !saleData) {
       res.status(404).json({ success: false, message: "Venta no encontrada en la base de datos." });
       return;
     }
-    const v = ventaRows[0];
+    const v = ventaRows[0] || {};
     const destinationEmail = String(customEmail || v.clienteEmail || saleData?.clienteEmail || "").trim();
     if (!destinationEmail || !destinationEmail.includes("@")) {
       res.status(400).json({
@@ -5438,46 +5548,60 @@ async function enviarComprobanteEmail(req, res) {
       });
       return;
     }
-    const [itemsRows] = await pool.query(
-      `SELECT dv.producto_id AS productoId, p.nombre AS productoNombre,
-              dv.cantidad, dv.precio_unitario AS precioUnitario, dv.subtotal
-       FROM detalle_ventas dv
-       INNER JOIN productos p ON dv.producto_id = p.id
-       WHERE dv.venta_id = ?`,
-      [ventaId]
-    );
-    const [seriesRows] = await pool.query(
-      `SELECT producto_id AS productoId, numero_serie AS numeroSerie
-       FROM producto_series_garantia
-       WHERE venta_id = ?`,
-      [ventaId]
-    );
-    const seriesMap = /* @__PURE__ */ new Map();
-    for (const s of seriesRows) {
-      if (!seriesMap.has(s.productoId)) seriesMap.set(s.productoId, []);
-      seriesMap.get(s.productoId).push(s.numeroSerie);
+    let emailItems = [];
+    if (ventaRows.length > 0) {
+      const [itemsRows] = await pool.query(
+        `SELECT dv.producto_id AS productoId, p.nombre AS productoNombre,
+                dv.cantidad, dv.precio_unitario AS precioUnitario, dv.subtotal
+         FROM detalle_ventas dv
+         INNER JOIN productos p ON dv.producto_id = p.id
+         WHERE dv.venta_id = ?`,
+        [ventaId]
+      );
+      const [seriesRows] = await pool.query(
+        `SELECT producto_id AS productoId, numero_serie AS numeroSerie
+         FROM producto_series_garantia
+         WHERE venta_id = ?`,
+        [ventaId]
+      );
+      const seriesMap = /* @__PURE__ */ new Map();
+      for (const s of seriesRows) {
+        if (!seriesMap.has(s.productoId)) seriesMap.set(s.productoId, []);
+        seriesMap.get(s.productoId).push(s.numeroSerie);
+      }
+      emailItems = itemsRows.map((it) => ({
+        nombre: it.productoNombre,
+        cantidad: Number(it.cantidad) || 1,
+        precioUnitario: Number(it.precioUnitario) || 0,
+        subtotal: Number(it.subtotal) || 0,
+        series: seriesMap.get(it.productoId) || []
+      }));
+    } else if (Array.isArray(saleData?.items)) {
+      emailItems = saleData.items.map((it) => ({
+        nombre: it.nombre || "Producto",
+        cantidad: Number(it.cantidad) || 1,
+        precioUnitario: Number(it.precioUnitario) || 0,
+        subtotal: Number(it.subtotal) || 0,
+        series: Array.isArray(it.series) ? it.series : []
+      }));
     }
-    const emailItems = itemsRows.map((it) => ({
-      nombre: it.productoNombre,
-      cantidad: Number(it.cantidad) || 1,
-      precioUnitario: Number(it.precioUnitario) || 0,
-      subtotal: Number(it.subtotal) || 0,
-      series: seriesMap.get(it.productoId) || []
-    }));
+    const totalNum = Number(v.total ?? saleData?.total) || 0;
+    const subtotalNum = Number(v.subtotal ?? saleData?.subtotal) || Math.round(totalNum / 1.18 * 100) / 100;
+    const igvNum = Number(v.igv ?? saleData?.igv) || Math.round((totalNum - subtotalNum) * 100) / 100;
     const emailResult = await sendSaleReceiptEmail({
       toEmail: destinationEmail,
       clienteNombre: v.clienteNombre || saleData?.clienteNombre || "Estimado(a) Cliente",
       clienteDocumento: v.clienteDocumento || saleData?.clienteDocumento || "",
       clienteDireccion: v.clienteDireccion || saleData?.clienteDireccion || "Chiclayo, Per\xFA",
-      codigoComprobante: v.codigoComprobante,
-      tipoComprobante: v.tipoComprobanteNombre || "BOLETA DE VENTA ELECTR\xD3NICA",
-      fechaVenta: v.fechaVenta ? new Date(v.fechaVenta).toLocaleString("es-PE", { hour12: false }) : (/* @__PURE__ */ new Date()).toLocaleString("es-PE", { hour12: false }),
-      vendedorNombre: v.vendedorNombre || "Cajero MG Solutions",
-      sucursalNombre: v.sucursalNombre || "Principal - Chiclayo Centro",
-      metodoPago: v.metodoPagoNombre || "EFECTIVO",
-      subtotal: Number(v.subtotal) || 0,
-      igv: Number(v.igv) || 0,
-      total: Number(v.total) || 0,
+      codigoComprobante: v.codigoComprobante || saleData?.codigoComprobante || "B001-000101",
+      tipoComprobante: v.tipoComprobanteNombre || saleData?.tipoComprobante || "BOLETA DE VENTA ELECTR\xD3NICA",
+      fechaVenta: v.fechaVenta ? new Date(v.fechaVenta).toLocaleString("es-PE", { hour12: false }) : saleData?.fecha || (/* @__PURE__ */ new Date()).toLocaleString("es-PE", { hour12: false }),
+      vendedorNombre: v.vendedorNombre || saleData?.vendedorNombre || "Cajero MG Solutions",
+      sucursalNombre: v.sucursalNombre || saleData?.sucursal || "Principal - Chiclayo Centro",
+      metodoPago: v.metodoPagoNombre || saleData?.metodoPago || "EFECTIVO",
+      subtotal: subtotalNum,
+      igv: igvNum,
+      total: totalNum,
       items: emailItems
     });
     if (!emailResult.success) {
