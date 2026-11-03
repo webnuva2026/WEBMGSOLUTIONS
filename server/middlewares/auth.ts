@@ -80,3 +80,82 @@ export function requireRoles(...rolesPermitidos: string[]) {
     });
   };
 }
+
+/**
+ * Middleware para validar acceso dinámico por permiso/módulo del sistema
+ * Permite acceso a:
+ * 1. SUPERADMIN y ADMIN (siempre tienen acceso irrestricto)
+ * 2. Roles indicados explícitamente en rolesFallback (si se especifican)
+ * 3. Cualquier usuario cuyo rol tenga asignado el módulo en la base de datos (roles.modulos_predeterminados o rol_permisos)
+ */
+export function requirePermission(moduloCodigo: string, ...rolesFallback: string[]) {
+  return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'No autenticado.' });
+      return;
+    }
+
+    // 1. Acceso total para Superadmin y Admin
+    if (req.user.rol === 'SUPERADMIN' || req.user.rol === 'ADMIN') {
+      next();
+      return;
+    }
+
+    // 2. Coincidencia directa con roles de respaldo autorizados
+    if (rolesFallback.length > 0 && rolesFallback.includes(req.user.rol)) {
+      next();
+      return;
+    }
+
+    try {
+      // 3. Verificar en roles.modulos_predeterminados del rol del usuario
+      const [userRoleRows] = await pool.query<RowDataPacket[]>(
+        `SELECT r.modulos_predeterminados
+         FROM usuarios u
+         JOIN roles r ON u.rol_id = r.id
+         WHERE u.id = ? AND r.estado_id = 1
+         LIMIT 1`,
+        [req.user.userId]
+      );
+
+      if (userRoleRows.length > 0) {
+        let modulos = userRoleRows[0].modulos_predeterminados;
+        if (typeof modulos === 'string') {
+          try {
+            modulos = JSON.parse(modulos);
+          } catch {
+            modulos = [];
+          }
+        }
+        if (Array.isArray(modulos) && modulos.includes(moduloCodigo)) {
+          next();
+          return;
+        }
+      }
+
+      // 4. Verificar en tabla relacional rol_permisos
+      const [permRows] = await pool.query<RowDataPacket[]>(
+        `SELECT 1 FROM rol_permisos rp
+         JOIN permisos p ON rp.permiso_id = p.id
+         JOIN usuarios u ON u.rol_id = rp.rol_id
+         WHERE u.id = ? AND p.codigo = ?
+         LIMIT 1`,
+        [req.user.userId, moduloCodigo]
+      );
+
+      if (permRows.length > 0) {
+        next();
+        return;
+      }
+
+      res.status(403).json({
+        success: false,
+        message: `Acceso restringido: No cuenta con permisos para el módulo '${moduloCodigo}'.`,
+      });
+    } catch (err) {
+      console.error('Error al verificar permisos dinámicos en auth middleware:', err);
+      res.status(500).json({ success: false, message: 'Error interno de autorización.' });
+    }
+  };
+}
+

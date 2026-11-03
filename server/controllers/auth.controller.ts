@@ -17,19 +17,30 @@ const LOCKOUT_DURATION_MINUTES = 15;
  */
 export async function login(req: Request, res: Response): Promise<void> {
   try {
-    const { username, password } = req.body;
+    const rawEmail = req.body.email || req.body.username;
+    const { password } = req.body;
 
-    if (!username || !password) {
+    if (!rawEmail || !password) {
       res.status(400).json({
         success: false,
-        message: 'Debe proporcionar usuario (o correo) y contraseña.',
+        message: 'Debe proporcionar su correo electrónico y contraseña.',
       });
       return;
     }
 
-    const cleanUsername = String(username).trim();
+    const cleanEmail = String(rawEmail).trim().toLowerCase();
 
-    // Buscar usuario por username o email (parametrizado contra inyección SQL)
+    // Validar formato estricto de correo electrónico
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      res.status(400).json({
+        success: false,
+        message: 'El inicio de sesión se realiza únicamente con correo electrónico (ej: usuario@mgsolutions.pe).',
+      });
+      return;
+    }
+
+    // Buscar usuario estrictamente por correo electrónico (parametrizado contra inyección SQL)
     const [users] = await pool.query<RowDataPacket[]>(
       `SELECT u.id, u.username, u.password_hash, u.nombre_completo, u.email,
               u.telefono_cifrado, COALESCE(td.codigo, 'DNI') AS tipo_documento, u.numero_documento_cifrado,
@@ -42,15 +53,15 @@ export async function login(req: Request, res: Response): Promise<void> {
        JOIN estados e ON u.estado_id = e.id
        LEFT JOIN tipos_documento td ON u.tipo_documento_id = td.id
        LEFT JOIN sucursales s ON u.sucursal_id = s.id
-       WHERE u.username = ? OR u.email = ?
+       WHERE LOWER(u.email) = ?
        LIMIT 1`,
-      [cleanUsername, cleanUsername]
+      [cleanEmail]
     );
 
     if (users.length === 0) {
       res.status(401).json({
         success: false,
-        message: 'Credenciales inválidas: Usuario no registrado.',
+        message: 'Credenciales inválidas: Correo electrónico no registrado.',
       });
       return;
     }
@@ -336,6 +347,38 @@ export async function changePassword(req: AuthenticatedRequest, res: Response): 
       return;
     }
 
+    // Validar política de contraseña segura
+    if (
+      !nuevaPassword ||
+      nuevaPassword.length < 8 ||
+      !/[A-Z]/.test(nuevaPassword) ||
+      !/[a-z]/.test(nuevaPassword) ||
+      !/[0-9]/.test(nuevaPassword) ||
+      !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(nuevaPassword)
+    ) {
+      res.status(400).json({
+        success: false,
+        message: 'La nueva contraseña debe tener al menos 8 caracteres, incluir mayúscula, minúscula, número y un símbolo especial.',
+      });
+      return;
+    }
+
+    if (nuevaPassword.toLowerCase() === 'admin2026!') {
+      res.status(400).json({
+        success: false,
+        message: 'Por motivos de seguridad, no puede utilizar la contraseña inicial por defecto.',
+      });
+      return;
+    }
+
+    if (passwordActual === nuevaPassword) {
+      res.status(400).json({
+        success: false,
+        message: 'La nueva contraseña no puede ser igual a su contraseña actual.',
+      });
+      return;
+    }
+
     // Generar nuevo hash bcrypt
     const { hashPassword } = await import('../utils/security');
     const newPasswordHash = await hashPassword(nuevaPassword);
@@ -387,11 +430,11 @@ export async function solicitarRecuperacionPassword(req: Request, res: Response)
       return;
     }
 
-    const cleanId = String(identificador).trim();
+    const cleanId = String(identificador).trim().toLowerCase();
 
-    // Buscar usuario en la base de datos
+    // Buscar usuario en la base de datos (búsqueda insensible a mayúsculas/minúsculas)
     const [users] = await pool.query<RowDataPacket[]>(
-      'SELECT u.id, u.username, u.nombre_completo, u.email, e.nombre AS estado FROM usuarios u JOIN estados e ON u.estado_id = e.id WHERE u.username = ? OR u.email = ? LIMIT 1',
+      'SELECT u.id, u.username, u.nombre_completo, u.email, e.nombre AS estado FROM usuarios u JOIN estados e ON u.estado_id = e.id WHERE LOWER(u.username) = ? OR LOWER(u.email) = ? LIMIT 1',
       [cleanId, cleanId]
     );
 
@@ -431,6 +474,16 @@ export async function solicitarRecuperacionPassword(req: Request, res: Response)
     // Enviar correo electrónico a través de Google / Gmail SMTP
     const { sendRecoveryCodeEmail } = await import('../utils/mailer');
     const mailResult = await sendRecoveryCodeEmail(user.email, user.nombre_completo, codigoOtp);
+
+    if (!mailResult.success) {
+      res.status(500).json({
+        success: false,
+        message: mailResult.error
+          ? `Error al enviar el correo con Gmail: ${mailResult.error}`
+          : 'No se pudo enviar el correo de recuperación. Verifique las credenciales de correo en el servidor.',
+      });
+      return;
+    }
 
     const emailEnmascarado = maskEmail(user.email);
 
@@ -526,10 +579,26 @@ export async function restablecerPasswordConCodigo(req: Request, res: Response):
       return;
     }
 
-    if (nuevaPassword.length < 6) {
+    // Validar política de contraseña segura
+    if (
+      !nuevaPassword ||
+      nuevaPassword.length < 8 ||
+      !/[A-Z]/.test(nuevaPassword) ||
+      !/[a-z]/.test(nuevaPassword) ||
+      !/[0-9]/.test(nuevaPassword) ||
+      !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(nuevaPassword)
+    ) {
       res.status(400).json({
         success: false,
-        message: 'La nueva contraseña debe tener al menos 6 caracteres.',
+        message: 'La nueva contraseña debe tener al menos 8 caracteres, incluir mayúscula, minúscula, número y un símbolo especial.',
+      });
+      return;
+    }
+
+    if (nuevaPassword.toLowerCase() === 'admin2026!') {
+      res.status(400).json({
+        success: false,
+        message: 'Por motivos de seguridad, no puede utilizar la contraseña predeterminada (Admin2026!).',
       });
       return;
     }

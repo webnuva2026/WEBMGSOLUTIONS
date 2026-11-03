@@ -45,14 +45,15 @@ export const authService = {
     localStorage.setItem('mg_current_user', JSON.stringify(user));
   },
 
-  async login(username: string, password: string): Promise<LoginResponse> {
+  async login(email: string, password: string): Promise<LoginResponse> {
     try {
+      const cleanEmail = email.trim().toLowerCase();
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email: cleanEmail, username: cleanEmail, password }),
       });
 
       const data: LoginResponse = await response.json();
@@ -155,10 +156,12 @@ export const authService = {
         },
         body: JSON.stringify({ identificador }),
       });
-      return await response.json();
+      const data = await response.json().catch(() => null);
+      if (data) return data;
+      return { success: false, message: `Error del servidor (${response.status}).` };
     } catch (error) {
       console.error('Error en solicitarRecuperacion:', error);
-      return { success: false, message: 'Error conectando con el servidor para solicitar código.' };
+      return { success: false, message: 'Error conectando con el servidor para solicitar código. Verifique su conexión.' };
     }
   },
 
@@ -171,7 +174,9 @@ export const authService = {
         },
         body: JSON.stringify({ identificador, codigo }),
       });
-      return await response.json();
+      const data = await response.json().catch(() => null);
+      if (data) return data;
+      return { success: false, message: `Error del servidor (${response.status}).` };
     } catch (error) {
       console.error('Error en verificarCodigo:', error);
       return { success: false, message: 'Error conectando con el servidor para verificar código.' };
@@ -187,7 +192,9 @@ export const authService = {
         },
         body: JSON.stringify({ identificador, codigo, nuevaPassword }),
       });
-      return await response.json();
+      const data = await response.json().catch(() => null);
+      if (data) return data;
+      return { success: false, message: `Error del servidor (${response.status}).` };
     } catch (error) {
       console.error('Error en restablecerPassword:', error);
       return { success: false, message: 'Error conectando con el servidor para restablecer contraseña.' };

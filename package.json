@@ -8,12 +8,15 @@
     "dev:all": "node scripts/clean-ports.js && concurrently -k -n \"BACKEND,FRONTEND\" -c \"cyan.bold,magenta.bold\" \"npm run server:dev\" \"npm run dev\"",
     "clean:ports": "node scripts/clean-ports.js",
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "server:dev": "tsx --watch server/index.ts",
+    "server:dev": "tsx watch --exclude \"node_modules/**\" server/index.ts",
     "test": "vitest",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "seed:admin": "tsx server/utils/seed-superadmin.ts"
+    "seed:admin": "tsx server/utils/seed-superadmin.ts",
+    "db:setup": "node scripts/import-database.cjs",
+    "db:export": "node scripts/export-database.cjs",
+    "start:prod": "tsx server/index.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -32,7 +35,8 @@
     "nodemailer": "^10.0.10",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "tsx": "^4.21.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

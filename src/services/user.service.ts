@@ -72,10 +72,14 @@ export const userService = {
     return res.json();
   },
 
-  async resetPassword(id: number): Promise<{ success: boolean; message: string; passwordTemporal?: string }> {
+  async resetPassword(
+    id: number,
+    nuevaPassword?: string
+  ): Promise<{ success: boolean; message: string; passwordTemporal?: string; emailEnviado?: boolean }> {
     const res = await fetch(`${API_BASE_URL}/usuarios/${id}/reset-password`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
+      body: JSON.stringify({ nuevaPassword }),
     });
     return res.json();
   },

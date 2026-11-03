@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   AlertTriangle,
   ArrowLeftRight,
@@ -10,8 +10,11 @@ import {
   Plus,
   Tag,
   Truck,
+  Boxes,
+  BarChart3,
 } from 'lucide-react';
 import { MovimientoInventario, Producto, Sucursal, Usuario } from '../types';
+import { WarehouseInventoryView } from './WarehouseInventoryView';
 
 interface WarehouseDashboardViewProps {
   currentUser: Usuario;
@@ -20,6 +23,7 @@ interface WarehouseDashboardViewProps {
   sucursales: Sucursal[];
   setActiveView: (view: string) => void;
   readOnly?: boolean;
+  onShowToast?: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -45,7 +49,10 @@ export const WarehouseDashboardView: React.FC<WarehouseDashboardViewProps> = ({
   sucursales,
   setActiveView,
   readOnly = false,
+  onShowToast,
 }) => {
+  const [activeTab, setActiveTab] = useState<'inventario' | 'resumen'>('inventario');
+
   // --- Computed data ---
   const productosActivos = productos.filter((p) => p.estado === 'ACTIVO');
   const stockBajo = productosActivos.filter((p) => p.stock <= 10);
@@ -59,42 +66,81 @@ export const WarehouseDashboardView: React.FC<WarehouseDashboardViewProps> = ({
   const movimientosRecientes = [...movimientos].slice(0, 5);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#F8F9FF] p-6 md:p-8">
-      <div className="mx-auto w-full max-w-7xl">
-        {/* Header */}
-        <div className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-          <div>
-            <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#00346F]">
-              Panel de almacén
-            </p>
-            <h1 className="text-2xl font-bold tracking-tight text-[#0B1C30] md:text-3xl">
-              Hola, {currentUser.nombreCompleto.split(' ')[0]}
-            </h1>
-            <p className="mt-1 text-xs text-slate-500">
-              Control de inventario, stock por sede y movimientos entre sucursales.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveView('productos')}
-              className="flex items-center justify-center gap-2 rounded-lg border border-[#00346F] bg-white px-4 py-2.5 text-xs font-bold text-[#00346F] shadow-sm transition-colors hover:bg-[#EFF4FF]"
-            >
-              <Package className="h-4 w-4" />
-              Ver inventario
-            </button>
-            {!readOnly && (
-              <button
-                type="button"
-                onClick={() => setActiveView('movimientos')}
-                className="flex items-center justify-center gap-2 rounded-lg bg-[#00346F] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-[#004A99]"
-              >
-                <Plus className="h-4 w-4" />
-                Nuevo movimiento
-              </button>
-            )}
-          </div>
+    <div className="flex-1 flex flex-col overflow-hidden bg-[#F8F9FF]">
+      {/* Barra de Pestañas Superiores */}
+      <div className="border-b border-slate-200 bg-white px-6 pt-3">
+        <div className="mx-auto flex max-w-7xl items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('inventario')}
+            className={`flex items-center gap-2 border-b-2 px-5 py-3 text-xs font-bold transition ${
+              activeTab === 'inventario'
+                ? 'border-[#00346F] text-[#00346F] bg-slate-50/80 rounded-t-xl'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Boxes className="h-4 w-4" />
+            Control de Inventario & Números de Serie
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('resumen')}
+            className={`flex items-center gap-2 border-b-2 px-5 py-3 text-xs font-bold transition ${
+              activeTab === 'resumen'
+                ? 'border-[#00346F] text-[#00346F] bg-slate-50/80 rounded-t-xl'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <BarChart3 className="h-4 w-4" />
+            Métricas & Transferencias de Almacén
+          </button>
         </div>
+      </div>
+
+      {/* Contenido según pestaña */}
+      {activeTab === 'inventario' ? (
+        <WarehouseInventoryView
+          sucursales={sucursales}
+          onShowToast={onShowToast || (() => {})}
+          readOnly={readOnly}
+        />
+      ) : (
+        <div className="flex-1 overflow-y-auto p-6 md:p-8">
+          <div className="mx-auto w-full max-w-7xl">
+            {/* Header */}
+            <div className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+              <div>
+                <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#00346F]">
+                  Panel de almacén
+                </p>
+                <h1 className="text-2xl font-bold tracking-tight text-[#0B1C30] md:text-3xl">
+                  Hola, {currentUser.nombreCompleto.split(' ')[0]}
+                </h1>
+                <p className="mt-1 text-xs text-slate-500">
+                  Control de inventario, stock por sede y movimientos entre sucursales.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('inventario')}
+                  className="flex items-center justify-center gap-2 rounded-lg border border-[#00346F] bg-white px-4 py-2.5 text-xs font-bold text-[#00346F] shadow-sm transition-colors hover:bg-[#EFF4FF]"
+                >
+                  <Package className="h-4 w-4" />
+                  Ver inventario y series
+                </button>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveView('movimientos')}
+                    className="flex items-center justify-center gap-2 rounded-lg bg-[#00346F] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-[#004A99]"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Nuevo movimiento
+                  </button>
+                )}
+              </div>
+            </div>
 
         {/* Metric Cards */}
         <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -344,6 +390,8 @@ export const WarehouseDashboardView: React.FC<WarehouseDashboardViewProps> = ({
           </section>
         )}
       </div>
+    </div>
+      )}
     </div>
   );
 };

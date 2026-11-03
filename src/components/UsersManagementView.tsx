@@ -34,9 +34,16 @@ import {
   AlertCircle,
   Tag,
   Check,
+  RefreshCw,
+  User,
+  Store,
+  Mail,
+  Copy,
 } from 'lucide-react';
-import { Usuario, UserRole, EstadoRegistro, MODULOS_DISPONIBLES, Rol } from '../types';
+import { Usuario, UserRole, EstadoRegistro, MODULOS_DISPONIBLES, Rol, Sucursal } from '../types';
 import { userService, CreateRoleData } from '../services/user.service';
+import { companyService } from '../services/company.service';
+import { consultaService } from '../services/consulta.service';
 
 interface UsersManagementViewProps {
   usuarios: Usuario[];
@@ -108,6 +115,21 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
   const [editingRole, setEditingRole] = useState<Rol | null>(null);
   const [roleModalLoading, setRoleModalLoading] = useState(false);
 
+  // Sucursales State
+  const [sucursalesList, setSucursalesList] = useState<Sucursal[]>([]);
+  const [loadingSucursales, setLoadingSucursales] = useState(false);
+
+  // Modal de Restablecer Contraseña (Llave)
+  const [resetModalUser, setResetModalUser] = useState<Usuario | null>(null);
+  const [resetMode, setResetMode] = useState<'AUTO' | 'MANUAL'>('AUTO');
+  const [manualPassword, setManualPassword] = useState('');
+  const [resettingLoading, setResettingLoading] = useState(false);
+  const [resetSuccessData, setResetSuccessData] = useState<{
+    passwordTemporal: string;
+    emailEnviado: boolean;
+  } | null>(null);
+  const [copiedPassword, setCopiedPassword] = useState(false);
+
   // User Form
   const [userForm, setUserForm] = useState<{
     username: string;
@@ -118,6 +140,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
     tipoDocumento: string;
     numeroDocumento: string;
     rol: string;
+    sucursalId?: number | null;
     estado: EstadoRegistro;
     modulosPermitidos: string[];
   }>({
@@ -129,9 +152,15 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
     tipoDocumento: 'DNI',
     numeroDocumento: '',
     rol: 'SECRETARIA',
+    sucursalId: null,
     estado: 'ACTIVO',
     modulosPermitidos: ['panel-recepcion', 'taller', 'equipos', 'ventas', 'clientes'],
   });
+
+  // Consulta RENIEC / SUNAT State
+  const [isQueryingDoc, setIsQueryingDoc] = useState(false);
+  const [consultaUserBadge, setConsultaUserBadge] = useState<string | null>(null);
+  const [isDocVerified, setIsDocVerified] = useState(false);
 
   // Role Form
   const [roleForm, setRoleForm] = useState<CreateRoleData>({
@@ -156,6 +185,21 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
     }
   }, []);
 
+  // Load Sucursales from backend
+  const loadSucursales = useCallback(async () => {
+    setLoadingSucursales(true);
+    try {
+      const res = await companyService.getSucursales();
+      if (res.success && res.sucursales) {
+        setSucursalesList(res.sucursales);
+      }
+    } catch (err) {
+      console.error('Error cargando sucursales:', err);
+    } finally {
+      setLoadingSucursales(false);
+    }
+  }, []);
+
   // Load Users from backend
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true);
@@ -174,7 +218,8 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
   useEffect(() => {
     loadRoles();
     loadUsers();
-  }, [loadRoles, loadUsers]);
+    loadSucursales();
+  }, [loadRoles, loadUsers, loadSucursales]);
 
   // Sync with prop when changed
   useEffect(() => {
@@ -197,12 +242,26 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
     return matchSearch && matchRole;
   });
 
+  // Generador de Username automático tipo MG-023456 (6 dígitos aleatorios)
+  const generarUsernameMG = (): string => {
+    const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
+    return `MG-${randomDigits}`;
+  };
+
+  const handleRegenerarUsername = () => {
+    if (!editingUser) {
+      setUserForm(prev => ({ ...prev, username: generarUsernameMG() }));
+    }
+  };
+
   // Open New User Modal
   const handleOpenNewUser = () => {
     setEditingUser(null);
     const defaultRol = roles.find(r => r.codigo === 'SECRETARIA') || roles[0];
+    const defaultSucursal = sucursalesList.find(s => s.esPrincipal) || sucursalesList[0];
+    const usernameAuto = generarUsernameMG();
     setUserForm({
-      username: '',
+      username: usernameAuto,
       password: '',
       nombreCompleto: '',
       email: '',
@@ -210,10 +269,13 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
       tipoDocumento: 'DNI',
       numeroDocumento: '',
       rol: defaultRol ? defaultRol.codigo : 'SECRETARIA',
+      sucursalId: defaultSucursal ? defaultSucursal.id : null,
       estado: 'ACTIVO',
       modulosPermitidos: defaultRol?.modulosPredeterminados || ['ventas'],
     });
     setIsUserModalOpen(true);
+    setConsultaUserBadge(null);
+    setIsDocVerified(false);
   };
 
   // Open Edit User Modal
@@ -229,10 +291,76 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
       tipoDocumento: (u as any).tipoDocumento || 'DNI',
       numeroDocumento: (u as any).numeroDocumento || '',
       rol: u.rol,
+      sucursalId: u.sucursalId !== undefined ? u.sucursalId : null,
       estado: u.estado,
       modulosPermitidos: u.modulosPermitidos || userRole?.modulosPredeterminados || ['ventas'],
     });
+    setConsultaUserBadge(null);
+    setIsDocVerified(false);
     setIsUserModalOpen(true);
+  };
+
+  // Consultar documento ante RENIEC (DNI) / SUNAT (RUC)
+  const handleQueryDocument = async () => {
+    const doc = (userForm.numeroDocumento || '').trim();
+    const tipo = userForm.tipoDocumento;
+
+    if (!doc) {
+      onShowToast('Documento requerido', 'Ingrese el número de documento para consultar.', 'warning');
+      return;
+    }
+
+    if (tipo === 'DNI' && doc.length !== 8) {
+      onShowToast('DNI inválido', 'El DNI debe contener exactamente 8 dígitos numéricos.', 'warning');
+      return;
+    }
+
+    if (tipo === 'RUC' && doc.length !== 11) {
+      onShowToast('RUC inválido', 'El RUC debe contener exactamente 11 dígitos numéricos.', 'warning');
+      return;
+    }
+
+    setIsQueryingDoc(true);
+    setConsultaUserBadge(null);
+    setIsDocVerified(false);
+
+    try {
+      if (tipo === 'DNI') {
+        const res = await consultaService.consultarDni(doc);
+        if (res.success && res.data) {
+          setUserForm(prev => ({
+            ...prev,
+            nombreCompleto: res.data!.nombreCompleto,
+          }));
+          setIsDocVerified(true);
+          setConsultaUserBadge('RENIEC: Identidad Verificada');
+          onShowToast('RENIEC: Identidad Verificada', res.data.nombreCompleto, 'success');
+        } else {
+          setIsDocVerified(false);
+          onShowToast('No encontrado', res.message || 'No se encontró el DNI en RENIEC.', 'warning');
+        }
+      } else if (tipo === 'RUC') {
+        const res = await consultaService.consultarRuc(doc);
+        if (res.success && res.data) {
+          setUserForm(prev => ({
+            ...prev,
+            nombreCompleto: res.data!.razonSocial,
+          }));
+          setIsDocVerified(true);
+          setConsultaUserBadge(`SUNAT: ${res.data.estado} - ${res.data.condicion}`);
+          onShowToast('SUNAT: RUC Consultado', res.data.razonSocial, 'success');
+        } else {
+          setIsDocVerified(false);
+          onShowToast('No encontrado', res.message || 'No se encontró el RUC en SUNAT.', 'warning');
+        }
+      }
+    } catch (err: any) {
+      setIsDocVerified(false);
+      console.error('Error al consultar documento de usuario:', err);
+      onShowToast('Error', 'Fallo de conexión al consultar el documento.', 'error');
+    } finally {
+      setIsQueryingDoc(false);
+    }
   };
 
   // Handle Role Change in User Form
@@ -260,8 +388,17 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
   // Submit User
   const handleSubmitUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userForm.username.trim() || !userForm.nombreCompleto.trim() || !userForm.email.trim()) {
-      onShowToast('Campos incompletos', 'Complete todos los campos obligatorios.', 'warning');
+    if (!userForm.nombreCompleto.trim() || !userForm.email.trim()) {
+      onShowToast('Campos incompletos', 'Por favor complete el nombre completo y el correo electrónico.', 'warning');
+      return;
+    }
+
+    if (userForm.tipoDocumento === 'DNI' && userForm.numeroDocumento && userForm.numeroDocumento.trim().length !== 8) {
+      onShowToast('DNI incompleto', 'El DNI debe contener exactamente 8 dígitos.', 'warning');
+      return;
+    }
+    if (userForm.tipoDocumento === 'RUC' && userForm.numeroDocumento && userForm.numeroDocumento.trim().length !== 11) {
+      onShowToast('RUC incompleto', 'El RUC debe contener exactamente 11 dígitos.', 'warning');
       return;
     }
 
@@ -280,15 +417,19 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
           numeroDocumento: userForm.numeroDocumento?.trim(),
           rolId: selectedRoleObj?.id,
           rol: userForm.rol,
+          sucursalId: userForm.sucursalId,
         });
 
         if (res.success) {
+          const updatedSucursal = sucursalesList.find(s => s.id === userForm.sucursalId);
           const updatedUser: Usuario = {
             ...editingUser,
             nombreCompleto: userForm.nombreCompleto.trim(),
             email: userForm.email.trim(),
             telefono: userForm.telefono || '',
             rol: userForm.rol as any,
+            sucursalId: userForm.sucursalId,
+            sucursalNombre: updatedSucursal ? updatedSucursal.nombre : null,
             estado: userForm.estado,
             modulosPermitidos: userForm.modulosPermitidos,
           };
@@ -302,8 +443,8 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
       } else {
         // Create user
         const res = await userService.createUser({
-          username: userForm.username.trim().toLowerCase(),
-          password: userForm.password || 'Admin2026!',
+          username: userForm.username.trim() ? userForm.username.trim().toUpperCase() : undefined,
+          password: userForm.password ? userForm.password.trim() : undefined,
           nombreCompleto: userForm.nombreCompleto.trim(),
           email: userForm.email.trim(),
           telefono: userForm.telefono?.trim(),
@@ -311,14 +452,18 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
           numeroDocumento: userForm.numeroDocumento?.trim(),
           rolId: selectedRoleObj?.id,
           rol: userForm.rol,
+          sucursalId: userForm.sucursalId,
         });
 
         if (res.success) {
           await loadUsers();
+          if (res.usuario) {
+            onSaveUsuario(res.usuario as any);
+          }
           setIsUserModalOpen(false);
           onShowToast(
-            'Usuario Creado',
-            `Usuario @${userForm.username} registrado con éxito. Contraseña inicial: ${userForm.password || 'Admin2026!'}`,
+            '¡Usuario Creado Exitosamente!',
+            `Hemos enviado las credenciales correctamente al correo del usuario (${userForm.email.trim()}).`,
             'success'
           );
         } else {
@@ -359,10 +504,15 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
     try {
       const res = await userService.resetPassword(user.id);
       if (res.success) {
+        const tempPass = res.passwordTemporal || 'MG-Temp#2026';
         onShowToast(
           'Contraseña Restablecida',
-          `Nueva clave temporal para @${user.username}: ${res.passwordTemporal || 'CambiarEsto2026!'}`,
+          `Clave temporal para @${user.username}: ${tempPass}`,
           'success'
+        );
+        window.prompt(
+          `Nueva contraseña temporal generada para @${user.username}.\nPuede copiarla ahora para entregársela al usuario:`,
+          tempPass
         );
       } else {
         onShowToast('Error', res.message || 'Error restableciendo contraseña.', 'error');
@@ -645,6 +795,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                     <th className="py-3 px-4">Usuario</th>
                     <th className="py-3 px-4">Nombre Completo</th>
                     <th className="py-3 px-4">Rol Asignado</th>
+                    <th className="py-3 px-4">Sucursal</th>
                     <th className="py-3 px-4">Módulos Visibles</th>
                     <th className="py-3 px-4 text-center">Estado</th>
                     <th className="py-3 px-4">Último Acceso</th>
@@ -654,14 +805,14 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                 <tbody className="divide-y divide-slate-100">
                   {loadingUsers ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
                         <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-[#00346F]" />
                         Cargando usuarios...
                       </td>
                     </tr>
                   ) : filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
                         No se encontraron usuarios con los filtros aplicados.
                       </td>
                     </tr>
@@ -687,6 +838,19 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${roleBadge.bg} ${roleBadge.text}`}>
                               {roleBadge.label}
                             </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            {u.sucursalNombre ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+                                <Store className="w-3.5 h-3.5 text-[#00346F] shrink-0" />
+                                <span>{u.sucursalNombre}</span>
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 italic text-[11px] flex items-center gap-1">
+                                <Store className="w-3 h-3 text-slate-300" />
+                                <span>Sin sucursal</span>
+                              </span>
+                            )}
                           </td>
                           <td className="py-3.5 px-4">
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -767,26 +931,6 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
       {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === 'roles' && (
         <div className="space-y-6">
-          {/* Roles Header Banner */}
-          <div className="bg-gradient-to-r from-[#00346F] to-[#005bb5] text-white p-6 rounded-2xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <h2 className="text-lg font-bold flex items-center gap-2">
-                <Shield className="w-5 h-5 text-emerald-300" />
-                Catálogo de Roles y Módulos Concedidos
-              </h2>
-              <p className="text-blue-100 text-xs mt-1 max-w-2xl">
-                Los roles definen qué partes del sistema pueden ver y operar los usuarios asignados. Al crear un nuevo rol, puede elegir exactamente qué módulos estarán habilitados.
-              </p>
-            </div>
-            <button
-              onClick={handleOpenNewRole}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow transition-all active:scale-95"
-            >
-              <Plus className="w-4 h-4" />
-              Crear Nuevo Rol
-            </button>
-          </div>
-
           {/* Roles Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {roles.map((r) => {
@@ -903,28 +1047,197 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
             </div>
 
             <form onSubmit={handleSubmitUser} className="p-6 overflow-y-auto flex-1 space-y-5 text-xs bg-[#F8F9FF]">
-              {/* Account Data */}
+              {/* Bloque 1: Datos Personales y de Contacto (Primero) */}
               <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
-                <span className="font-bold text-slate-800 block border-b border-slate-100 pb-1">
-                  Datos de Cuenta e Identificación
+                <span className="font-bold text-slate-800 block border-b border-slate-100 pb-1 flex items-center gap-2">
+                  <User className="w-4 h-4 text-[#00346F]" />
+                  Datos Personales y de Contacto
                 </span>
 
+                {/* 1. Documento de Identidad y Contacto (En Primer Lugar) */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Username / Usuario *
-                    </label>
+                    <label className="block font-semibold text-slate-600 mb-1">Tipo Doc.</label>
+                    <select
+                      value={userForm.tipoDocumento}
+                      onChange={(e) => {
+                        setUserForm({ ...userForm, tipoDocumento: e.target.value, numeroDocumento: '' });
+                        setConsultaUserBadge(null);
+                        setIsDocVerified(false);
+                      }}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-[#00346F]"
+                    >
+                      <option value="DNI">DNI (8)</option>
+                      <option value="CE">C. Extranjería</option>
+                      <option value="RUC">RUC</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block font-semibold text-slate-600">N° Documento *</label>
+                      {(userForm.tipoDocumento === 'DNI' || userForm.tipoDocumento === 'RUC') && (
+                        <span className="text-[10px] text-blue-700 font-semibold flex items-center gap-0.5">
+                          <Sparkles className="w-2.5 h-2.5 text-amber-500" /> {userForm.tipoDocumento === 'DNI' ? 'RENIEC' : 'SUNAT'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        inputMode={userForm.tipoDocumento === 'CE' ? 'text' : 'numeric'}
+                        maxLength={userForm.tipoDocumento === 'RUC' ? 11 : (userForm.tipoDocumento === 'DNI' ? 8 : 12)}
+                        value={userForm.numeroDocumento}
+                        onChange={(e) => {
+                          let val = e.target.value;
+                          if (userForm.tipoDocumento === 'DNI') {
+                            val = val.replace(/\D/g, '').slice(0, 8);
+                          } else if (userForm.tipoDocumento === 'RUC') {
+                            val = val.replace(/\D/g, '').slice(0, 11);
+                          } else {
+                            val = val.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12).toUpperCase();
+                          }
+                          setUserForm({ ...userForm, numeroDocumento: val });
+                          if (isDocVerified) {
+                            setIsDocVerified(false);
+                            setConsultaUserBadge(null);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (userForm.tipoDocumento === 'DNI' || userForm.tipoDocumento === 'RUC')) {
+                            e.preventDefault();
+                            handleQueryDocument();
+                          }
+                        }}
+                        className={`w-full p-2 bg-white border rounded-lg font-mono focus:outline-none focus:border-[#00346F] ${isDocVerified ? 'border-emerald-500 ring-1 ring-emerald-200' : 'border-slate-300'}`}
+                        placeholder={userForm.tipoDocumento === 'RUC' ? '20481928371' : (userForm.tipoDocumento === 'DNI' ? '72345678' : '001234567')}
+                      />
+                      {(userForm.tipoDocumento === 'DNI' || userForm.tipoDocumento === 'RUC') && (
+                        <button
+                          type="button"
+                          onClick={handleQueryDocument}
+                          disabled={isQueryingDoc || !userForm.numeroDocumento}
+                          title={`Buscar en ${userForm.tipoDocumento === 'DNI' ? 'RENIEC' : 'SUNAT'}`}
+                          className="px-2.5 py-2 bg-[#00346F] hover:bg-[#004A99] disabled:bg-slate-300 text-white rounded-lg font-bold flex items-center gap-1 transition-colors cursor-pointer text-xs whitespace-nowrap shadow-xs"
+                        >
+                          {isQueryingDoc ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Search className="w-3.5 h-3.5" />
+                          )}
+                          <span>{isQueryingDoc ? '...' : (userForm.tipoDocumento === 'DNI' ? 'RENIEC' : 'SUNAT')}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">Teléfono</label>
                     <input
                       type="text"
-                      required
-                      disabled={Boolean(editingUser)}
-                      value={userForm.username}
-                      onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-medium focus:outline-none focus:border-[#00346F] disabled:bg-slate-100 disabled:text-slate-500"
-                      placeholder="ej: kevin_tec"
+                      inputMode="numeric"
+                      maxLength={9}
+                      value={userForm.telefono}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 9);
+                        setUserForm({ ...userForm, telefono: val });
+                      }}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-[#00346F]"
+                      placeholder="987654321"
                     />
                   </div>
+                </div>
 
+                {/* 2. Nombres (obtenidos de RENIEC) y Correo Electrónico */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block font-semibold text-slate-600 flex items-center gap-1">
+                        Nombre Completo *
+                        {isDocVerified && (
+                          <Lock className="w-3.5 h-3.5 text-emerald-600" title="Bloqueado por verificación oficial en RENIEC" />
+                        )}
+                      </label>
+                      {consultaUserBadge ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded text-[10px] text-emerald-800 flex items-center gap-1 font-semibold">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600 flex-shrink-0" />
+                            {consultaUserBadge}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setIsDocVerified(false)}
+                            title="Desbloquear para editar nombre manualmente"
+                            className="text-[10px] text-slate-400 hover:text-slate-600 underline cursor-pointer"
+                          >
+                            Modificar
+                          </button>
+                        </div>
+                      ) : (
+                        userForm.tipoDocumento === 'DNI' && (
+                          <span className="text-[10px] text-slate-400">
+                            Digitar DNI y pulsar RENIEC
+                          </span>
+                        )
+                      )}
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        readOnly={isDocVerified}
+                        value={userForm.nombreCompleto}
+                        onChange={(e) => {
+                          if (isDocVerified) return;
+                          const val = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑäëïöüÄËÏÖÜ\s]/g, '');
+                          setUserForm({ ...userForm, nombreCompleto: val });
+                        }}
+                        className={`w-full p-2 rounded-lg transition-colors focus:outline-none ${
+                          isDocVerified
+                            ? 'bg-slate-100 text-slate-700 font-semibold border border-emerald-400 cursor-not-allowed select-none pr-8'
+                            : 'bg-white border border-slate-300 focus:border-[#00346F]'
+                        }`}
+                        placeholder={userForm.tipoDocumento === 'DNI' ? 'Se autocompletará con RENIEC...' : 'Kevin Quispe Rojas'}
+                      />
+                      {isDocVerified && (
+                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" title="Nombre validado ante RENIEC">
+                          <Lock className="w-4 h-4" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">
+                      Correo Electrónico *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={userForm.email}
+                      onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-[#00346F]"
+                      placeholder="usuario@mgsolutions.pe"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bloque 2: Asignación Laboral y Permisos */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                <span className="font-bold text-slate-800 block border-b border-slate-100 pb-1 flex items-center gap-2">
+                  <Store className="w-4 h-4 text-[#00346F]" />
+                  Asignación Laboral y Permisos
+                </span>
+
+                {/* Identificador visible solo al editar */}
+                {editingUser && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-600">
+                    <span>Código de Usuario:</span>
+                    <span className="font-mono font-bold text-[#00346F]">@{userForm.username}</span>
+                  </div>
+                )}
+
+                {/* Rol Funcional, Sucursal de Trabajo y Estado */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                   <div>
                     <label className="block font-semibold text-slate-600 mb-1">
                       Rol Funcional *
@@ -937,6 +1250,26 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                       {roles.map((r) => (
                         <option key={r.id} value={r.codigo}>
                           {r.nombre} ({r.codigo})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
+                      <Store className="w-3.5 h-3.5 text-[#00346F]" />
+                      <span>Sucursal de Trabajo *</span>
+                    </label>
+                    <select
+                      value={userForm.sucursalId ?? ''}
+                      onChange={(e) => setUserForm({ ...userForm, sucursalId: e.target.value ? Number(e.target.value) : null })}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 focus:outline-none focus:border-[#00346F]"
+                      required
+                    >
+                      <option value="" disabled>Seleccione una sucursal...</option>
+                      {sucursalesList.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.codigo} - {s.nombre} {s.esPrincipal ? '(Matriz / Principal)' : ''}
                         </option>
                       ))}
                     </select>
@@ -960,126 +1293,56 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                     </select>
                   </div>
                 </div>
-
-                {!editingUser && (
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Contraseña Inicial (opcional, por defecto: Admin2026!)
-                    </label>
-                    <input
-                      type="password"
-                      value={userForm.password || ''}
-                      onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono focus:outline-none focus:border-[#00346F]"
-                      placeholder="Admin2026!"
-                    />
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Nombre Completo *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={userForm.nombreCompleto}
-                      onChange={(e) => setUserForm({ ...userForm, nombreCompleto: e.target.value })}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-[#00346F]"
-                      placeholder="Kevin Quispe Rojas"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Correo Electrónico *
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={userForm.email}
-                      onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-[#00346F]"
-                      placeholder="usuario@mgsolutions.pe"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">Tipo Doc.</label>
-                    <select
-                      value={userForm.tipoDocumento}
-                      onChange={(e) => setUserForm({ ...userForm, tipoDocumento: e.target.value })}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg"
-                    >
-                      <option value="DNI">DNI (8)</option>
-                      <option value="CE">C. Extranjería</option>
-                      <option value="RUC">RUC</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">N° Documento</label>
-                    <input
-                      type="text"
-                      value={userForm.numeroDocumento}
-                      onChange={(e) => setUserForm({ ...userForm, numeroDocumento: e.target.value })}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono"
-                      placeholder="72345678"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">Teléfono</label>
-                    <input
-                      type="text"
-                      value={userForm.telefono}
-                      onChange={(e) => setUserForm({ ...userForm, telefono: e.target.value })}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg"
-                      placeholder="987654321"
-                    />
-                  </div>
-                </div>
               </div>
 
-              {/* Module Permissions Picker */}
+              {/* Module Permissions (Solo Lectura - Heredados del Rol) */}
               <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-2">
                   <div>
-                    <span className="font-bold text-slate-800 block">
-                      Permisos de Módulos para este Usuario
+                    <span className="font-bold text-slate-800 block flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-[#00346F]" />
+                      Permisos Heredados del Rol ({userForm.rol})
                     </span>
                     <span className="text-[11px] text-slate-500">
-                      Cargados automáticamente del rol seleccionado, pero puede personalizar si es necesario.
+                      Asignados automáticamente por el Rol Funcional. Para editar o dar más permisos a este rol, diríjase a la pestaña <strong>Roles de Sistema</strong>.
                     </span>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-[#EFF4FF] text-[#00346F]">
-                    {userForm.modulosPermitidos.length} seleccionados
+                  <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-700 flex items-center gap-1.5 shrink-0 border border-slate-200">
+                    <Lock className="w-3 h-3 text-slate-500" />
+                    <span>{userForm.modulosPermitidos.length} módulos habilitados</span>
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-2">
                   {MODULOS_DISPONIBLES.map((m) => {
-                    const isChecked = userForm.modulosPermitidos.includes(m.id);
+                    const isAllowed = userForm.modulosPermitidos.includes(m.id);
                     return (
                       <div
                         key={m.id}
-                        onClick={() => togglePanelPermission(m.id)}
-                        className={`p-2.5 rounded-lg border flex items-start gap-2.5 cursor-pointer transition-all select-none ${
-                          isChecked
-                            ? 'bg-[#EFF4FF] border-[#00346F] shadow-xs'
-                            : 'bg-white border-slate-200 hover:border-slate-300 opacity-60'
+                        className={`p-2.5 rounded-lg border flex items-start gap-2.5 select-none transition-all ${
+                          isAllowed
+                            ? 'bg-[#EFF4FF]/70 border-blue-200 shadow-xs'
+                            : 'bg-slate-50/60 border-slate-200/80 opacity-40'
                         }`}
                       >
-                        <div className={`mt-0.5 ${isChecked ? 'text-[#00346F]' : 'text-slate-400'}`}>
-                          {isChecked ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                        <div className={`mt-0.5 ${isAllowed ? 'text-[#00346F]' : 'text-slate-400'}`}>
+                          {isAllowed ? (
+                            <CheckSquare className="w-4 h-4 text-[#00346F]" />
+                          ) : (
+                            <Lock className="w-3.5 h-3.5 text-slate-400" />
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={`font-bold text-xs truncate ${isChecked ? 'text-[#00346F]' : 'text-slate-700'}`}>
+                          <p className={`font-bold text-xs truncate ${isAllowed ? 'text-[#00346F]' : 'text-slate-500'}`}>
                             {m.nombre}
                           </p>
                           <p className="text-[10px] text-slate-400 line-clamp-1">{m.descripcion}</p>
                         </div>
+                        {isAllowed && (
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0">
+                            Activo
+                          </span>
+                        )}
                       </div>
                     );
                   })}

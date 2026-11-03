@@ -1,0 +1,1882 @@
+{
+  "categorias": [
+    {
+      "id": 1,
+      "nombre": "LAPTOPS & NOTEBOOKS",
+      "descripcion": "Laptops de oficina, gaming, ultrabooks y estaciones de trabajo",
+      "es_equipo_taller": 1,
+      "es_venta": 1,
+      "es_repuesto_taller": 0,
+      "requiere_serie": 1,
+      "estado_id": 1,
+      "created_at": "2026-09-30T14:32:40.000Z"
+    },
+    {
+      "id": 2,
+      "nombre": "IMPRESORAS & MULTIFUNCIONALES",
+      "descripcion": "Impresoras EcoTank, láser monocromáticas y multifuncionales",
+      "es_equipo_taller": 1,
+      "es_venta": 1,
+      "es_repuesto_taller": 0,
+      "requiere_serie": 1,
+      "estado_id": 1,
+      "created_at": "2026-09-30T14:32:40.000Z"
+    },
+    {
+      "id": 3,
+      "nombre": "MONITORES & PANTALLAS",
+      "descripcion": "Monitores de oficina, gaming alta tasa de refresco y diseño",
+      "es_equipo_taller": 1,
+      "es_venta": 1,
+      "es_repuesto_taller": 0,
+      "requiere_serie": 1,
+      "estado_id": 1,
+      "created_at": "2026-09-30T14:32:40.000Z"
+    },
+    {
+      "id": 4,
+      "nombre": "PERIFÉRICOS & ACCESORIOS",
+      "descripcion": "Teclados, mouses, auriculares, webcams y almohadillas",
+      "es_equipo_taller": 0,
+      "es_venta": 1,
+      "es_repuesto_taller": 0,
+      "requiere_serie": 0,
+      "estado_id": 1,
+      "created_at": "2026-09-30T14:32:40.000Z"
+    },
+    {
+      "id": 5,
+      "nombre": "COMPONENTES & HARDWARE",
+      "descripcion": "Memorias RAM, discos SSD NVMe, fuentes de poder y tarjetas de video",
+      "es_equipo_taller": 0,
+      "es_venta": 1,
+      "es_repuesto_taller": 1,
+      "requiere_serie": 0,
+      "estado_id": 1,
+      "created_at": "2026-09-30T14:32:40.000Z"
+    },
+    {
+      "id": 6,
+      "nombre": "REPUESTOS DE TALLER",
+      "descripcion": "Pantallas, teclados de reemplazo, baterías, cargadores y ventiladores",
+      "es_equipo_taller": 0,
+      "es_venta": 0,
+      "es_repuesto_taller": 1,
+      "requiere_serie": 0,
+      "estado_id": 1,
+      "created_at": "2026-09-30T14:32:40.000Z"
+    },
+    {
+      "id": 7,
+      "nombre": "SUMINISTROS & TINTAS",
+      "descripcion": "Botellas de tinta original, tóner, cables de poder y adaptadores",
+      "es_equipo_taller": 0,
+      "es_venta": 1,
+      "es_repuesto_taller": 0,
+      "requiere_serie": 0,
+      "estado_id": 1,
+      "created_at": "2026-09-30T14:32:41.000Z"
+    }
+  ],
+  "clientes": [],
+  "codigos_recuperacion": [],
+  "compras": [],
+  "detalle_compras": [],
+  "detalle_modelo": [
+    {
+      "id": 1,
+      "modelo_id": 1,
+      "atributo": "Procesador",
+      "valor": "Intel Core Ultra 7 258V con NPU IA"
+    },
+    {
+      "id": 2,
+      "modelo_id": 1,
+      "atributo": "Memoria RAM",
+      "valor": "32 GB LPDDR5x 8533MHz"
+    },
+    {
+      "id": 3,
+      "modelo_id": 1,
+      "atributo": "Almacenamiento",
+      "valor": "1 TB SSD M.2 PCIe Gen4 NVMe"
+    },
+    {
+      "id": 4,
+      "modelo_id": 1,
+      "atributo": "Pantalla",
+      "valor": "14\" 2.8K (2880 x 1800) OLED, 120Hz, HDR500 True Black"
+    },
+    {
+      "id": 5,
+      "modelo_id": 1,
+      "atributo": "Tarjeta Gráfica",
+      "valor": "Intel Arc Graphics integrada"
+    },
+    {
+      "id": 6,
+      "modelo_id": 1,
+      "atributo": "Peso",
+      "valor": "0.98 kg"
+    },
+    {
+      "id": 7,
+      "modelo_id": 2,
+      "atributo": "Procesador",
+      "valor": "Intel Core i5-1335U 10 núcleos"
+    },
+    {
+      "id": 8,
+      "modelo_id": 2,
+      "atributo": "Memoria RAM",
+      "valor": "16 GB DDR5 5200MHz"
+    },
+    {
+      "id": 9,
+      "modelo_id": 2,
+      "atributo": "Almacenamiento",
+      "valor": "512 GB SSD NVMe M.2"
+    },
+    {
+      "id": 10,
+      "modelo_id": 2,
+      "atributo": "Pantalla",
+      "valor": "15.6\" FHD (1920 x 1080) Antirreflejo IPS"
+    },
+    {
+      "id": 11,
+      "modelo_id": 2,
+      "atributo": "Batería",
+      "valor": "Hasta 11 horas de autonomía"
+    },
+    {
+      "id": 12,
+      "modelo_id": 3,
+      "atributo": "Procesador",
+      "valor": "Intel Core Ultra 5 125U"
+    },
+    {
+      "id": 13,
+      "modelo_id": 3,
+      "atributo": "Memoria RAM",
+      "valor": "16 GB DDR5 expandible a 64GB"
+    },
+    {
+      "id": 14,
+      "modelo_id": 3,
+      "atributo": "Almacenamiento",
+      "valor": "512 GB SSD M.2 PCIe Gen4"
+    },
+    {
+      "id": 15,
+      "modelo_id": 3,
+      "atributo": "Pantalla",
+      "valor": "14\" WUXGA (1920 x 1200) IPS 400 nits Low Power"
+    },
+    {
+      "id": 16,
+      "modelo_id": 3,
+      "atributo": "Puertos",
+      "valor": "2x Thunderbolt 4 / USB-C, 2x USB-A, HDMI 2.1, RJ-45 Ethernet"
+    },
+    {
+      "id": 17,
+      "modelo_id": 4,
+      "atributo": "Procesador",
+      "valor": "Intel Core i5-1235U"
+    },
+    {
+      "id": 18,
+      "modelo_id": 4,
+      "atributo": "Memoria RAM",
+      "valor": "16 GB DDR4 3200MHz"
+    },
+    {
+      "id": 19,
+      "modelo_id": 4,
+      "atributo": "Almacenamiento",
+      "valor": "512 GB SSD PCIe NVMe"
+    },
+    {
+      "id": 20,
+      "modelo_id": 4,
+      "atributo": "Pantalla",
+      "valor": "15.6\" Full HD Micro-Edge"
+    },
+    {
+      "id": 21,
+      "modelo_id": 4,
+      "atributo": "Audio",
+      "valor": "B&O con doble altavoz"
+    },
+    {
+      "id": 22,
+      "modelo_id": 5,
+      "atributo": "Procesador",
+      "valor": "Intel Core i9 14th Gen"
+    },
+    {
+      "id": 23,
+      "modelo_id": 5,
+      "atributo": "Memoria RAM",
+      "valor": "32 GB DDR5"
+    },
+    {
+      "id": 24,
+      "modelo_id": 5,
+      "atributo": "Almacenamiento",
+      "valor": "NVIDIA RTX 4080 12GB"
+    },
+    {
+      "id": 25,
+      "modelo_id": 5,
+      "atributo": "Pantalla",
+      "valor": "18\" Mini LED 250Hz"
+    },
+    {
+      "id": 26,
+      "modelo_id": 5,
+      "atributo": "Almacenamiento",
+      "valor": "1 TB SSD NVMe"
+    },
+    {
+      "id": 27,
+      "modelo_id": 6,
+      "atributo": "Tecnología de Impresión",
+      "valor": "Inyección de tinta Heat-Free MicroPiezo"
+    },
+    {
+      "id": 28,
+      "modelo_id": 6,
+      "atributo": "Resolución Máxima",
+      "valor": "5760 x 1440 dpi"
+    },
+    {
+      "id": 29,
+      "modelo_id": 6,
+      "atributo": "Velocidad de Impresión",
+      "valor": "Negro 33 ppm / Color 15 ppm"
+    },
+    {
+      "id": 30,
+      "modelo_id": 6,
+      "atributo": "Conectividad",
+      "valor": "WiFi Direct, USB 2.0 de alta velocidad"
+    },
+    {
+      "id": 31,
+      "modelo_id": 7,
+      "atributo": "Procesador",
+      "valor": "Intel Core Ultra 9 185H (16 núcleos, hasta 5.1 GHz)"
+    },
+    {
+      "id": 32,
+      "modelo_id": 7,
+      "atributo": "Memoria RAM",
+      "valor": "32GB LPDDR5X 7467 MHz"
+    },
+    {
+      "id": 33,
+      "modelo_id": 7,
+      "atributo": "Almacenamiento",
+      "valor": "1TB SSD M.2 PCIe 4.0 NVMe"
+    },
+    {
+      "id": 34,
+      "modelo_id": 7,
+      "atributo": "Tarjeta Gráfica",
+      "valor": "NVIDIA GeForce RTX 4070 8GB GDDR6"
+    },
+    {
+      "id": 35,
+      "modelo_id": 7,
+      "atributo": "Pantalla",
+      "valor": "16\" 2.5K OLED 240Hz 0.2ms 500 nits ROG Nebula"
+    },
+    {
+      "id": 36,
+      "modelo_id": 7,
+      "atributo": "Sistema Operativo",
+      "valor": "Windows 11 Home 64-bit"
+    },
+    {
+      "id": 37,
+      "modelo_id": 8,
+      "atributo": "Procesador",
+      "valor": "AMD Ryzen 7 7735HS (8 núcleos, 16 hilos)"
+    },
+    {
+      "id": 38,
+      "modelo_id": 8,
+      "atributo": "Memoria RAM",
+      "valor": "16GB DDR5 4800 MHz (Expandible a 32GB)"
+    },
+    {
+      "id": 39,
+      "modelo_id": 8,
+      "atributo": "Almacenamiento",
+      "valor": "512GB SSD M.2 NVMe PCIe 4.0"
+    },
+    {
+      "id": 40,
+      "modelo_id": 8,
+      "atributo": "Tarjeta Gráfica",
+      "valor": "NVIDIA GeForce RTX 4060 8GB GDDR6"
+    },
+    {
+      "id": 41,
+      "modelo_id": 8,
+      "atributo": "Pantalla",
+      "valor": "15.6\" Full HD IPS 144Hz Adaptive-Sync"
+    },
+    {
+      "id": 42,
+      "modelo_id": 8,
+      "atributo": "Refrigeración",
+      "valor": "Ventiladores Arc Flow con 4 salidas de aire"
+    },
+    {
+      "id": 43,
+      "modelo_id": 9,
+      "atributo": "Procesador",
+      "valor": "Intel Core i5-1335U vPro (10 núcleos, hasta 4.6 GHz)"
+    },
+    {
+      "id": 44,
+      "modelo_id": 9,
+      "atributo": "Memoria RAM",
+      "valor": "16GB DDR4 3200 MHz"
+    },
+    {
+      "id": 45,
+      "modelo_id": 9,
+      "atributo": "Almacenamiento",
+      "valor": "512GB SSD PCIe NVMe M.2 Class 35"
+    },
+    {
+      "id": 46,
+      "modelo_id": 9,
+      "atributo": "Pantalla",
+      "valor": "14.0\" FHD (1920x1080) Antirreflejo 250 nits"
+    },
+    {
+      "id": 47,
+      "modelo_id": 9,
+      "atributo": "Seguridad",
+      "valor": "Chip TPM 2.0, lector de huella dactilar, cámara IR"
+    },
+    {
+      "id": 48,
+      "modelo_id": 9,
+      "atributo": "Conectividad",
+      "valor": "Thunderbolt 4, RJ-45, Wi-Fi 6E"
+    },
+    {
+      "id": 49,
+      "modelo_id": 10,
+      "atributo": "Procesador",
+      "valor": "Intel Core i5-1235U (10 núcleos, hasta 4.4 GHz)"
+    },
+    {
+      "id": 50,
+      "modelo_id": 10,
+      "atributo": "Memoria RAM",
+      "valor": "16GB DDR4 2666 MHz"
+    },
+    {
+      "id": 51,
+      "modelo_id": 10,
+      "atributo": "Almacenamiento",
+      "valor": "512GB SSD M.2 PCIe NVMe"
+    },
+    {
+      "id": 52,
+      "modelo_id": 10,
+      "atributo": "Pantalla",
+      "valor": "15.6\" FHD WVA 120Hz con bordes delgados"
+    },
+    {
+      "id": 53,
+      "modelo_id": 10,
+      "atributo": "Teclado",
+      "valor": "Español con teclado numérico integrado"
+    },
+    {
+      "id": 54,
+      "modelo_id": 11,
+      "atributo": "Procesador",
+      "valor": "Intel Core i7-13700H (14 núcleos, hasta 5.0 GHz)"
+    },
+    {
+      "id": 55,
+      "modelo_id": 11,
+      "atributo": "Memoria RAM",
+      "valor": "16GB DDR5 5200 MHz"
+    },
+    {
+      "id": 56,
+      "modelo_id": 11,
+      "atributo": "Almacenamiento",
+      "valor": "1TB SSD PCIe Gen4 NVMe TLC M.2"
+    },
+    {
+      "id": 57,
+      "modelo_id": 11,
+      "atributo": "Tarjeta Gráfica",
+      "valor": "NVIDIA GeForce RTX 4060 8GB GDDR6"
+    },
+    {
+      "id": 58,
+      "modelo_id": 11,
+      "atributo": "Pantalla",
+      "valor": "16.1\" FHD IPS 144Hz antirreflejo"
+    },
+    {
+      "id": 59,
+      "modelo_id": 11,
+      "atributo": "Audio",
+      "valor": "Audio por B&O con altavoces dobles"
+    },
+    {
+      "id": 60,
+      "modelo_id": 12,
+      "atributo": "Procesador",
+      "valor": "Intel Core i7-1355U (10 núcleos, hasta 5.0 GHz)"
+    },
+    {
+      "id": 61,
+      "modelo_id": 12,
+      "atributo": "Memoria RAM",
+      "valor": "16GB DDR4 3200 MHz"
+    },
+    {
+      "id": 62,
+      "modelo_id": 12,
+      "atributo": "Almacenamiento",
+      "valor": "512GB SSD PCIe NVMe Value M.2"
+    },
+    {
+      "id": 63,
+      "modelo_id": 12,
+      "atributo": "Pantalla",
+      "valor": "15.6\" FHD IPS antirreflejo 250 nits"
+    },
+    {
+      "id": 64,
+      "modelo_id": 12,
+      "atributo": "Batería",
+      "valor": "HP Long Life de 3 celdas, 51 Wh"
+    },
+    {
+      "id": 65,
+      "modelo_id": 13,
+      "atributo": "Procesador",
+      "valor": "Intel Core i7-14700HX (20 núcleos, 28 hilos, hasta 5.5 GHz)"
+    },
+    {
+      "id": 66,
+      "modelo_id": 13,
+      "atributo": "Memoria RAM",
+      "valor": "32GB DDR5 5600 MHz"
+    },
+    {
+      "id": 67,
+      "modelo_id": 13,
+      "atributo": "Almacenamiento",
+      "valor": "1TB SSD M.2 2280 PCIe 4.0 NVMe"
+    },
+    {
+      "id": 68,
+      "modelo_id": 13,
+      "atributo": "Tarjeta Gráfica",
+      "valor": "NVIDIA GeForce RTX 4070 8GB GDDR6 140W"
+    },
+    {
+      "id": 69,
+      "modelo_id": 13,
+      "atributo": "Pantalla",
+      "valor": "16\" WQXGA (2560x1600) IPS 240Hz 500nits 100% sRGB"
+    },
+    {
+      "id": 70,
+      "modelo_id": 13,
+      "atributo": "Teclado",
+      "valor": "Legion TrueStrike con retroiluminación RGB de 4 zonas"
+    },
+    {
+      "id": 71,
+      "modelo_id": 14,
+      "atributo": "Procesador",
+      "valor": "Apple M2 (CPU de 8 núcleos, GPU de 8 núcleos, Neural Engine 16 núcleos)"
+    },
+    {
+      "id": 72,
+      "modelo_id": 14,
+      "atributo": "Memoria Unificada",
+      "valor": "8GB Memoria Unificada de alto ancho de banda"
+    },
+    {
+      "id": 73,
+      "modelo_id": 14,
+      "atributo": "Almacenamiento",
+      "valor": "256GB SSD ultrarrápido"
+    },
+    {
+      "id": 74,
+      "modelo_id": 14,
+      "atributo": "Pantalla",
+      "valor": "13.6\" Liquid Retina con True Tone (2560x1664) 500 nits"
+    },
+    {
+      "id": 75,
+      "modelo_id": 14,
+      "atributo": "Puertos",
+      "valor": "Carga MagSafe 3, dos puertos Thunderbolt/USB 4, jack 3.5mm"
+    },
+    {
+      "id": 76,
+      "modelo_id": 14,
+      "atributo": "Cámara y Audio",
+      "valor": "FaceTime HD 1080p, sistema de 4 altavoces con Audio Espacial"
+    },
+    {
+      "id": 77,
+      "modelo_id": 15,
+      "atributo": "Procesador",
+      "valor": "Intel Core i5-1335U (10 núcleos, hasta 4.6 GHz)"
+    },
+    {
+      "id": 78,
+      "modelo_id": 15,
+      "atributo": "Memoria RAM",
+      "valor": "16GB LPDDR5 Dual Channel"
+    },
+    {
+      "id": 79,
+      "modelo_id": 15,
+      "atributo": "Almacenamiento",
+      "valor": "512GB SSD PCIe NVMe Gen4"
+    },
+    {
+      "id": 80,
+      "modelo_id": 15,
+      "atributo": "Pantalla",
+      "valor": "15.6\" Full HD (1920x1080) IPS Acer ComfyView"
+    },
+    {
+      "id": 81,
+      "modelo_id": 15,
+      "atributo": "Conectividad",
+      "valor": "Wi-Fi 6E, Thunderbolt 4 Tipo-C, HDMI 2.1"
+    }
+  ],
+  "detalle_ventas": [],
+  "empresas": [
+    {
+      "id": 1,
+      "ruc": "20609737524",
+      "razon_social": "MG SOLUTIONS GROUP S.A.C.",
+      "nombre_comercial": "MG SOLUTIONS GROUP",
+      "direccion_fiscal": "AV. PEDRO RUIZ NRO. 349 INT. 09C (MERCADO MODELO) - LAMBAYEQUE - CHICLAYO - CHICLAYO",
+      "email": "mgsolutions.group@gmail.com",
+      "telefono": "+51 974 812 390",
+      "departamento": "Lambayeque",
+      "provincia": "Chiclayo",
+      "distrito": "Chiclayo",
+      "ubigeo": "140101",
+      "logo_url": null,
+      "created_at": "2026-09-20T23:21:30.000Z",
+      "updated_at": "2026-09-30T11:47:18.000Z"
+    }
+  ],
+  "equipos": [],
+  "estados": [
+    {
+      "id": 1,
+      "nombre": "ACTIVO",
+      "descripcion": "Registro activo y plenamente operativo",
+      "created_at": "2026-09-20T23:21:30.000Z"
+    },
+    {
+      "id": 2,
+      "nombre": "INACTIVO",
+      "descripcion": "Registro dado de baja o inactivo",
+      "created_at": "2026-09-20T23:21:30.000Z"
+    },
+    {
+      "id": 3,
+      "nombre": "SUSPENDIDO",
+      "descripcion": "Registro temporalmente suspendido",
+      "created_at": "2026-09-20T23:21:30.000Z"
+    },
+    {
+      "id": 4,
+      "nombre": "DESCONTINUADO",
+      "descripcion": "Producto o ├¡tem descontinuado comercialmente",
+      "created_at": "2026-09-20T23:21:30.000Z"
+    }
+  ],
+  "estados_movimiento": [
+    {
+      "id": 1,
+      "codigo": "SOLICITADO",
+      "nombre": "Solicitado",
+      "color_hex": "#3B82F6",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 2,
+      "codigo": "APROBADO",
+      "nombre": "Aprobado",
+      "color_hex": "#F59E0B",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 3,
+      "codigo": "EN_TRANSITO",
+      "nombre": "En Tránsito",
+      "color_hex": "#8B5CF6",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 4,
+      "codigo": "RECIBIDO",
+      "nombre": "Recibido en Destino",
+      "color_hex": "#10B981",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 5,
+      "codigo": "CANCELADO",
+      "nombre": "Cancelado",
+      "color_hex": "#EF4444",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 6,
+      "codigo": "DEVUELTO",
+      "nombre": "Devuelto a Origen",
+      "color_hex": "#059669",
+      "estado_id": 1,
+      "created_at": "2026-10-08T15:02:00.000Z"
+    }
+  ],
+  "estados_orden_servicio": [
+    {
+      "id": 1,
+      "codigo": "RECEPCIONADO",
+      "nombre": "Recepcionado",
+      "descripcion": "Equipo recibido en mostrador, pendiente de diagnóstico inicial",
+      "secuencia_orden": 1,
+      "color_hex": "#64748B",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 2,
+      "codigo": "EN_DIAGNOSTICO",
+      "nombre": "En diagnóstico técnico",
+      "descripcion": "Especialista evaluando fallas de hardware y software",
+      "secuencia_orden": 2,
+      "color_hex": "#3B82F6",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 3,
+      "codigo": "PRESUPUESTADO",
+      "nombre": "Presupuestado",
+      "descripcion": "Cotización de mano de obra y repuestos emitida para el cliente",
+      "secuencia_orden": 3,
+      "color_hex": "#F59E0B",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 4,
+      "codigo": "APROBADO_EN_REPARACION",
+      "nombre": "En reparación activa",
+      "descripcion": "Cliente aprobó presupuesto; técnico interviniendo equipo",
+      "secuencia_orden": 4,
+      "color_hex": "#8B5CF6",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 5,
+      "codigo": "ESPERA_REPUESTOS",
+      "nombre": "Esperando repuestos",
+      "descripcion": "Taller esperando llegada de componentes o insumos de almacén",
+      "secuencia_orden": 5,
+      "color_hex": "#EC4899",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 6,
+      "codigo": "REPARADO_PROBADO",
+      "nombre": "Reparado y con pruebas superadas",
+      "descripcion": "Reparación completada y pruebas de estrés aprobadas",
+      "secuencia_orden": 6,
+      "color_hex": "#10B981",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 7,
+      "codigo": "LISTO_ENTREGA",
+      "nombre": "Listo para recojo en mostrador",
+      "descripcion": "Equipo limpio y listo en mostrador esperando al cliente",
+      "secuencia_orden": 7,
+      "color_hex": "#059669",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 8,
+      "codigo": "ENTREGADO_COBRADO",
+      "nombre": "Entregado con conformidad",
+      "descripcion": "Cliente recogió equipo y liquidó saldo pendiente",
+      "secuencia_orden": 8,
+      "color_hex": "#00346F",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 9,
+      "codigo": "RECHAZADO_DEVUELTO",
+      "nombre": "Devuelto sin reparación",
+      "descripcion": "Cliente no aceptó presupuesto o equipo no tuvo reparación",
+      "secuencia_orden": 9,
+      "color_hex": "#DC2626",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    }
+  ],
+  "estados_unidad": [
+    {
+      "id": 1,
+      "codigo": "DISPONIBLE",
+      "nombre": "Disponible en Almacén / Vitrina",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 2,
+      "codigo": "VENDIDO",
+      "nombre": "Vendido a Cliente",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 3,
+      "codigo": "EN_SERVICIO",
+      "nombre": "Instalado en Orden de Taller",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 4,
+      "codigo": "GARANTIA",
+      "nombre": "Devuelto a Proveedor por Garantía",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 5,
+      "codigo": "DANADO_CUARENTENA",
+      "nombre": "Dañado / Cuarentena (Oculto de Venta)",
+      "estado_id": 1,
+      "created_at": "2026-10-02T15:22:45.000Z"
+    },
+    {
+      "id": 6,
+      "codigo": "BAJA_MERMA",
+      "nombre": "Baja / Merma (Descarte)",
+      "estado_id": 1,
+      "created_at": "2026-10-02T15:22:45.000Z"
+    }
+  ],
+  "marcas": [
+    {
+      "id": 1,
+      "nombre": "LENOVO",
+      "descripcion": "Equipos portátiles, desktops y servidores",
+      "categoria_id": 1,
+      "estado_id": 1,
+      "created_at": "2026-09-30T13:44:04.000Z"
+    },
+    {
+      "id": 2,
+      "nombre": "HP",
+      "descripcion": "Laptops, impresoras y workstations empresariales",
+      "categoria_id": 1,
+      "estado_id": 1,
+      "created_at": "2026-09-30T13:44:05.000Z"
+    },
+    {
+      "id": 3,
+      "nombre": "DELL",
+      "descripcion": "Portátiles Inspiron, Latitude y Alienware",
+      "categoria_id": 1,
+      "estado_id": 1,
+      "created_at": "2026-09-30T13:44:05.000Z"
+    },
+    {
+      "id": 4,
+      "nombre": "ASUS",
+      "descripcion": "Laptops para productividad y serie gamer ROG / TUF",
+      "categoria_id": 1,
+      "estado_id": 1,
+      "created_at": "2026-09-30T13:44:05.000Z"
+    },
+    {
+      "id": 5,
+      "nombre": "APPLE",
+      "descripcion": "MacBook, Mac Mini, iMac y dispositivos Apple",
+      "categoria_id": 1,
+      "estado_id": 1,
+      "created_at": "2026-09-30T13:44:05.000Z"
+    },
+    {
+      "id": 6,
+      "nombre": "EPSON",
+      "descripcion": "Impresoras EcoTank, matriciales y proyectores",
+      "categoria_id": 2,
+      "estado_id": 1,
+      "created_at": "2026-09-30T13:44:05.000Z"
+    },
+    {
+      "id": 7,
+      "nombre": "ACER",
+      "descripcion": "Laptops Aspire, Nitro y Predator",
+      "categoria_id": 1,
+      "estado_id": 1,
+      "created_at": "2026-09-30T13:44:05.000Z"
+    },
+    {
+      "id": 8,
+      "nombre": "SAMSUNG",
+      "descripcion": "Monitores, almacenamiento y tablets",
+      "categoria_id": 3,
+      "estado_id": 1,
+      "created_at": "2026-09-30T13:44:06.000Z"
+    },
+    {
+      "id": 10,
+      "nombre": "FAIL-35417",
+      "descripcion": "No debe crearse",
+      "categoria_id": null,
+      "estado_id": 1,
+      "created_at": "2026-10-06T16:58:55.000Z"
+    }
+  ],
+  "metodos_pago": [
+    {
+      "id": 1,
+      "codigo": "EFECTIVO",
+      "nombre": "Efectivo en Soles (Caja mostrador)",
+      "requiere_referencia": 0,
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 2,
+      "codigo": "YAPE",
+      "nombre": "Billetera Digital Yape",
+      "requiere_referencia": 1,
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 3,
+      "codigo": "PLIN",
+      "nombre": "Billetera Digital Plin",
+      "requiere_referencia": 1,
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 4,
+      "codigo": "TARJETA",
+      "nombre": "Tarjeta Débito / Crédito (POS)",
+      "requiere_referencia": 1,
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 5,
+      "codigo": "TRANSFERENCIA",
+      "nombre": "Transferencia Bancaria (BCP/BBVA/Interbank)",
+      "requiere_referencia": 1,
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    }
+  ],
+  "modelos": [
+    {
+      "id": 1,
+      "marca_id": 1,
+      "nombre": "ThinkPad X1 Carbon Gen 14 Aura Edition (14\" Intel)",
+      "descripcion": "Ultrabook corporativo de gama ultra premium con IA integrada",
+      "estado_id": 1,
+      "created_at": "2026-09-30T13:44:06.000Z"
+    },
+    {
+      "id": 2,
+      "marca_id": 1,
+      "nombre": "Lenovo Googlebook 15",
+      "descripcion": "Portátil versátil para trabajo en la nube y productividad educativa",
+      "estado_id": 1,
+      "created_at": "2026-09-30T13:44:06.000Z"
+    },
+    {
+      "id": 3,
+      "marca_id": 1,
+      "nombre": "ThinkPad T14 Gen 7 (14\" Intel)",
+      "descripcion": "Caballo de batalla corporativo con resistencia militar MIL-STD-810H",
+      "estado_id": 1,
+      "created_at": "2026-09-30T13:44:07.000Z"
+    },
+    {
+      "id": 4,
+      "marca_id": 2,
+      "nombre": "HP Pavilion 15-eg0021la",
+      "descripcion": "Portátil balanceado para oficina y estudiantes avanzados",
+      "estado_id": 1,
+      "created_at": "2026-09-30T13:44:07.000Z"
+    },
+    {
+      "id": 5,
+      "marca_id": 7,
+      "nombre": "Predator Helios 18 AI",
+      "descripcion": "acer Nitro V 17 AI",
+      "estado_id": 1,
+      "created_at": "2026-09-30T14:01:37.000Z"
+    },
+    {
+      "id": 6,
+      "marca_id": 6,
+      "nombre": "EcoTank L3250 WiFi",
+      "descripcion": "Multifuncional inalámbrica con sistema continuo original de tinta",
+      "estado_id": 1,
+      "created_at": "2026-10-02T15:22:45.000Z"
+    },
+    {
+      "id": 7,
+      "marca_id": 4,
+      "nombre": "ROG Zephyrus G16 GU605",
+      "descripcion": "Laptop gamer ultraportátil con Intel Core Ultra 9 y GeForce RTX 4070",
+      "estado_id": 1,
+      "created_at": "2026-10-06T23:35:24.000Z"
+    },
+    {
+      "id": 8,
+      "marca_id": 4,
+      "nombre": "TUF Gaming A15 FA507",
+      "descripcion": "Portátil gamer resistente con AMD Ryzen 7 y GeForce RTX 4060",
+      "estado_id": 1,
+      "created_at": "2026-10-06T23:35:24.000Z"
+    },
+    {
+      "id": 9,
+      "marca_id": 3,
+      "nombre": "Latitude 5440 Business",
+      "descripcion": "Línea corporativa Dell con seguridad avanzada y chasis reforzado",
+      "estado_id": 1,
+      "created_at": "2026-10-06T23:35:24.000Z"
+    },
+    {
+      "id": 10,
+      "marca_id": 3,
+      "nombre": "Inspiron 15 3520",
+      "descripcion": "Portátil para uso diario con pantalla de 120Hz",
+      "estado_id": 1,
+      "created_at": "2026-10-06T23:35:24.000Z"
+    },
+    {
+      "id": 11,
+      "marca_id": 2,
+      "nombre": "Victus Gaming 16-r0000la",
+      "descripcion": "Portátil gaming HP con pantalla de 16.1\" y tarjeta gráfica RTX 4060",
+      "estado_id": 1,
+      "created_at": "2026-10-06T23:35:24.000Z"
+    },
+    {
+      "id": 12,
+      "marca_id": 2,
+      "nombre": "ProBook 450 G10",
+      "descripcion": "Laptop profesional con Intel Core i7 y diseño premium duradero",
+      "estado_id": 1,
+      "created_at": "2026-10-06T23:35:24.000Z"
+    },
+    {
+      "id": 13,
+      "marca_id": 1,
+      "nombre": "Legion Pro 5 16IRX9",
+      "descripcion": "Gamer competitiva con pantalla 240Hz 500 nits y RTX 4070",
+      "estado_id": 1,
+      "created_at": "2026-10-06T23:35:24.000Z"
+    },
+    {
+      "id": 14,
+      "marca_id": 5,
+      "nombre": "MacBook Air 13.6\" M2 Midnight",
+      "descripcion": "Ultrabook Apple con Chip M2, diseño unibody silencioso sin ventilador",
+      "estado_id": 1,
+      "created_at": "2026-10-06T23:35:24.000Z"
+    },
+    {
+      "id": 15,
+      "marca_id": 7,
+      "nombre": "Aspire 5 A515-58M",
+      "descripcion": "Portátil práctico y eficiente para trabajo multitarea continuo",
+      "estado_id": 1,
+      "created_at": "2026-10-06T23:35:24.000Z"
+    }
+  ],
+  "movimientos_inventario": [],
+  "orden_repuestos": [],
+  "orden_servicios_mano_obra": [],
+  "ordenes_servicio": [],
+  "permisos": [
+    {
+      "id": 1,
+      "codigo": "ventas",
+      "nombre": "Ventas",
+      "descripcion": "Gestión de ventas y operaciones comerciales",
+      "categoria": "Operaciones",
+      "icono": "Receipt",
+      "estado_id": 1,
+      "created_at": "2026-09-20T23:22:29.000Z"
+    },
+    {
+      "id": 2,
+      "codigo": "caja",
+      "nombre": "Caja & Finanzas",
+      "descripcion": "Apertura, arqueo, turnos y balance de caja",
+      "categoria": "Operaciones",
+      "icono": "DollarSign",
+      "estado_id": 1,
+      "created_at": "2026-09-20T23:22:29.000Z"
+    },
+    {
+      "id": 3,
+      "codigo": "compras",
+      "nombre": "Compras & Proveedores",
+      "descripcion": "Registro de facturas de compra, abastecimiento y proveedores",
+      "categoria": "Almacén",
+      "icono": "Truck",
+      "estado_id": 1,
+      "created_at": "2026-09-20T23:22:29.000Z"
+    },
+    {
+      "id": 4,
+      "codigo": "panel-recepcion",
+      "nombre": "Panel de recepción",
+      "descripcion": "Ingresos y seguimiento inicial de equipos",
+      "categoria": "Taller",
+      "icono": "ClipboardList",
+      "estado_id": 1,
+      "created_at": "2026-09-20T23:22:29.000Z"
+    },
+    {
+      "id": 5,
+      "codigo": "panel-almacen",
+      "nombre": "Panel de almacén",
+      "descripcion": "Stock y movimientos entre sedes",
+      "categoria": "Almacén",
+      "icono": "Package",
+      "estado_id": 1,
+      "created_at": "2026-09-20T23:22:29.000Z"
+    },
+    {
+      "id": 6,
+      "codigo": "taller",
+      "nombre": "Servicio Técnico & Taller",
+      "descripcion": "Recepción, bandeja del técnico, avances y entregas",
+      "categoria": "Taller",
+      "icono": "Wrench",
+      "estado_id": 1,
+      "created_at": "2026-09-20T23:22:29.000Z"
+    },
+    {
+      "id": 7,
+      "codigo": "equipos",
+      "nombre": "Equipos registrados",
+      "descripcion": "Equipos de clientes e historial de servicios",
+      "categoria": "Taller",
+      "icono": "Laptop",
+      "estado_id": 1,
+      "created_at": "2026-09-20T23:22:29.000Z"
+    },
+    {
+      "id": 8,
+      "codigo": "clientes",
+      "nombre": "Directorio de Clientes",
+      "descripcion": "Gestión y validación de RUC y DNI",
+      "categoria": "Operaciones",
+      "icono": "Users",
+      "estado_id": 1,
+      "created_at": "2026-09-20T23:22:29.000Z"
+    },
+    {
+      "id": 9,
+      "codigo": "productos",
+      "nombre": "Productos & Stock",
+      "descripcion": "Catálogo, inventario y control de precios",
+      "categoria": "Almacén",
+      "icono": "Package",
+      "estado_id": 1,
+      "created_at": "2026-09-20T23:22:29.000Z"
+    },
+    {
+      "id": 10,
+      "codigo": "categorias",
+      "nombre": "Categorías",
+      "descripcion": "Clasificación de productos",
+      "categoria": "Almacén",
+      "icono": "Layers",
+      "estado_id": 1,
+      "created_at": "2026-09-20T23:22:29.000Z"
+    },
+    {
+      "id": 11,
+      "codigo": "marcas",
+      "nombre": "Marcas",
+      "descripcion": "Registro de marcas del catálogo",
+      "categoria": "Almacén",
+      "icono": "Tag",
+      "estado_id": 1,
+      "created_at": "2026-09-20T23:22:29.000Z"
+    },
+    {
+      "id": 12,
+      "codigo": "usuarios",
+      "nombre": "Gestión de Usuarios & Paneles",
+      "descripcion": "Usuarios, roles y asignación de permisos a paneles",
+      "categoria": "Administración",
+      "icono": "ShieldCheck",
+      "estado_id": 1,
+      "created_at": "2026-09-20T23:22:29.000Z"
+    },
+    {
+      "id": 13,
+      "codigo": "config-empresa",
+      "nombre": "Datos de Empresa",
+      "descripcion": "Información general y parámetros operativos",
+      "categoria": "Administración",
+      "icono": "Building2",
+      "estado_id": 1,
+      "created_at": "2026-09-20T23:22:29.000Z"
+    },
+    {
+      "id": 14,
+      "codigo": "sucursales",
+      "nombre": "Sucursales",
+      "descripcion": "Sedes y almacenes secundarios",
+      "categoria": "Administración",
+      "icono": "Network",
+      "estado_id": 1,
+      "created_at": "2026-09-20T23:22:29.000Z"
+    },
+    {
+      "id": 15,
+      "codigo": "movimientos",
+      "nombre": "Movimientos entre sedes",
+      "descripcion": "Traslados y control de inventario entre sedes",
+      "categoria": "Almacén",
+      "icono": "ArrowLeftRight",
+      "estado_id": 1,
+      "created_at": "2026-09-20T23:22:29.000Z"
+    }
+  ],
+  "personas": [
+    {
+      "id_persona": 1,
+      "tipo_documento_id": 1,
+      "dni": "77777777",
+      "nombres": "Carlos Alberto",
+      "apellidos": "Pérez Quispe",
+      "telefono": "987654321",
+      "correo": "perez54.12@gmail.com",
+      "direccion": "Av. Balta 458, Chiclayo",
+      "estado_id": 1,
+      "created_at": "2026-10-06T22:23:00.000Z",
+      "updated_at": "2026-10-06T22:23:00.000Z"
+    },
+    {
+      "id_persona": 2,
+      "tipo_documento_id": 1,
+      "dni": "45218796",
+      "nombres": "María Elena",
+      "apellidos": "García Rojas",
+      "telefono": "976321450",
+      "correo": "garcia.maria87@hotmail.com",
+      "direccion": "Calle San José 231, Chiclayo",
+      "estado_id": 1,
+      "created_at": "2026-10-06T22:23:00.000Z",
+      "updated_at": "2026-10-06T22:23:00.000Z"
+    },
+    {
+      "id_persona": 3,
+      "tipo_documento_id": 1,
+      "dni": "70384512",
+      "nombres": "José Luis",
+      "apellidos": "Fernández Díaz",
+      "telefono": "945123678",
+      "correo": "fernandez.jl92@outlook.com",
+      "direccion": "Av. Luis Gonzales 1020, Chiclayo",
+      "estado_id": 1,
+      "created_at": "2026-10-06T22:23:00.000Z",
+      "updated_at": "2026-10-06T22:23:00.000Z"
+    },
+    {
+      "id_persona": 4,
+      "tipo_documento_id": 1,
+      "dni": "41927365",
+      "nombres": "Rosa Isabel",
+      "apellidos": "Vásquez Mendoza",
+      "telefono": "962887145",
+      "correo": "vasquez.rosa75@gmail.com",
+      "direccion": "Urb. Santa Victoria Mz C Lt 12, Chiclayo",
+      "estado_id": 1,
+      "created_at": "2026-10-06T22:23:00.000Z",
+      "updated_at": "2026-10-06T22:23:00.000Z"
+    },
+    {
+      "id_persona": 5,
+      "tipo_documento_id": 1,
+      "dni": "73561489",
+      "nombres": "Miguel Ángel",
+      "apellidos": "Torres Huamán",
+      "telefono": "951402736",
+      "correo": "torres.miguel23@hotmail.com",
+      "direccion": "Calle Elías Aguirre 612, Chiclayo",
+      "estado_id": 1,
+      "created_at": "2026-10-06T22:23:00.000Z",
+      "updated_at": "2026-10-06T22:23:00.000Z"
+    },
+    {
+      "id_persona": 6,
+      "tipo_documento_id": 1,
+      "dni": "46082731",
+      "nombres": "Lucía Fernanda",
+      "apellidos": "Castillo Sánchez",
+      "telefono": "934775219",
+      "correo": "castillo.lucia31@outlook.com",
+      "direccion": "Av. Sáenz Peña 845, José Leonardo Ortiz",
+      "estado_id": 1,
+      "created_at": "2026-10-06T22:23:01.000Z",
+      "updated_at": "2026-10-06T22:32:20.000Z"
+    },
+    {
+      "id_persona": 7,
+      "tipo_documento_id": 1,
+      "dni": "72849165",
+      "nombres": "Jorge Eduardo",
+      "apellidos": "Ramírez Chávez",
+      "telefono": "988341205",
+      "correo": "ramirez.jorge89@gmail.com",
+      "direccion": "Pasaje Los Pinos 145, La Victoria",
+      "estado_id": 1,
+      "created_at": "2026-10-06T22:23:01.000Z",
+      "updated_at": "2026-10-06T22:32:20.000Z"
+    },
+    {
+      "id_persona": 8,
+      "tipo_documento_id": 1,
+      "dni": "43716592",
+      "nombres": "Ana Patricia",
+      "apellidos": "Flores Delgado",
+      "telefono": "921568347",
+      "correo": "flores.ana66@hotmail.com",
+      "direccion": "Av. Grau 390, Pimentel",
+      "estado_id": 1,
+      "created_at": "2026-10-06T22:23:01.000Z",
+      "updated_at": "2026-10-06T22:23:01.000Z"
+    },
+    {
+      "id_persona": 9,
+      "tipo_documento_id": 1,
+      "dni": "71584464",
+      "nombres": "ALEX FLORES",
+      "apellidos": "AYASTA",
+      "telefono": "948855458",
+      "correo": "rogger@gmail.com",
+      "direccion": "av. pacachuctep#128",
+      "estado_id": 1,
+      "created_at": "2026-10-07T00:35:13.000Z",
+      "updated_at": "2026-10-07T00:35:31.000Z"
+    },
+    {
+      "id_persona": 10,
+      "tipo_documento_id": 1,
+      "dni": "84469996",
+      "nombres": "ARNOLD",
+      "apellidos": "CACHAY",
+      "telefono": "996584848",
+      "correo": "beybonglash@gmail.com",
+      "direccion": "sae",
+      "estado_id": 1,
+      "created_at": "2026-10-07T00:45:15.000Z",
+      "updated_at": "2026-10-30T19:37:53.000Z"
+    },
+    {
+      "id_persona": 11,
+      "tipo_documento_id": 1,
+      "dni": "16804189",
+      "nombres": "DIANA ELICENE",
+      "apellidos": "AGUILAR AMAYA",
+      "telefono": "987542455",
+      "correo": "roceos@hotmail.com",
+      "direccion": "CHICLAYO",
+      "estado_id": 1,
+      "created_at": "2026-10-31T01:13:20.000Z",
+      "updated_at": "2026-10-31T01:13:20.000Z"
+    },
+    {
+      "id_persona": 12,
+      "tipo_documento_id": 1,
+      "dni": "74378771",
+      "nombres": "BRAYAN SAMIR",
+      "apellidos": "MONTEZA CORREA",
+      "telefono": null,
+      "correo": "bryant22king@gmail.com",
+      "direccion": "CHICLAYO",
+      "estado_id": 1,
+      "created_at": "2026-10-31T16:20:10.000Z",
+      "updated_at": "2026-10-31T16:20:10.000Z"
+    }
+  ],
+  "prioridades_orden": [
+    {
+      "id": 1,
+      "codigo": "NORMAL",
+      "nombre": "Prioridad Normal (Atención regular)",
+      "nivel_orden": 1,
+      "color_hex": "#3B82F6",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 2,
+      "codigo": "ALTA",
+      "nombre": "Prioridad Alta (Diagnóstico en 24h)",
+      "nivel_orden": 2,
+      "color_hex": "#F59E0B",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    },
+    {
+      "id": 3,
+      "codigo": "URGENTE",
+      "nombre": "Prioridad Urgente (Atención inmediata)",
+      "nivel_orden": 3,
+      "color_hex": "#EF4444",
+      "estado_id": 1,
+      "created_at": "2026-09-24T13:23:41.000Z"
+    }
+  ],
+  "producto_detalle": [],
+  "producto_series_garantia": [],
+  "producto_stock_sede": [],
+  "producto_unidades": [],
+  "productos": [],
+  "proveedores": [
+    {
+      "id": 1,
+      "ruc": "20100154308",
+      "razon_social": "GRUPO DELTRON S.A.",
+      "nombre_contacto": "Jorge Villanueva (Ejecutivo Mayorista)",
+      "telefono": "+51 (01) 415-0100",
+      "email": "ventas.chiclayo@deltron.com.pe",
+      "direccion": "Av. Nicolás Arriola 314, La Victoria, Lima (Despacho Chiclayo)",
+      "estado_id": 1,
+      "created_at": "2026-10-08T15:40:52.000Z",
+      "updated_at": "2026-10-08T15:40:52.000Z"
+    },
+    {
+      "id": 2,
+      "ruc": "20502123491",
+      "razon_social": "INTCOMEX DEL PERU S.A.C.",
+      "nombre_contacto": "Patricia Alarcón",
+      "telefono": "+51 (01) 712-4000",
+      "email": "contacto.peru@intcomex.com",
+      "direccion": "Av. Manuel Olguín 325 Of. 1102, Surco, Lima",
+      "estado_id": 1,
+      "created_at": "2026-10-08T15:40:52.000Z",
+      "updated_at": "2026-10-08T15:40:52.000Z"
+    },
+    {
+      "id": 3,
+      "ruc": "20451298401",
+      "razon_social": "TECH DATA PERU S.A.C.",
+      "nombre_contacto": "Miguel Sandoval",
+      "telefono": "+51 987 654 321",
+      "email": "ventas@techdata.com.pe",
+      "direccion": "Calle Los Negocios 182, Surquillo, Lima",
+      "estado_id": 1,
+      "created_at": "2026-10-08T15:40:52.000Z",
+      "updated_at": "2026-10-08T15:40:52.000Z"
+    },
+    {
+      "id": 4,
+      "ruc": "20601239845",
+      "razon_social": "IMPORTACIONES Y REPUESTOS NORTE E.I.R.L.",
+      "nombre_contacto": "Carlos Burga",
+      "telefono": "+51 974 555 123",
+      "email": "repuestos.norte@gmail.com",
+      "direccion": "Calle Alfonso Ugarte 450, Chiclayo",
+      "estado_id": 1,
+      "created_at": "2026-10-08T15:40:52.000Z",
+      "updated_at": "2026-10-08T15:40:52.000Z"
+    }
+  ],
+  "rol_permisos": [
+    {
+      "rol_id": 7,
+      "permiso_id": 1,
+      "created_at": "2026-09-24T16:41:26.000Z"
+    },
+    {
+      "rol_id": 7,
+      "permiso_id": 2,
+      "created_at": "2026-09-24T16:41:26.000Z"
+    },
+    {
+      "rol_id": 7,
+      "permiso_id": 3,
+      "created_at": "2026-09-24T16:41:26.000Z"
+    },
+    {
+      "rol_id": 7,
+      "permiso_id": 4,
+      "created_at": "2026-09-24T16:41:26.000Z"
+    },
+    {
+      "rol_id": 7,
+      "permiso_id": 5,
+      "created_at": "2026-09-24T16:41:26.000Z"
+    },
+    {
+      "rol_id": 7,
+      "permiso_id": 6,
+      "created_at": "2026-09-24T16:41:26.000Z"
+    },
+    {
+      "rol_id": 7,
+      "permiso_id": 7,
+      "created_at": "2026-09-24T16:41:26.000Z"
+    },
+    {
+      "rol_id": 7,
+      "permiso_id": 8,
+      "created_at": "2026-09-24T16:41:26.000Z"
+    },
+    {
+      "rol_id": 7,
+      "permiso_id": 9,
+      "created_at": "2026-09-24T16:41:26.000Z"
+    },
+    {
+      "rol_id": 7,
+      "permiso_id": 10,
+      "created_at": "2026-09-24T16:41:26.000Z"
+    },
+    {
+      "rol_id": 7,
+      "permiso_id": 11,
+      "created_at": "2026-09-24T16:41:26.000Z"
+    },
+    {
+      "rol_id": 7,
+      "permiso_id": 12,
+      "created_at": "2026-09-24T16:41:26.000Z"
+    },
+    {
+      "rol_id": 7,
+      "permiso_id": 13,
+      "created_at": "2026-09-24T16:41:26.000Z"
+    },
+    {
+      "rol_id": 7,
+      "permiso_id": 14,
+      "created_at": "2026-09-24T16:41:26.000Z"
+    },
+    {
+      "rol_id": 7,
+      "permiso_id": 15,
+      "created_at": "2026-09-24T16:41:26.000Z"
+    },
+    {
+      "rol_id": 13,
+      "permiso_id": 1,
+      "created_at": "2026-10-06T23:07:54.000Z"
+    },
+    {
+      "rol_id": 13,
+      "permiso_id": 4,
+      "created_at": "2026-10-06T23:07:54.000Z"
+    },
+    {
+      "rol_id": 13,
+      "permiso_id": 6,
+      "created_at": "2026-10-06T23:07:54.000Z"
+    },
+    {
+      "rol_id": 13,
+      "permiso_id": 8,
+      "created_at": "2026-10-06T23:07:54.000Z"
+    },
+    {
+      "rol_id": 14,
+      "permiso_id": 5,
+      "created_at": "2026-10-06T23:10:06.000Z"
+    },
+    {
+      "rol_id": 14,
+      "permiso_id": 6,
+      "created_at": "2026-10-06T23:10:06.000Z"
+    },
+    {
+      "rol_id": 14,
+      "permiso_id": 7,
+      "created_at": "2026-10-06T23:10:06.000Z"
+    },
+    {
+      "rol_id": 14,
+      "permiso_id": 9,
+      "created_at": "2026-10-06T23:10:06.000Z"
+    },
+    {
+      "rol_id": 15,
+      "permiso_id": 8,
+      "created_at": "2026-10-07T00:26:43.000Z"
+    }
+  ],
+  "roles": [
+    {
+      "id": 7,
+      "codigo": "SUPERADMIN",
+      "nombre": "Super Administrador",
+      "descripcion": "Acceso total y configuración de roles del sistema",
+      "modulos_predeterminados": [
+        "ventas",
+        "caja",
+        "compras",
+        "panel-recepcion",
+        "panel-almacen",
+        "taller",
+        "equipos",
+        "clientes",
+        "productos",
+        "categorias",
+        "marcas",
+        "usuarios",
+        "config-empresa",
+        "sucursales",
+        "movimientos"
+      ],
+      "es_sistema": 1,
+      "estado_id": 1,
+      "created_at": "2026-10-06T15:18:24.000Z",
+      "updated_at": "2026-10-06T15:18:24.000Z"
+    },
+    {
+      "id": 13,
+      "codigo": "RECEPCION",
+      "nombre": "Recepcion",
+      "descripcion": "Secre",
+      "modulos_predeterminados": [
+        "clientes",
+        "ventas",
+        "panel-recepcion",
+        "taller"
+      ],
+      "es_sistema": 0,
+      "estado_id": 1,
+      "created_at": "2026-10-06T23:07:54.000Z",
+      "updated_at": "2026-10-06T23:07:54.000Z"
+    },
+    {
+      "id": 14,
+      "codigo": "TECNICO",
+      "nombre": "Tecnico",
+      "descripcion": "",
+      "modulos_predeterminados": [
+        "panel-almacen",
+        "taller",
+        "equipos",
+        "productos"
+      ],
+      "es_sistema": 0,
+      "estado_id": 1,
+      "created_at": "2026-10-06T23:10:06.000Z",
+      "updated_at": "2026-10-06T23:10:06.000Z"
+    },
+    {
+      "id": 15,
+      "codigo": "LOGISTICA",
+      "nombre": "Logística",
+      "descripcion": "Area logitica",
+      "modulos_predeterminados": [
+        "clientes"
+      ],
+      "es_sistema": 0,
+      "estado_id": 1,
+      "created_at": "2026-10-07T00:26:43.000Z",
+      "updated_at": "2026-10-07T00:26:43.000Z"
+    }
+  ],
+  "sesiones_tokens": [],
+  "sucursales": [
+    {
+      "id": 1,
+      "empresa_id": 1,
+      "codigo": "0000",
+      "nombre": "Principal - Chiclayo Centro",
+      "direccion": "AV. PEDRO RUIZ NRO. 349 INT. 09C, Chiclayo",
+      "telefono": "(074) 283921",
+      "es_principal": 1,
+      "estado_id": 1,
+      "created_at": "2026-09-20T18:21:30.000Z",
+      "updated_at": "2026-09-30T06:47:53.000Z"
+    },
+    {
+      "id": 2,
+      "empresa_id": 1,
+      "codigo": "0001",
+      "nombre": "Sucursal Lambayeque Norte",
+      "direccion": "Av. Ramón Castilla 450, Lambayeque",
+      "telefono": "(074) 281190",
+      "es_principal": 0,
+      "estado_id": 1,
+      "created_at": "2026-09-20T18:21:30.000Z",
+      "updated_at": "2026-09-30T06:47:53.000Z"
+    },
+    {
+      "id": 3,
+      "empresa_id": 1,
+      "codigo": "0003",
+      "nombre": "CHICLAYO BALTA",
+      "direccion": "AV.656",
+      "telefono": "48554699//9",
+      "es_principal": 0,
+      "estado_id": 1,
+      "created_at": "2026-09-30T06:47:28.000Z",
+      "updated_at": "2026-09-30T06:47:38.000Z"
+    },
+    {
+      "id": 4,
+      "empresa_id": 1,
+      "codigo": "0002",
+      "nombre": "Almacén Central Pomalca",
+      "direccion": "Carretera Pomalca Km 4.5",
+      "telefono": "(074) 609923",
+      "es_principal": 0,
+      "estado_id": 1,
+      "created_at": "2026-09-30T06:47:53.000Z",
+      "updated_at": "2026-09-30T06:47:53.000Z"
+    },
+    {
+      "id": 5,
+      "empresa_id": 1,
+      "codigo": "0004",
+      "nombre": "MALL AVENTURA",
+      "direccion": "MALL AVENTURA",
+      "telefono": "658962656956",
+      "es_principal": 0,
+      "estado_id": 1,
+      "created_at": "2026-09-30T07:54:46.000Z",
+      "updated_at": "2026-09-30T07:54:46.000Z"
+    },
+    {
+      "id": 6,
+      "empresa_id": 1,
+      "codigo": "0005",
+      "nombre": "LAMBEYEQUE",
+      "direccion": "REAL PLAZA LAMAAQUEYEQUE",
+      "telefono": "074-626495",
+      "es_principal": 0,
+      "estado_id": 1,
+      "created_at": "2026-09-30T08:13:36.000Z",
+      "updated_at": "2026-09-30T08:13:36.000Z"
+    }
+  ],
+  "tecnicos": [],
+  "tipos_comprobante": [
+    {
+      "id": 1,
+      "codigo": "BOLETA",
+      "nombre": "Boleta de Venta Electrónica",
+      "serie_defecto": "B001",
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    },
+    {
+      "id": 2,
+      "codigo": "FACTURA",
+      "nombre": "Factura Electrónica",
+      "serie_defecto": "F001",
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    },
+    {
+      "id": 3,
+      "codigo": "NOTA_VENTA",
+      "nombre": "Nota de Venta Interna",
+      "serie_defecto": "NV01",
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    },
+    {
+      "id": 4,
+      "codigo": "GUIA_REMISION",
+      "nombre": "Guía de Remisión Remitente",
+      "serie_defecto": "T001",
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    }
+  ],
+  "tipos_documento": [
+    {
+      "id": 1,
+      "codigo": "DNI",
+      "nombre": "Documento Nacional de Identidad",
+      "longitud_exacta": 8,
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    },
+    {
+      "id": 2,
+      "codigo": "RUC",
+      "nombre": "Registro Único de Contribuyentes",
+      "longitud_exacta": 11,
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    },
+    {
+      "id": 3,
+      "codigo": "CE",
+      "nombre": "Carnet de Extranjería",
+      "longitud_exacta": 9,
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    },
+    {
+      "id": 4,
+      "codigo": "PASAPORTE",
+      "nombre": "Pasaporte",
+      "longitud_exacta": 12,
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    }
+  ],
+  "tipos_equipo": [
+    {
+      "id": 1,
+      "codigo": "LAPTOP",
+      "nombre": "Laptop / Notebook",
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    },
+    {
+      "id": 2,
+      "codigo": "PC_ESCRITORIO",
+      "nombre": "Computadora de Escritorio / Torre",
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    },
+    {
+      "id": 3,
+      "codigo": "IMPRESORA",
+      "nombre": "Impresora / Multifuncional",
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    },
+    {
+      "id": 4,
+      "codigo": "MONITOR",
+      "nombre": "Monitor / Pantalla",
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    },
+    {
+      "id": 5,
+      "codigo": "COMPONENTE",
+      "nombre": "Componente / Tarjeta / Placa",
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    },
+    {
+      "id": 6,
+      "codigo": "SERVIDOR",
+      "nombre": "Servidor / Rack",
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    },
+    {
+      "id": 7,
+      "codigo": "OTRO",
+      "nombre": "Otro Dispositivo Electrónico",
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    }
+  ],
+  "tipos_producto_detalle": [
+    {
+      "id": 1,
+      "codigo": "VENTA",
+      "nombre": "Unidad para Venta Directa",
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    },
+    {
+      "id": 2,
+      "codigo": "SERVICIO",
+      "nombre": "Unidad asignada a Taller / Servicio Técnico",
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    },
+    {
+      "id": 3,
+      "codigo": "GARANTIA",
+      "nombre": "Unidad de Reemplazo por Garantía",
+      "estado_id": 1,
+      "created_at": "2026-09-24T08:23:41.000Z"
+    }
+  ],
+  "usuario_permisos": [],
+  "usuarios": [
+    {
+      "id": 1,
+      "username": "superadmin",
+      "password_hash": "$2b$10$k.FIJ42XepBirgt5FHRLAOgN0q7eDPFNT9vLI4GC/rKMXQDEzv4Jm",
+      "nombre_completo": "Super Administrador",
+      "email": "superadmin@mgsolutions.pe",
+      "telefono_cifrado": null,
+      "tipo_documento_id": 1,
+      "numero_documento_cifrado": null,
+      "persona_id": null,
+      "rol_id": 7,
+      "sucursal_id": 1,
+      "estado_id": 1,
+      "avatar_url": "SA",
+      "requiere_cambio_password": 0,
+      "intentos_fallidos": 0,
+      "bloqueado_hasta": null,
+      "ultimo_acceso": "2026-11-03T03:12:49.000Z",
+      "created_at": "2026-10-06T22:19:00.000Z",
+      "updated_at": "2026-11-03T03:12:49.000Z",
+      "created_by": null
+    }
+  ],
+  "vendedores": [],
+  "ventas": []
+}

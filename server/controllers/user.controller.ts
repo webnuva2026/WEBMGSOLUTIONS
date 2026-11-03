@@ -8,6 +8,7 @@ import {
   maskPhone,
   maskDocument,
 } from '../utils/security';
+import { sendWelcomeCredentialsEmail, getMailTransporter } from '../utils/mailer';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 // =====================================================================
@@ -160,25 +161,34 @@ export async function createUser(req: AuthenticatedRequest, res: Response): Prom
 
     const rolTarget = rolId || req.body.rol;
     // Validaciones básicas
-    if (!username || !nombreCompleto || !email || !rolTarget) {
+    if (!nombreCompleto || !email || !rolTarget) {
       res.status(400).json({
         success: false,
-        message: 'Campos obligatorios: username, nombreCompleto, email, rol (o rolId).',
+        message: 'Campos obligatorios: nombreCompleto, email, rol (o rolId).',
       });
       return;
     }
 
-    const rawPassword = password || 'Admin2026!';
+    // Autogenerar username MG-XXXXXX si no viene desde el cliente
+    const finalUsername = (username && String(username).trim())
+      ? String(username).trim().toUpperCase()
+      : `MG-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    // Generar contraseña temporal segura aleatoria si no se proporciona una explícitamente
+    const rawPassword =
+      password && String(password).trim().length >= 6
+        ? String(password).trim()
+        : `Mg${Math.floor(100000 + Math.random() * 900000)}!`;
 
     // Verificar username y email único
     const [existingUser] = await pool.query<RowDataPacket[]>(
       'SELECT id FROM usuarios WHERE username = ? OR email = ? LIMIT 1',
-      [username.trim(), email.trim()]
+      [finalUsername, email.trim()]
     );
     if (existingUser.length > 0) {
       res.status(409).json({
         success: false,
-        message: 'El username o email ya está registrado en el sistema.',
+        message: 'El nombre de usuario o correo electrónico ya está registrado en el sistema.',
       });
       return;
     }
@@ -222,7 +232,7 @@ export async function createUser(req: AuthenticatedRequest, res: Response): Prom
         intentos_fallidos, created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, TRUE, 0, ?)`,
       [
-        username.trim(),
+        finalUsername,
         passwordHash,
         nombreCompleto.trim(),
         email.trim(),
@@ -235,18 +245,57 @@ export async function createUser(req: AuthenticatedRequest, res: Response): Prom
       ]
     );
 
+    // Enviar correo de bienvenida formal con credenciales de acceso
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    let emailStatus: { sent: boolean; message?: string } = { sent: false };
+
+    try {
+      const emailResult = await sendWelcomeCredentialsEmail({
+        toEmail: email.trim(),
+        nombreCompleto: nombreCompleto.trim(),
+        username: finalUsername,
+        passwordTemporal: rawPassword,
+        rolNombre: rol.nombre,
+        loginUrl: frontendUrl,
+      });
+
+      if (emailResult.success) {
+        emailStatus = {
+          sent: true,
+          message: emailResult.simulated
+            ? 'Credenciales generadas (Modo Simulación: verifique la consola).'
+            : 'Credenciales enviadas exitosamente al correo del usuario.',
+        };
+      } else {
+        emailStatus = {
+          sent: false,
+          message: `Usuario creado, pero hubo un detalle al enviar el correo: ${emailResult.error}`,
+        };
+      }
+    } catch (mailErr: any) {
+      console.error('Error al intentar enviar el correo de bienvenida:', mailErr);
+      emailStatus = {
+        sent: false,
+        message: 'Usuario creado, pero no se pudo enviar el correo de notificación.',
+      };
+    }
+
     res.status(201).json({
       success: true,
-      message: `Usuario '${username}' creado con éxito con rol ${rol.codigo}.`,
+      message: emailStatus.sent
+        ? `Usuario '${finalUsername}' creado con éxito y credenciales enviadas a ${email}.`
+        : `Usuario '${finalUsername}' creado con éxito con rol ${rol.codigo}. (${emailStatus.message})`,
       usuario: {
         id: result.insertId,
-        username: username.trim(),
+        username: finalUsername,
         nombreCompleto: nombreCompleto.trim(),
         email: email.trim(),
         rol: rol.codigo,
         rolNombre: rol.nombre,
+        estado: 'ACTIVO',
         modulosPermitidos: modulosPredeterminados,
       },
+      emailNotification: emailStatus,
     });
   } catch (error: any) {
     console.error('Error en createUser:', error);
@@ -275,9 +324,9 @@ export async function updateUser(req: AuthenticatedRequest, res: Response): Prom
       sucursalId,
     } = req.body;
 
-    // Verificar que el usuario exista
+    // Verificar que el usuario exista y obtener datos actuales para detectar cambios
     const [existingRows] = await pool.query<RowDataPacket[]>(
-      'SELECT id FROM usuarios WHERE id = ? LIMIT 1',
+      'SELECT id, email, nombre_completo, username FROM usuarios WHERE id = ? LIMIT 1',
       [userId]
     );
     if (existingRows.length === 0) {
@@ -285,11 +334,20 @@ export async function updateUser(req: AuthenticatedRequest, res: Response): Prom
       return;
     }
 
+    const currentUserData = existingRows[0];
+    let emailChanged = false;
+    let normalizedNewEmail = '';
+
     // Verificar email único (excluyendo al usuario actual)
     if (email) {
+      normalizedNewEmail = email.trim().toLowerCase();
+      if (currentUserData.email && currentUserData.email.toLowerCase() !== normalizedNewEmail) {
+        emailChanged = true;
+      }
+
       const [emailCheck] = await pool.query<RowDataPacket[]>(
-        'SELECT id FROM usuarios WHERE email = ? AND id != ? LIMIT 1',
-        [email.trim(), userId]
+        'SELECT id FROM usuarios WHERE LOWER(email) = ? AND id != ? LIMIT 1',
+        [normalizedNewEmail, userId]
       );
       if (emailCheck.length > 0) {
         res.status(409).json({ success: false, message: 'El email ya está en uso por otro usuario.' });
@@ -310,7 +368,7 @@ export async function updateUser(req: AuthenticatedRequest, res: Response): Prom
     const params: any[] = [];
 
     if (nombreCompleto !== undefined) { updates.push('nombre_completo = ?'); params.push(nombreCompleto.trim()); }
-    if (email !== undefined) { updates.push('email = ?'); params.push(email.trim()); }
+    if (email !== undefined) { updates.push('email = ?'); params.push(normalizedNewEmail); }
     if (telefonoCifrado !== undefined) { updates.push('telefono_cifrado = ?'); params.push(telefonoCifrado); }
     if (tipoDocumento !== undefined) {
       const tipoDocId = tipoDocumento === 'RUC' ? 2 : (tipoDocumento === 'CE' ? 3 : 1);
@@ -335,6 +393,46 @@ export async function updateUser(req: AuthenticatedRequest, res: Response): Prom
 
     params.push(userId);
     await pool.query(`UPDATE usuarios SET ${updates.join(', ')} WHERE id = ?`, params);
+
+    // Si el email fue modificado, despachar notificación al nuevo correo
+    if (emailChanged && normalizedNewEmail) {
+      try {
+        const transporter = getMailTransporter();
+        const fromEmail = process.env.SMTP_FROM || 'MG Solutions <notificaciones@mgsolutions.pe>';
+        if (transporter) {
+          await transporter.sendMail({
+            from: fromEmail,
+            to: normalizedNewEmail,
+            subject: '✉️ Correo electrónico actualizado - MG Solutions ERP',
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                  <h2 style="color: #00346F; margin: 0;">MG SOLUTIONS GROUP S.A.C.</h2>
+                  <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Actualización de Cuenta de Acceso</p>
+                </div>
+                <p style="font-size: 14px; color: #334155;">Estimado(a) <strong>${currentUserData.nombre_completo || currentUserData.username}</strong>,</p>
+                <p style="font-size: 14px; color: #334155; line-height: 1.5;">
+                  Le confirmamos que el administrador del sistema ha actualizado su correo electrónico de acceso a:
+                </p>
+                <div style="background-color: #eff6ff; border-left: 4px solid #00346F; padding: 12px 16px; margin: 15px 0; border-radius: 4px;">
+                  <span style="font-size: 15px; font-weight: bold; color: #00346F;">${normalizedNewEmail}</span>
+                </div>
+                <p style="font-size: 13px; color: #475569; line-height: 1.5;">
+                  A partir de ahora, puede utilizar esta dirección de correo para iniciar sesión o para recibir sus códigos OTP en la opción <em>"¿Olvidé mi contraseña?"</em> de la pantalla de inicio.
+                </p>
+                <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center;">
+                  Si usted no solicitó este cambio, por favor contacte de inmediato con la administración de MG Solutions.
+                </div>
+              </div>
+            `,
+          });
+        } else {
+          console.log(`[SIMULADOR EMAIL] Notificación de cambio de correo a: ${normalizedNewEmail} (${currentUserData.username})`);
+        }
+      } catch (mailErr) {
+        console.warn('Advertencia al enviar correo de actualización:', mailErr);
+      }
+    }
 
     res.json({ success: true, message: 'Usuario actualizado con éxito.' });
   } catch (error: any) {
@@ -400,17 +498,24 @@ export async function toggleUserStatus(req: AuthenticatedRequest, res: Response)
 export async function resetUserPassword(req: AuthenticatedRequest, res: Response): Promise<void> {
   try {
     const userId = Number(req.params.id);
-    const { nuevaPassword } = req.body;
+    const { nuevaPassword } = req.body || {};
 
-    if (!nuevaPassword || nuevaPassword.length < 6) {
-      res.status(400).json({
-        success: false,
-        message: 'La nueva contraseña debe tener al menos 6 caracteres.',
-      });
-      return;
+    let finalPassword = '';
+    if (nuevaPassword && typeof nuevaPassword === 'string' && nuevaPassword.trim().length > 0) {
+      if (nuevaPassword.trim().length < 6) {
+        res.status(400).json({
+          success: false,
+          message: 'La nueva contraseña debe tener al menos 6 caracteres.',
+        });
+        return;
+      }
+      finalPassword = nuevaPassword.trim();
+    } else {
+      // Autogenerar contraseña temporal segura
+      finalPassword = `MG-Temp#${Math.floor(100000 + Math.random() * 900000)}`;
     }
 
-    const passwordHash = await hashPassword(nuevaPassword);
+    const passwordHash = await hashPassword(finalPassword);
 
     const [result] = await pool.query<ResultSetHeader>(
       'UPDATE usuarios SET password_hash = ?, requiere_cambio_password = TRUE, intentos_fallidos = 0, bloqueado_hasta = NULL WHERE id = ?',
@@ -428,7 +533,35 @@ export async function resetUserPassword(req: AuthenticatedRequest, res: Response
       [userId]
     );
 
-    res.json({ success: true, message: 'Contraseña reseteada. El usuario deberá cambiarla en su próximo inicio de sesión.' });
+    // Obtener datos del usuario para notificación por email
+    const [userRows] = await pool.query<RowDataPacket[]>(
+      'SELECT u.username, u.nombre_completo, u.email, r.nombre AS rol_nombre FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.id = ? LIMIT 1',
+      [userId]
+    );
+
+    let emailSent = false;
+    if (userRows.length > 0 && userRows[0].email) {
+      const u = userRows[0];
+      try {
+        const mailResult = await sendWelcomeCredentialsEmail({
+          toEmail: u.email,
+          nombreCompleto: u.nombre_completo,
+          username: u.username,
+          passwordTemporal: finalPassword,
+          rolNombre: u.rol_nombre || 'Colaborador',
+        });
+        emailSent = Boolean(mailResult && mailResult.success);
+      } catch (e) {
+        console.warn('Error enviando correo de credenciales temporales:', e);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Contraseña restablecida exitosamente. El usuario deberá cambiarla en su próximo inicio de sesión.',
+      passwordTemporal: finalPassword,
+      emailEnviado: emailSent,
+    });
   } catch (error) {
     console.error('Error en resetUserPassword:', error);
     res.status(500).json({ success: false, message: 'Error reseteando contraseña.' });

@@ -28,8 +28,10 @@ import {
   Filter,
   Grid3X3,
   List,
+  Sparkles,
 } from 'lucide-react';
 import { clientService, Cliente, ClienteFormData } from '../services/client.service';
+import { consultaService } from '../services/consulta.service';
 import { useDebounce } from '../hooks/useDebounce';
 
 type ViewMode = 'table' | 'grid';
@@ -43,13 +45,14 @@ export const ClientsManagementView: React.FC = () => {
 
   // Filters & search
   const [search, setSearch] = useState('');
-  const [estadoFilter, setEstadoFilter] = useState<'ALL' | 'ACTIVO' | 'INACTIVO'>('ALL');
+  const [estadoFilter, setEstadoFilter] = useState<'ALL' | 'ACTIVO' | 'INACTIVO'>('ACTIVO');
   const debouncedSearch = useDebounce(search, 300);
 
   // Pagination
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState({ total: 0, activos: 0, inactivos: 0 });
   const totalPages = Math.ceil(total / limit);
 
   // View mode
@@ -72,6 +75,8 @@ export const ClientsManagementView: React.FC = () => {
     estado: 'ACTIVO',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [isQueryingDoc, setIsQueryingDoc] = useState(false);
+  const [consultaSuccessMsg, setConsultaSuccessMsg] = useState<string | null>(null);
 
   // Detail modal
   const [detailCliente, setDetailCliente] = useState<Cliente | null>(null);
@@ -82,15 +87,24 @@ export const ClientsManagementView: React.FC = () => {
     setError(null);
     try {
       const params: { search?: string; estado?: string; page?: number; limit?: number } = {
-        search: debouncedSearch || undefined,
         page,
         limit,
       };
-      if (estadoFilter !== 'ALL') params.estado = estadoFilter;
+
+      // Si hay búsqueda activa, buscar siempre en activos e inactivos; si no, aplicar filtro
+      if (debouncedSearch && debouncedSearch.trim()) {
+        params.search = debouncedSearch.trim();
+      } else if (estadoFilter !== 'ALL') {
+        params.estado = estadoFilter;
+      }
+
       const res = await clientService.getClients(params);
       if (res.success) {
         setClientes(res.data);
         setTotal(res.pagination.total);
+        if (res.stats) {
+          setStats(res.stats);
+        }
       } else {
         setError('Error al cargar clientes.');
       }
@@ -124,6 +138,7 @@ export const ClientsManagementView: React.FC = () => {
       estado: 'ACTIVO',
     });
     setFormErrors({});
+    setConsultaSuccessMsg(null);
     setIsModalOpen(true);
   };
 
@@ -140,6 +155,7 @@ export const ClientsManagementView: React.FC = () => {
       estado: c.estado as 'ACTIVO' | 'INACTIVO',
     });
     setFormErrors({});
+    setConsultaSuccessMsg(null);
     setIsModalOpen(true);
   };
 
@@ -151,6 +167,62 @@ export const ClientsManagementView: React.FC = () => {
       nombreEmpresa: newTipo === 'RUC' ? prev.nombreEmpresa : '',
     }));
     setFormErrors(prev => ({ ...prev, numeroDocumento: '', razonSocial: '' }));
+    setConsultaSuccessMsg(null);
+  };
+
+  const handleQueryDocument = async () => {
+    const doc = (formData.numeroDocumento || '').trim();
+    if (!doc) {
+      setFormErrors(prev => ({ ...prev, numeroDocumento: 'Ingrese un número de documento para consultar' }));
+      return;
+    }
+
+    if (formData.tipoDocumento === 'RUC' && doc.length !== 11) {
+      setFormErrors(prev => ({ ...prev, numeroDocumento: 'El RUC debe tener 11 dígitos' }));
+      return;
+    }
+
+    if (formData.tipoDocumento === 'DNI' && doc.length !== 8) {
+      setFormErrors(prev => ({ ...prev, numeroDocumento: 'El DNI debe tener 8 dígitos' }));
+      return;
+    }
+
+    setIsQueryingDoc(true);
+    setConsultaSuccessMsg(null);
+    setFormErrors(prev => ({ ...prev, numeroDocumento: '', submit: '' }));
+
+    try {
+      if (formData.tipoDocumento === 'RUC') {
+        const res = await consultaService.consultarRuc(doc);
+        if (res.success && res.data) {
+          setFormData(prev => ({
+            ...prev,
+            razonSocial: res.data.razonSocial || prev.razonSocial,
+            nombreEmpresa: res.data.razonSocial || prev.nombreEmpresa,
+            direccionFiscal: res.data.direccion || prev.direccionFiscal,
+          }));
+          setConsultaSuccessMsg(`SUNAT: ${res.data.estado || 'ACTIVO'} - ${res.data.condicion || 'HABIDO'}`);
+        } else {
+          setFormErrors(prev => ({ ...prev, numeroDocumento: res.message || 'No se encontró información en SUNAT' }));
+        }
+      } else if (formData.tipoDocumento === 'DNI') {
+        const res = await consultaService.consultarDni(doc);
+        if (res.success && res.data) {
+          setFormData(prev => ({
+            ...prev,
+            razonSocial: res.data.nombreCompleto || prev.razonSocial,
+            direccionFiscal: res.data.direccion || prev.direccionFiscal || 'CHICLAYO',
+          }));
+          setConsultaSuccessMsg('RENIEC: Documento Verificado');
+        } else {
+          setFormErrors(prev => ({ ...prev, numeroDocumento: res.message || 'No se encontró información en RENIEC' }));
+        }
+      }
+    } catch (err: any) {
+      setFormErrors(prev => ({ ...prev, numeroDocumento: err.message || 'Error al conectar con el servicio de consulta' }));
+    } finally {
+      setIsQueryingDoc(false);
+    }
   };
 
   const handleViewDetail = (c: Cliente) => {
@@ -253,7 +325,25 @@ export const ClientsManagementView: React.FC = () => {
     try {
       const res = await clientService.toggleStatus(id);
       if (res.success) {
-        setClientes(prev => prev.map(c => c.id === id ? { ...c, estado: res.data.estado as any } : c));
+        const newStatus = res.data.estado;
+        const isNowActive = newStatus === 'ACTIVO';
+
+        // Actualizar contadores globales de estadísticas
+        setStats(prev => ({
+          ...prev,
+          activos: isNowActive ? prev.activos + 1 : Math.max(0, prev.activos - 1),
+          inactivos: isNowActive ? Math.max(0, prev.inactivos - 1) : prev.inactivos + 1,
+        }));
+
+        // Si estamos filtrando específicamente por ACTIVO o INACTIVO (sin búsqueda activa),
+        // el cliente pasa automáticamente a la otra lista y se retira de la vista actual.
+        if (!debouncedSearch && estadoFilter !== 'ALL') {
+          setClientes(prev => prev.filter(c => c.id !== id));
+          setTotal(prev => Math.max(0, prev - 1));
+        } else {
+          // Si estamos en búsqueda global o 'ALL', se actualiza su estado en la misma fila
+          setClientes(prev => prev.map(c => c.id === id ? { ...c, estado: newStatus as any } : c));
+        }
       } else {
         setError(res.message || 'Error al cambiar estado.');
       }
@@ -302,26 +392,29 @@ export const ClientsManagementView: React.FC = () => {
       <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mb-6">
         <Inbox className="w-12 h-12 text-blue-400" />
       </div>
-      <h3 className="text-xl font-bold text-slate-700 mb-2">No hay clientes registrados</h3>
+      <h3 className="text-xl font-bold text-slate-700 mb-2">
+        {estadoFilter === 'ACTIVO'
+          ? 'No hay clientes activos'
+          : estadoFilter === 'INACTIVO'
+          ? 'No hay clientes inactivos'
+          : 'No hay clientes registrados'}
+      </h3>
       <p className="text-slate-500 mb-6 max-w-md">
-        Comienza registrando tu primer cliente. Los datos se guardan automáticamente en la base de datos.
+        {estadoFilter === 'ACTIVO'
+          ? 'Puedes registrar un nuevo cliente o consultar la pestaña de inactivos.'
+          : 'Los clientes que desactives aparecerán en esta sección.'}
       </p>
-      <button
-        onClick={handleOpenNew}
-        className="bg-[#00346F] hover:bg-[#004A99] text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 shadow-lg transition-all"
-      >
-        <UserPlus className="w-5 h-5" />
-        Registrar Primer Cliente
-      </button>
+      {estadoFilter === 'ACTIVO' && (
+        <button
+          onClick={handleOpenNew}
+          className="bg-[#00346F] hover:bg-[#004A99] text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 shadow-lg transition-all"
+        >
+          <UserPlus className="w-5 h-5" />
+          Registrar Primer Cliente
+        </button>
+      )}
     </div>
   );
-
-  // Stats
-  const stats = useMemo(() => ({
-    total: clientes.length,
-    activos: clientes.filter(c => c.estado === 'ACTIVO').length,
-    inactivos: clientes.filter(c => c.estado === 'INACTIVO').length,
-  }), [clientes]);
 
   return (
     <div className="flex-1 p-6 md:p-8 overflow-y-auto w-full max-w-7xl mx-auto bg-[#F8F9FF] min-h-screen">
@@ -360,49 +453,94 @@ export const ClientsManagementView: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards / Clickable Quick Filters */}
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+        <button
+          type="button"
+          onClick={() => setEstadoFilter('ALL')}
+          className={`p-4 rounded-xl border text-left transition-all duration-200 cursor-pointer ${
+            estadoFilter === 'ALL'
+              ? 'bg-blue-50/70 border-[#00346F] shadow-sm ring-2 ring-[#00346F]/20'
+              : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
+          }`}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
-              <Users className="w-5 h-5 text-[#00346F]" />
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+              estadoFilter === 'ALL' ? 'bg-[#00346F] text-white' : 'bg-blue-50 text-[#00346F]'
+            }`}>
+              <Users className="w-5 h-5" />
             </div>
             <div>
               <p className="text-2xl font-bold text-slate-800">{stats.total}</p>
-              <p className="text-xs text-slate-500">Total Clientes</p>
+              <p className="text-xs font-medium text-slate-500">Total Clientes</p>
             </div>
           </div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setEstadoFilter('ACTIVO')}
+          className={`p-4 rounded-xl border text-left transition-all duration-200 cursor-pointer ${
+            estadoFilter === 'ACTIVO'
+              ? 'bg-emerald-50/70 border-emerald-600 shadow-sm ring-2 ring-emerald-600/20'
+              : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
+          }`}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+              estadoFilter === 'ACTIVO' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-600'
+            }`}>
+              <CheckCircle2 className="w-5 h-5" />
             </div>
             <div>
               <p className="text-2xl font-bold text-slate-800">{stats.activos}</p>
-              <p className="text-xs text-slate-500">Activos</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs font-medium text-slate-500">Solo Activos</p>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setEstadoFilter('INACTIVO')}
+          className={`p-4 rounded-xl border text-left transition-all duration-200 cursor-pointer ${
+            estadoFilter === 'INACTIVO'
+              ? 'bg-red-50/70 border-red-600 shadow-sm ring-2 ring-red-600/20'
+              : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
+          }`}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center">
-              <XCircle className="w-5 h-5 text-red-600" />
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+              estadoFilter === 'INACTIVO' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-600'
+            }`}>
+              <XCircle className="w-5 h-5" />
             </div>
             <div>
               <p className="text-2xl font-bold text-slate-800">{stats.inactivos}</p>
-              <p className="text-xs text-slate-500">Inactivos</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs font-medium text-slate-500">Solo Inactivos</p>
+                <span className="w-2 h-2 rounded-full bg-red-500 inline-block"></span>
+              </div>
             </div>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Filter Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row gap-4 items-end mb-6">
         <div className="flex-1 w-full">
-          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-            Buscar Cliente
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Buscar Cliente
+            </label>
+            {debouncedSearch && (
+              <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                Búsqueda global (Activos e Inactivos)
+              </span>
+            )}
+          </div>
           <div className="relative border border-slate-300 rounded-lg flex items-center px-3 bg-white focus-within:border-[#00346F]">
             <Search className="w-4 h-4 text-slate-400 mr-2 flex-shrink-0" />
             <input
@@ -504,6 +642,9 @@ export const ClientsManagementView: React.FC = () => {
                         }`}>
                         {c.tipoDocumento}
                       </span>
+                    </td>
+                    <td className="py-3 px-4 font-mono font-bold text-slate-700">
+                      {c.numeroDocumento}
                     </td>
                     <td className="py-3 px-4 font-semibold text-slate-900 max-w-xs">
                       <div className="truncate">{c.razonSocial}</div>
@@ -712,17 +853,66 @@ export const ClientsManagementView: React.FC = () => {
                   </select>
                 </div>
                 <div className="col-span-2">
-                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    {formData.tipoDocumento === 'RUC' ? 'N° RUC (11 dígitos) *' : (formData.tipoDocumento === 'DNI' ? 'N° DNI (8 dígitos) *' : 'N° Documento *')}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.numeroDocumento}
-                    onChange={(e) => setFormData({ ...formData, numeroDocumento: e.target.value.toUpperCase() })}
-                    className={`w-full p-2 bg-white border border-slate-300 rounded-lg font-mono focus:outline-none focus:border-[#00346F] ${formErrors.numeroDocumento ? 'border-red-500' : ''}`}
-                    placeholder={formData.tipoDocumento === 'RUC' ? '20481928371' : (formData.tipoDocumento === 'DNI' ? '47891234' : '001234567')}
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-slate-700 uppercase tracking-wider">
+                      {formData.tipoDocumento === 'RUC' ? 'N° RUC (11 dígitos) *' : (formData.tipoDocumento === 'DNI' ? 'N° DNI (8 dígitos) *' : 'N° Documento *')}
+                    </label>
+                    {(formData.tipoDocumento === 'RUC' || formData.tipoDocumento === 'DNI') && (
+                      <span className="text-[10px] text-blue-700 font-semibold flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-amber-500" /> Auto-rellenable
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      required
+                      value={formData.numeroDocumento}
+                      onChange={(e) => {
+                        let val = e.target.value;
+                        if (formData.tipoDocumento === 'DNI') {
+                          val = val.replace(/\D/g, '').slice(0, 8);
+                        } else if (formData.tipoDocumento === 'RUC') {
+                          val = val.replace(/\D/g, '').slice(0, 11);
+                        } else {
+                          val = val.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12).toUpperCase();
+                        }
+                        setFormData({ ...formData, numeroDocumento: val });
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (formData.tipoDocumento === 'RUC' || formData.tipoDocumento === 'DNI')) {
+                          e.preventDefault();
+                          handleQueryDocument();
+                        }
+                      }}
+                      inputMode={formData.tipoDocumento === 'CE' ? 'text' : 'numeric'}
+                      maxLength={formData.tipoDocumento === 'RUC' ? 11 : (formData.tipoDocumento === 'DNI' ? 8 : 12)}
+                      className={`flex-1 p-2 bg-white border border-slate-300 rounded-lg font-mono focus:outline-none focus:border-[#00346F] ${formErrors.numeroDocumento ? 'border-red-500' : ''}`}
+                      placeholder={formData.tipoDocumento === 'RUC' ? '20481928371' : (formData.tipoDocumento === 'DNI' ? '47891234' : '001234567')}
+                    />
+                    {(formData.tipoDocumento === 'RUC' || formData.tipoDocumento === 'DNI') && (
+                      <button
+                        type="button"
+                        onClick={handleQueryDocument}
+                        disabled={isQueryingDoc || !formData.numeroDocumento}
+                        title={`Consultar automáticamente en ${formData.tipoDocumento === 'RUC' ? 'SUNAT' : 'RENIEC'}`}
+                        className="px-3 py-2 bg-[#00346F] hover:bg-[#004A99] disabled:bg-slate-300 text-white rounded-lg font-bold flex items-center gap-1.5 transition-colors cursor-pointer text-[11px] whitespace-nowrap shadow-xs"
+                      >
+                        {isQueryingDoc ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                        )}
+                        <span>{isQueryingDoc ? 'Consultando...' : `Buscar ${formData.tipoDocumento === 'RUC' ? 'SUNAT' : 'RENIEC'}`}</span>
+                      </button>
+                    )}
+                  </div>
+                  {consultaSuccessMsg && (
+                    <div className="mt-1.5 p-1.5 bg-emerald-50 border border-emerald-200 rounded-md text-[11px] text-emerald-800 flex items-center gap-1 font-semibold">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                      <span>{consultaSuccessMsg}</span>
+                    </div>
+                  )}
                   {formErrors.numeroDocumento && <p className="text-red-500 text-[10px] mt-1">{formErrors.numeroDocumento}</p>}
                 </div>
               </div>
@@ -735,7 +925,13 @@ export const ClientsManagementView: React.FC = () => {
                   type="text"
                   required
                   value={formData.razonSocial}
-                  onChange={(e) => setFormData({ ...formData, razonSocial: e.target.value.toUpperCase() })}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    if (formData.tipoDocumento === 'DNI') {
+                      val = val.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑäëïöüÄËÏÖÜ\s]/g, '');
+                    }
+                    setFormData({ ...formData, razonSocial: val.toUpperCase() });
+                  }}
                   className={`w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-[#00346F] ${formErrors.razonSocial ? 'border-red-500' : ''}`}
                   placeholder={formData.tipoDocumento === 'RUC' ? 'CONSTRUCTORA LOS ANDES S.A.C.' : 'JUAN CARLOS PÉREZ GÓMEZ'}
                 />
@@ -787,10 +983,15 @@ export const ClientsManagementView: React.FC = () => {
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Teléfono</label>
                   <input
                     type="text"
+                    inputMode="numeric"
+                    maxLength={9}
                     value={formData.telefono || ''}
-                    onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 9);
+                      setFormData({ ...formData, telefono: val });
+                    }}
                     className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-[#00346F]"
-                    placeholder="074-283921"
+                    placeholder="974812390"
                   />
                 </div>
               </div>

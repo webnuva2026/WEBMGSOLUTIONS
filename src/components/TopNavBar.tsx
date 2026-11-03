@@ -13,8 +13,122 @@ import {
   Wrench,
   Package,
   Users,
+  LayoutDashboard,
+  Receipt,
+  DollarSign,
+  Truck,
+  ClipboardList,
+  Boxes,
+  Laptop,
+  ArrowLeftRight,
+  Layers,
+  ShieldCheck,
+  Store,
+  ChevronRight,
+  ChevronDown,
+  Globe,
+  Check,
 } from 'lucide-react';
-import { Usuario, OrdenServicio, Producto, Cliente } from '../types';
+import { Usuario, OrdenServicio, Producto, Cliente, Sucursal } from '../types';
+
+interface ModuleMeta {
+  title: string;
+  subtitle: string;
+  icon: React.ElementType;
+  badge?: string;
+}
+
+const MODULE_METADATA: Record<string, ModuleMeta> = {
+  ventas: {
+    title: 'Punto de Venta (POS)',
+    subtitle: 'Ventas directas, boletas, facturas y comprobantes electrónicos',
+    icon: Receipt,
+  },
+  dashboard: {
+    title: 'Dashboard Operativo',
+    subtitle: 'Métricas en tiempo real, rendimiento comercial y taller',
+    icon: LayoutDashboard,
+  },
+  'panel-recepcion': {
+    title: 'Panel de Recepción & Tickets',
+    subtitle: 'Admisión, generación de tickets y entrega a clientes',
+    icon: ClipboardList,
+    badge: 'Atención al Cliente',
+  },
+  'panel-almacen': {
+    title: 'Panel de Almacén & Logística',
+    subtitle: 'Control de existencias, stock disponible y reposiciones',
+    icon: Boxes,
+  },
+  taller: {
+    title: 'Servicio Técnico & Taller',
+    subtitle: 'Diagnóstico de fallas, mesa de trabajo, repuestos y reparación',
+    icon: Wrench,
+    badge: 'Laboratorio',
+  },
+  productos: {
+    title: 'Almacén & Inventario',
+    subtitle: 'Catálogo de productos, repuestos, precios y números de serie',
+    icon: Package,
+  },
+  equipos: {
+    title: 'Equipos Registrados',
+    subtitle: 'Historial de equipos de clientes y trazabilidad de servicio',
+    icon: Laptop,
+  },
+  movimientos: {
+    title: 'Movimientos & Préstamos entre Sedes',
+    subtitle: 'Traslados físicos, guías de remisión y préstamos inter-sucursal',
+    icon: ArrowLeftRight,
+    badge: 'Multi-Sede',
+  },
+  catalogo: {
+    title: 'Catálogo Maestro',
+    subtitle: 'Jerarquía unificada: Categorías, Marcas y Modelos con Fichas',
+    icon: Layers,
+  },
+  categorias: {
+    title: 'Catálogo Maestro • Categorías',
+    subtitle: 'Administración de familias de productos y ámbito de taller',
+    icon: Layers,
+  },
+  marcas: {
+    title: 'Catálogo Maestro • Marcas',
+    subtitle: 'Marcas homologadas y vinculación por categoría',
+    icon: Layers,
+  },
+  usuarios: {
+    title: 'Usuarios, Roles & Permisos',
+    subtitle: 'Control de accesos RBAC, cuentas de colaboradores y seguridad',
+    icon: ShieldCheck,
+    badge: 'Seguridad',
+  },
+  clientes: {
+    title: 'Directorio de Clientes',
+    subtitle: 'Padrón de clientes con validación automática RENIEC / SUNAT',
+    icon: Users,
+  },
+  compras: {
+    title: 'Compras & Proveedores',
+    subtitle: 'Registro de facturas, abastecimiento y cuentas de proveedores',
+    icon: Truck,
+  },
+  caja: {
+    title: 'Caja & Finanzas',
+    subtitle: 'Aperturas, arqueos, cierres de turno y flujo de caja diario',
+    icon: DollarSign,
+  },
+  sucursales: {
+    title: 'Sedes & Sucursales',
+    subtitle: 'Configuración de locales comerciales, puntos de venta y almacenes',
+    icon: Store,
+  },
+  'config-empresa': {
+    title: 'Configuración de Empresa & Sedes',
+    subtitle: 'Razón social, RUC, series electrónicas y datos fiscales',
+    icon: Building2,
+  },
+};
 
 interface TopNavBarProps {
   currentUser: Usuario | null;
@@ -27,6 +141,9 @@ interface TopNavBarProps {
   ordenes?: OrdenServicio[];
   productos?: Producto[];
   clientes?: Cliente[];
+  sucursales?: Sucursal[];
+  selectedSedeId?: number | null;
+  onSelectSede?: (sedeId: number | null) => void;
 }
 
 export const TopNavBar: React.FC<TopNavBarProps> = ({
@@ -40,9 +157,19 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   ordenes = [],
   productos = [],
   clientes = [],
+  sucursales = [],
+  selectedSedeId = null,
+  onSelectSede,
 }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showSedeDropdown, setShowSedeDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const isSuperAdmin = currentUser?.rol === 'SUPERADMIN' || currentUser?.rol === 'ADMIN';
+  const currentSedeNombre = selectedSedeId
+    ? sucursales.find((s) => s.id === selectedSedeId)?.nombre.replace(/^[0-9]+ - /, '') || 'Sede Seleccionada'
+    : isSuperAdmin
+    ? 'Todas las Sedes (Consolidado)'
+    : currentUser?.sucursal?.replace(/^[0-9]+ - /, '') || 'Sede Principal';
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -99,22 +226,153 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
     };
   }, [searchTerm, ordenes, productos, clientes]);
 
+  const currentMeta =
+    MODULE_METADATA[activeView] ||
+    (activeView === 'config-empresa' || activeView === 'sucursales'
+      ? MODULE_METADATA['sucursales']
+      : activeView === 'categorias' || activeView === 'marcas'
+      ? MODULE_METADATA['catalogo']
+      : {
+          title: 'Sistema ERP MG Solutions',
+          subtitle: 'Gestión integrada comercial, técnica y operativa',
+          icon: LayoutDashboard,
+        });
+
+  const CurrentModuleIcon = currentMeta.icon;
+
   return (
     <header className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 md:px-6 h-16 bg-white border-b border-slate-200 shadow-sm w-full md:pl-[285px] transition-all">
-      {/* Left section: mobile hamburger & title */}
-      <div className="flex items-center gap-3">
+      {/* Left section: mobile hamburger & dynamic module title */}
+      <div className="flex items-center gap-3 min-w-0">
         <button
           onClick={onToggleSidebar}
-          className="md:hidden text-slate-600 hover:text-[#00346F] p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+          className="md:hidden text-slate-600 hover:text-[#00346F] p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0 cursor-pointer"
           title="Abrir Menú"
         >
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-2">
-          <h1 className="text-base sm:text-lg font-bold text-[#00346F] tracking-tight">
-            Gestión de ventas, inventario y servicio técnico
-          </h1>
+        {/* Dynamic Module Identity */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-[#00346F]/10 text-[#00346F] flex items-center justify-center shrink-0 border border-[#00346F]/15 shadow-2xs">
+            <CurrentModuleIcon className="w-5 h-5" />
+          </div>
+
+          <div className="min-w-0">
+            {/* Breadcrumb superior sutil */}
+            <div className="flex items-center gap-1 text-[11px] font-medium text-slate-500 leading-tight">
+              <span className="font-bold text-slate-700 hidden sm:inline">MG SOLUTIONS</span>
+              <ChevronRight className="w-3 h-3 text-slate-400 hidden sm:inline" />
+              <span className="text-[#00346F] font-bold truncate">
+                {currentMeta.title}
+              </span>
+              {currentMeta.badge && (
+                <span className="hidden md:inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-50 text-[#00346F] border border-blue-200 ml-1">
+                  {currentMeta.badge}
+                </span>
+              )}
+            </div>
+
+            {/* Título y Sede activa */}
+            <div className="flex items-center gap-2 mt-0.5">
+              <h1 className="text-sm sm:text-base font-black text-[#0B1C30] tracking-tight truncate leading-tight">
+                {currentMeta.title}
+              </h1>
+
+              {/* Selector / Indicador de Sede Activa */}
+              <div className="relative">
+                {isSuperAdmin && onSelectSede ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowSedeDropdown(!showSedeDropdown)}
+                    className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#EFF4FF] hover:bg-blue-100 text-[#00346F] border border-blue-200 transition-all cursor-pointer shadow-2xs"
+                    title="Haga clic para cambiar de sede de visualización"
+                  >
+                    {selectedSedeId ? (
+                      <Store className="w-3 h-3 text-[#00346F]" />
+                    ) : (
+                      <Globe className="w-3 h-3 text-[#00346F]" />
+                    )}
+                    <span className="max-w-[140px] truncate">{currentSedeNombre}</span>
+                    <ChevronDown className="w-3 h-3 text-[#00346F]/70" />
+                  </button>
+                ) : (
+                  <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                    <Store className="w-3 h-3 text-[#00346F]" />
+                    <span className="max-w-[140px] truncate">{currentSedeNombre}</span>
+                  </span>
+                )}
+
+                {/* Dropdown Menu para SuperAdmin */}
+                {isSuperAdmin && showSedeDropdown && onSelectSede && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-50"
+                      onClick={() => setShowSedeDropdown(false)}
+                    />
+                    <div className="absolute left-0 mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="px-3 py-1.5 border-b border-slate-100">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          Filtrar por Sucursal
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSelectSede(null);
+                          setShowSedeDropdown(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs font-semibold flex items-center justify-between transition-colors ${
+                          selectedSedeId === null
+                            ? 'bg-[#EFF4FF] text-[#00346F] font-bold'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Globe className="w-3.5 h-3.5 text-blue-600" />
+                          <span>🌐 Todas las Sedes (Consolidado)</span>
+                        </div>
+                        {selectedSedeId === null && <Check className="w-3.5 h-3.5 text-[#00346F]" />}
+                      </button>
+
+                      <div className="my-1 border-t border-slate-100" />
+
+                      {sucursales.map((suc) => {
+                        const isSelected = selectedSedeId === suc.id;
+                        return (
+                          <button
+                            key={suc.id}
+                            type="button"
+                            onClick={() => {
+                              onSelectSede(suc.id);
+                              setShowSedeDropdown(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors ${
+                              isSelected
+                                ? 'bg-[#EFF4FF] text-[#00346F] font-bold'
+                                : 'text-slate-700 hover:bg-slate-50 font-medium'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <Store className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                              <span className="truncate">{suc.nombre.replace(/^[0-9]+ - /, '')}</span>
+                              {suc.esPrincipal && (
+                                <span className="text-[9px] px-1 bg-amber-100 text-amber-800 rounded font-bold shrink-0">
+                                  Central
+                                </span>
+                              )}
+                            </div>
+                            {isSelected && <Check className="w-3.5 h-3.5 text-[#00346F] shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -313,22 +571,28 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
           </button>
         </div>
 
+        {/* Badge de conexión En Línea */}
+        <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>En línea</span>
+        </div>
+
         {/* User Pill / Dropdown */}
         <div className="relative pl-3 border-l border-slate-200">
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center gap-2.5 p-1 rounded-full hover:bg-slate-100 transition-colors text-left"
+            className="flex items-center gap-2.5 p-1 rounded-full hover:bg-slate-100 transition-colors text-left cursor-pointer"
           >
             <div className="text-right hidden md:block">
-              <p className="text-xs font-semibold text-slate-800 leading-tight truncate max-w-[150px]">
-                {currentUser?.nombreCompleto || 'Torres Ll Milagros Mil...'}
+              <p className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[150px]">
+                {currentUser?.nombreCompleto || 'Usuario del Sistema'}
               </p>
-              <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">
-                {currentUser?.rol === 'ADMIN' ? 'Administrador' : currentUser?.rol || 'Administrador'}
+              <p className="text-[10px] font-black text-[#00346F] uppercase tracking-wider">
+                {currentUser?.rolNombre || (currentUser?.rol === 'ADMIN' ? 'Administrador' : currentUser?.rol || 'Personal')}
               </p>
             </div>
-            <div className="w-8 h-8 rounded-full bg-[#004A99] text-white flex items-center justify-center font-bold text-xs shadow-sm">
-              {currentUser?.avatar || 'TL'}
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#00346F] to-[#001D40] text-white flex items-center justify-center font-black text-xs shadow-xs ring-2 ring-blue-100">
+              {currentUser?.avatar || currentUser?.nombreCompleto?.slice(0, 2).toUpperCase() || 'SA'}
             </div>
           </button>
 

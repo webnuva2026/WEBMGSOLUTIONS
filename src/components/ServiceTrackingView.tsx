@@ -7,12 +7,25 @@ import {
   Search,
   ShieldCheck,
   Wrench,
+  FileText,
+  Check,
+  X,
+  XCircle,
+  Package,
+  DollarSign,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
 } from 'lucide-react';
-import { EstadoOrdenServicio, OrdenServicio } from '../types';
+import { EstadoOrdenServicio, OrdenServicio, BitacoraAvance } from '../types';
+import { workshopService } from '../services/workshop.service';
 
 interface ServiceTrackingViewProps {
   ordenes: OrdenServicio[];
   onWorkerAccess: () => void;
+  onSaveOrden?: (orden: OrdenServicio) => void;
+  onShowToast?: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
 const STATUS_LABELS: Record<EstadoOrdenServicio, string> = {
@@ -41,27 +54,140 @@ const WORKFLOW: EstadoOrdenServicio[] = [
 export const ServiceTrackingView: React.FC<ServiceTrackingViewProps> = ({
   ordenes,
   onWorkerAccess,
+  onSaveOrden,
+  onShowToast,
 }) => {
   const [ticket, setTicket] = useState('');
   const [searchedTicket, setSearchedTicket] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
+  const [remoteOrder, setRemoteOrder] = useState<OrdenServicio | null>(null);
+  const [isSearchingApi, setIsSearchingApi] = useState(false);
 
-  const order = useMemo(() => {
+  // Estados para presupuesto y toma de decisiones del cliente
+  const [showPresupuestoModal, setShowPresupuestoModal] = useState(false);
+  const [isSubmittingDecision, setIsSubmittingDecision] = useState(false);
+  const [decisionFeedback, setDecisionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [localOrderStatus, setLocalOrderStatus] = useState<Record<string, EstadoOrdenServicio>>({});
+
+  const rawOrder = useMemo(() => {
     const normalized = searchedTicket.trim().toLowerCase();
     if (!normalized) return null;
+    if (remoteOrder && remoteOrder.codigo.toLowerCase() === normalized) {
+      return remoteOrder;
+    }
     return ordenes.find((item) => item.codigo.toLowerCase() === normalized) ?? null;
-  }, [ordenes, searchedTicket]);
+  }, [ordenes, searchedTicket, remoteOrder]);
 
-  const handleSearch = (event: React.FormEvent) => {
+  const order = useMemo(() => {
+    if (!rawOrder) return null;
+    const overrideStatus = localOrderStatus[rawOrder.codigo];
+    return overrideStatus ? { ...rawOrder, estado: overrideStatus } : rawOrder;
+  }, [rawOrder, localOrderStatus]);
+
+  const handleSearch = async (event: React.FormEvent) => {
     event.preventDefault();
-    setSearchedTicket(ticket);
+    const cleanTicket = ticket.trim();
+    if (!cleanTicket) return;
+    setSearchedTicket(cleanTicket);
     setHasSearched(true);
+    setDecisionFeedback(null);
+
+    // Intentar consultar en tiempo real a MySQL a través del endpoint público de tracking
+    setIsSearchingApi(true);
+    try {
+      const res = await workshopService.getTrackingByCodigo(cleanTicket);
+      if (res.success && res.orden) {
+        setRemoteOrder(res.orden);
+        if (onSaveOrden) {
+          onSaveOrden(res.orden);
+        }
+      }
+    } catch (e) {
+      console.warn('Fallback a búsqueda local:', e);
+    } finally {
+      setIsSearchingApi(false);
+    }
+  };
+
+  const handleClientDecision = async (accion: 'APROBAR' | 'RECHAZAR') => {
+    if (!order) return;
+    setIsSubmittingDecision(true);
+    setDecisionFeedback(null);
+
+    try {
+      const res = await workshopService.responderPresupuesto({
+        codigo: order.codigo,
+        accion,
+      });
+
+      if (res.success) {
+        const nuevoEstado: EstadoOrdenServicio =
+          accion === 'APROBAR' ? 'APROBADO_EN_REPARACION' : 'RECHAZADO_DEVUELTO';
+        setLocalOrderStatus((prev) => ({ ...prev, [order.codigo]: nuevoEstado }));
+
+        const newBitacoraItem: BitacoraAvance = {
+          id: `b-client-${Date.now()}`,
+          fecha: new Date().toLocaleString('es-PE'),
+          autorNombre: order.clienteNombre,
+          autorRol: 'CLIENTE' as any,
+          titulo:
+            accion === 'APROBAR'
+              ? '✅ Presupuesto Autorizado por el Cliente'
+              : '❌ Presupuesto Declinado por el Cliente',
+          descripcion:
+            accion === 'APROBAR'
+              ? `El cliente aceptó y autorizó el presupuesto de S/ ${order.costoTotal.toFixed(2)} desde la web de seguimiento.`
+              : `El cliente rechazó el presupuesto de S/ ${order.costoTotal.toFixed(2)} desde la web de seguimiento.`,
+          estadoNuevo: nuevoEstado,
+        };
+
+        const updatedOrder: OrdenServicio = {
+          ...order,
+          estado: nuevoEstado,
+          bitacora: [newBitacoraItem, ...order.bitacora],
+        };
+
+        if (onSaveOrden) {
+          onSaveOrden(updatedOrder);
+        }
+
+        setDecisionFeedback({
+          type: 'success',
+          message:
+            res.message ||
+            (accion === 'APROBAR'
+              ? '¡Excelente! Has autorizado la reparación de tu equipo. El equipo técnico ha sido notificado para comenzar los trabajos inmediatamente.'
+              : 'Has declinado el presupuesto. Tu equipo quedará preparado en mostrador para su devolución.'),
+        });
+
+        if (onShowToast) {
+          onShowToast(
+            accion === 'APROBAR' ? 'Presupuesto Aprobado' : 'Presupuesto Declinado',
+            res.message,
+            accion === 'APROBAR' ? 'success' : 'info'
+          );
+        }
+      } else {
+        setDecisionFeedback({
+          type: 'error',
+          message: res.message || 'No se pudo procesar tu respuesta. Por favor intenta nuevamente.',
+        });
+      }
+    } catch (err: any) {
+      setDecisionFeedback({
+        type: 'error',
+        message: err.message || 'Error de conexión con el servidor.',
+      });
+    } finally {
+      setIsSubmittingDecision(false);
+    }
   };
 
   const currentStep = order ? WORKFLOW.indexOf(order.estado) : -1;
   const latestProgress = order
     ? order.bitacora.find((entry) => entry.estadoNuevo === order.estado) || order.bitacora[0]
     : null;
+
 
   return (
     <main className="min-h-screen bg-[#F8F9FF] text-[#0B1C30] flex flex-col justify-between">
@@ -162,7 +288,109 @@ export const ServiceTrackingView: React.FC<ServiceTrackingViewProps> = ({
                     </div>
                   )}
                 </div>
+
+                {/* BLOQUE DE PRESUPUESTO & ACCIONES DIRECTAS DEL CLIENTE */}
+                {String(order.estado).toUpperCase() === 'PRESUPUESTADO' && (
+                  <div className="mt-3.5 p-3.5 bg-gradient-to-r from-amber-500/25 via-amber-600/15 to-amber-700/10 border-2 border-amber-300/50 rounded-xl space-y-3 animate-in fade-in shadow-inner">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-amber-300 font-extrabold text-xs uppercase tracking-wider">
+                        <DollarSign className="w-4 h-4 text-amber-300" />
+                        Presupuesto Listo
+                      </div>
+                      <span className="font-mono font-black text-amber-200 text-sm sm:text-base">
+                        S/ {(Number(order.costoTotal) || 0).toFixed(2)}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-blue-100 leading-tight">
+                      Tu equipo ya fue diagnosticado. Revisa la proforma o responde directamente:
+                    </p>
+
+                    {/* Botón Ver Presupuesto */}
+                    <button
+                      type="button"
+                      onClick={() => setShowPresupuestoModal(true)}
+                      className="w-full py-2.5 bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 active:scale-[0.99] text-slate-950 rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                    >
+                      <FileText className="w-4 h-4 text-slate-950" />
+                      Ver Presupuesto
+                    </button>
+
+                    {/* Botones Directos de Aceptar o Rechazar desde aquí */}
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => handleClientDecision('APROBAR')}
+                        disabled={isSubmittingDecision}
+                        className="py-2 px-3 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                      >
+                        {isSubmittingDecision ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5" />
+                        )}
+                        Aceptar
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleClientDecision('RECHAZAR')}
+                        disabled={isSubmittingDecision}
+                        className="py-2 px-3 bg-red-600/30 hover:bg-red-600/50 active:scale-[0.98] text-red-200 border border-red-400/40 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <X className="w-3.5 h-3.5 text-red-300" />
+                        Rechazar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Si la orden ya fue aprobada y tiene costo */}
+                {(order.estado === 'APROBADO_EN_REPARACION' ||
+                  order.estado === 'ESPERA_REPUESTOS' ||
+                  order.estado === 'REPARADO_PROBADO') && (
+                  <div className="mt-3 p-2.5 bg-emerald-500/20 border border-emerald-400/30 rounded-xl flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 text-emerald-300 font-bold">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Presupuesto Aprobado</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowPresupuestoModal(true)}
+                      className="text-[11px] text-blue-200 hover:text-white underline font-semibold cursor-pointer"
+                    >
+                      Ver detalle (S/ {(Number(order.costoTotal) || 0).toFixed(2)})
+                    </button>
+                  </div>
+                )}
+
+                {/* Si fue rechazada */}
+                {order.estado === 'RECHAZADO_DEVUELTO' && (
+                  <div className="mt-3 p-2.5 bg-red-500/20 border border-red-400/30 rounded-xl flex items-center gap-2 text-xs text-red-200 font-semibold">
+                    <XCircle className="w-4 h-4 text-red-400 shrink-0" />
+                    <span>Presupuesto declinado. Equipo listo para recojo en mostrador.</span>
+                  </div>
+                )}
+
+                {/* Banner de Feedback si el cliente acaba de responder */}
+                {decisionFeedback && (
+                  <div
+                    className={`mt-3 p-3 rounded-xl border text-xs font-semibold leading-relaxed flex items-start gap-2 animate-in fade-in ${
+                      decisionFeedback.type === 'success'
+                        ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-200'
+                        : 'bg-red-500/20 border-red-400/40 text-red-200'
+                    }`}
+                  >
+                    {decisionFeedback.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-300 shrink-0 mt-0.5" />
+                    )}
+                    <span>{decisionFeedback.message}</span>
+                  </div>
+                )}
               </div>
+
 
               <div className="space-y-2.5">
                 {WORKFLOW.map((step, index) => {
@@ -218,6 +446,199 @@ export const ServiceTrackingView: React.FC<ServiceTrackingViewProps> = ({
         </div>
       )}
 
+      {/* MODAL DE DETALLE DE PRESUPUESTO & AUTORIZACIÓN DEL CLIENTE */}
+      {showPresupuestoModal && order && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/75 backdrop-blur-xs p-4 animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col my-auto max-h-[92vh]">
+            {/* Header del Modal */}
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-gradient-to-r from-[#002654] to-[#004A99] text-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
+                  <FileText className="w-5 h-5 text-amber-300" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold flex items-center gap-2">
+                    Presupuesto de Servicio Técnico
+                    <span className="px-2 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-mono font-bold">
+                      {order.codigo}
+                    </span>
+                  </h3>
+                  <p className="text-[10px] text-blue-200 uppercase tracking-wider">
+                    MG Solutions Group S.A.C.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPresupuestoModal(false)}
+                className="text-white/70 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Contenido del Presupuesto */}
+            <div className="p-5 overflow-y-auto space-y-4 text-xs text-slate-700 bg-slate-50/50">
+              {/* Equipo & Falla */}
+              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1 shadow-xs">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Equipo Diagnosticado
+                </div>
+                <div className="text-sm font-extrabold text-slate-900">
+                  {order.tipoEquipo} {order.marca} {order.modelo}
+                </div>
+                <div className="text-xs text-red-600 font-medium">
+                  <strong>Falla / Diagnóstico:</strong> {order.fallaReportada}
+                </div>
+              </div>
+
+              {/* Repuestos e Insumos */}
+              <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-2 shadow-xs">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                  <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                    <Package className="w-3.5 h-3.5 text-blue-600" />
+                    Repuestos Requeridos
+                  </span>
+                  <span className="font-mono font-bold text-slate-700 text-xs">
+                    S/ {(Number(order.costoTotalRepuestos) || 0).toFixed(2)}
+                  </span>
+                </div>
+                {order.repuestos && order.repuestos.length > 0 ? (
+                  <div className="divide-y divide-slate-100 text-xs">
+                    {order.repuestos.map((r) => (
+                      <div key={r.id} className="py-1.5 flex justify-between items-center">
+                        <div>
+                          <span className="font-semibold text-slate-800">{r.descripcion}</span>
+                          <span className="text-[11px] text-slate-500 block">Cantidad: {r.cantidad} un. (P. Unit: S/ {(Number(r.precioUnitario) || 0).toFixed(2)})</span>
+                        </div>
+                        <span className="font-mono font-bold text-slate-800">S/ {(Number(r.total) || 0).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-400 py-1">No se requieren repuestos de almacén.</p>
+                )}
+              </div>
+
+              {/* Mano de Obra & Procedimientos */}
+              <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-2 shadow-xs">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                  <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                    <Wrench className="w-3.5 h-3.5 text-blue-600" />
+                    Mano de Obra & Procedimientos
+                  </span>
+                  <span className="font-mono font-bold text-slate-700 text-xs">
+                    S/ {(Number(order.costoTotalManoObra) || 0).toFixed(2)}
+                  </span>
+                </div>
+                {order.serviciosManoObra && order.serviciosManoObra.length > 0 ? (
+                  <div className="divide-y divide-slate-100 text-xs">
+                    {order.serviciosManoObra.map((m) => (
+                      <div key={m.id} className="py-1.5 flex justify-between items-center">
+                        <span className="font-semibold text-slate-800">{m.descripcion}</span>
+                        <span className="font-mono font-bold text-slate-800">S/ {(Number(m.precio) || 0).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-400 py-1">Procedimientos técnicos de laboratorio.</p>
+                )}
+              </div>
+
+              {/* Cuadro Total */}
+              <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl space-y-1.5">
+                <div className="flex justify-between text-xs text-slate-600">
+                  <span>Presupuesto Total Estimado:</span>
+                  <span className="font-bold font-mono text-slate-800">S/ {(Number(order.costoTotal) || 0).toFixed(2)}</span>
+                </div>
+                {Number(order.adelantoPagado) > 0 && (
+                  <div className="flex justify-between text-xs text-emerald-700">
+                    <span>Adelanto Pagado en Caja:</span>
+                    <span className="font-bold font-mono">- S/ {(Number(order.adelantoPagado) || 0).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm font-black text-[#00346F] border-t border-blue-200 pt-1.5">
+                  <span>Saldo a Pagar al Retirar:</span>
+                  <span className="font-mono">S/ {(Number(order.saldoPendiente) || 0).toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Cláusula de Garantía */}
+              <div className="text-[10px] text-slate-500 text-center leading-relaxed">
+                * Garantía técnica: {order.garantiaDias || 90} días calendario sobre la reparación realizada.
+              </div>
+
+              {/* Feedback si ya respondió */}
+              {decisionFeedback && (
+                <div
+                  className={`p-3 rounded-xl border text-xs font-semibold leading-relaxed flex items-start gap-2 ${
+                    decisionFeedback.type === 'success'
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                      : 'bg-red-50 border-red-300 text-red-900'
+                  }`}
+                >
+                  {decisionFeedback.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  )}
+                  <span>{decisionFeedback.message}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Footer con Botones de Aceptación o Cierre */}
+            <div className="p-4 bg-white border-t border-slate-200 space-y-2">
+              {String(order.estado).toUpperCase() === 'PRESUPUESTADO' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleClientDecision('APROBAR')}
+                    disabled={isSubmittingDecision}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isSubmittingDecision ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Procesando...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Aceptar y Autorizar Reparación
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleClientDecision('RECHAZAR')}
+                    disabled={isSubmittingDecision}
+                    className="w-full py-2.5 bg-red-100 hover:bg-red-200 text-red-800 border border-red-300 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <X className="w-4 h-4 text-red-600" />
+                    Rechazar Presupuesto
+                  </button>
+                </div>
+              ) : (
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-semibold text-slate-500">
+                    Estado actual: <strong className="text-slate-800">{STATUS_LABELS[order.estado]}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowPresupuestoModal(false)}
+                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                  >
+                    Cerrar Ventana
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <footer className="border-t border-slate-200/80 bg-white py-2.5 px-6 md:px-10 lg:px-14 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 gap-2">
         <span className="font-medium">© 2026 MG SOLUTIONS GROUP S.A.C. • Todos los derechos reservados.</span>
@@ -226,3 +647,4 @@ export const ServiceTrackingView: React.FC<ServiceTrackingViewProps> = ({
     </main>
   );
 };
+

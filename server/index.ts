@@ -1,11 +1,24 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
 import { testDbConnection } from './config/db';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import clientRoutes from './routes/client.routes';
+import companyRoutes from './routes/company.routes';
+import brandModelRoutes from './routes/brandModel.routes';
+import categoryRoutes from './routes/category.routes';
+import warrantyRoutes from './routes/warranty.routes';
+import warehouseRoutes from './routes/warehouse.routes';
+import saleRoutes from './routes/sale.routes';
+import workshopRoutes from './routes/workshop.routes';
+import transferRoutes from './routes/transfer.routes';
+import purchaseRoutes from './routes/purchase.routes';
+import consultaRoutes from './routes/consulta.routes';
 import { seedSuperAdmin } from './utils/seed-superadmin';
 
 dotenv.config();
@@ -15,9 +28,12 @@ const PORT = Number(process.env.PORT) || 4000;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 // ─── MIDDLEWARES GLOBALES ───
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(cors({
-  origin: FRONTEND_URL,
+  origin: (origin, callback) => {
+    // Permitir cualquier origen en producción / desarrollo o solicitudes directas
+    callback(null, true);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -29,6 +45,17 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api', userRoutes);
 app.use('/api/clientes', clientRoutes);
+app.use('/api', companyRoutes);
+app.use('/api', brandModelRoutes);
+app.use('/api', categoryRoutes);
+app.use('/api', warrantyRoutes);
+app.use('/api', warehouseRoutes);
+app.use('/api', transferRoutes);
+app.use('/api', purchaseRoutes);
+app.use('/api', saleRoutes);
+app.use('/api', workshopRoutes);
+app.use('/api', consultaRoutes);
+
 
 // ─── HEALTH CHECK ───
 app.get('/api/health', (_req, res) => {
@@ -40,9 +67,19 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// ─── ROOT / LANDING HANDLER ───
-app.get('/', (_req, res) => {
-  res.send(`<!DOCTYPE html>
+// ─── STATIC CLIENT (PRODUCCIÓN & RENDER) ───
+const distPath = path.resolve(__dirname, '../dist');
+if (fs.existsSync(distPath)) {
+  console.log(`📦 Sirviendo frontend de producción desde: ${distPath}`);
+  app.use(express.static(distPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+} else {
+  // ─── ROOT / LANDING HANDLER (MODO DESARROLLO) ───
+  app.get('/', (_req, res) => {
+    res.send(`<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -68,7 +105,8 @@ app.get('/', (_req, res) => {
   </div>
 </body>
 </html>`);
-});
+  });
+}
 
 // ─── 404 HANDLER ───
 app.use((_req, res) => {

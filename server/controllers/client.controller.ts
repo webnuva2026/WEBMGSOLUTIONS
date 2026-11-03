@@ -135,12 +135,29 @@ export async function getClients(req: AuthenticatedRequest, res: Response): Prom
     const total = Number(countRows[0].total);
     const totalPages = Math.ceil(total / limitNum);
 
+    // Conteo global para tarjetas de estadísticas
+    const [statsRows] = await pool.query<RowDataPacket[]>(
+      `SELECT 
+        COUNT(*) AS total,
+        COALESCE(SUM(CASE WHEN e.nombre = 'ACTIVO' THEN 1 ELSE 0 END), 0) AS activos,
+        COALESCE(SUM(CASE WHEN e.nombre = 'INACTIVO' THEN 1 ELSE 0 END), 0) AS inactivos
+       FROM clientes c
+       JOIN estados e ON c.estado_id = e.id`
+    );
+
+    const stats = {
+      total: Number(statsRows[0]?.total || 0),
+      activos: Number(statsRows[0]?.activos || 0),
+      inactivos: Number(statsRows[0]?.inactivos || 0),
+    };
+
     const clientes: ClienteResponse[] = rows.map((row) => parsePersonaRow(row));
 
     res.json({
       success: true,
       data: clientes,
       pagination: { page: pageNum, limit: limitNum, total, totalPages },
+      stats,
     });
   } catch (error) {
     console.error('Error en getClients:', error);

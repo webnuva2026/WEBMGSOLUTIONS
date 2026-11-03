@@ -76,3 +76,14 @@ export function maskPhone(phone: string): string {
   if (!phone || phone.length < 6) return '***';
   return phone.replace(/(\d{3})\s*(\d{3})\s*(\d{3})/, '$1 *** $3');
 }
+
+/**
+ * Enmascara direcciones de correo electrónico para visualización segura
+ * Ejemplo: "milagros2002trabajo@gmail.com" -> "mi***@gmail.com"
+ */
+export function maskEmail(email: string): string {
+  if (!email || !email.includes('@')) return '***@***.***';
+  const [user, domain] = email.split('@');
+  const visible = user.length > 2 ? user.slice(0, 2) : user.slice(0, 1);
+  return `${visible}***@${domain}`;
+}

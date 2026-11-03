@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
@@ -14,16 +14,25 @@ import {
   UserPlus,
   Users,
   Wrench,
+  ShieldCheck,
 } from 'lucide-react';
-import { Cliente, Equipo, OrdenServicio, Usuario } from '../types';
+import { Cliente, Equipo, OrdenServicio, Usuario, Categoria, Proveedor } from '../types';
+import { WarrantyIntakeModal } from './WarrantyIntakeModal';
+import { TicketIntakeModal } from './TicketIntakeModal';
 
 interface ReceptionDashboardViewProps {
   currentUser: Usuario;
   ordenes: OrdenServicio[];
   equipos: Equipo[];
   clientes: Cliente[];
+  usuarios?: Usuario[];
+  categorias?: Categoria[];
+  proveedores?: Proveedor[];
   setActiveView: (view: string) => void;
-  onOpenServices: (clientId?: number) => void;
+  onOpenServices?: (clientId?: number) => void;
+  onSaveOrden?: (orden: OrdenServicio) => void;
+  onSaveCliente?: (cliente: Cliente) => void;
+  onShowToast?: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   readOnly?: boolean;
 }
 
@@ -51,10 +60,20 @@ export const ReceptionDashboardView: React.FC<ReceptionDashboardViewProps> = ({
   ordenes,
   equipos,
   clientes,
+  usuarios = [],
+  categorias = [],
+  proveedores = [],
   setActiveView,
   onOpenServices,
+  onSaveOrden,
+  onSaveCliente,
+  onShowToast,
   readOnly = false,
 }) => {
+
+  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+  const [isWarrantyModalOpen, setIsWarrantyModalOpen] = useState(false);
+
   // --- Computed data ---
   const ticketsPendientes = ordenes.filter(
     (o) => o.estado === 'RECEPCIONADO' || o.estado === 'PRESUPUESTADO'
@@ -105,8 +124,19 @@ export const ReceptionDashboardView: React.FC<ReceptionDashboardViewProps> = ({
             {!readOnly && (
               <button
                 type="button"
-                onClick={() => onOpenServices()}
-                className="flex items-center justify-center gap-2 rounded-lg bg-[#00346F] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-[#004A99]"
+                onClick={() => setIsTicketModalOpen(true)}
+                className="flex items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-800 cursor-pointer"
+                title="Verificar y recepcionar equipo vendido bajo cobertura de garantía"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                Validar Garantía
+              </button>
+            )}
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={() => setIsTicketModalOpen(true)}
+                className="flex items-center justify-center gap-2 rounded-lg bg-[#00346F] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-[#004A99] cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
                 Nuevo ticket / ingreso
@@ -199,10 +229,15 @@ export const ReceptionDashboardView: React.FC<ReceptionDashboardViewProps> = ({
                           })}
                         </div>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-mono text-xs font-bold text-[#00346F]">
                               {order.codigo}
                             </span>
+                            {order.sucursalNombre && (
+                              <span className="rounded-full px-1.5 py-0.2 text-[9px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                {order.sucursalNombre.replace(/^[0-9]+ - /, '')}
+                              </span>
+                            )}
                             {order.prioridad !== 'NORMAL' && (
                               <span
                                 className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
@@ -406,6 +441,85 @@ export const ReceptionDashboardView: React.FC<ReceptionDashboardViewProps> = ({
             </div>
           )}
         </section>
+        {/* Warranty Intake Modal */}
+        <WarrantyIntakeModal
+          isOpen={isWarrantyModalOpen}
+          onClose={() => setIsWarrantyModalOpen(false)}
+          currentUser={currentUser}
+          onShowToast={onShowToast || ((_t, _m) => {})}
+          onConvertToService={() => {
+            onOpenServices();
+          }}
+          onOrderCreated={(nuevaOrden: any) => {
+            if (onSaveOrden) {
+              const matchedClient = clientes.find(
+                (c) => c.razonSocial.toLowerCase() === (nuevaOrden.cliente || '').toLowerCase()
+              ) || clientes[0];
+
+              const fullOrder: OrdenServicio = {
+                id: Date.now(),
+                codigo: nuevaOrden.codigo || 'GAR-00001',
+                clienteId: matchedClient?.id || 1,
+                clienteNombre: nuevaOrden.cliente || matchedClient?.razonSocial || 'Cliente en Garantía',
+                clienteDocumento: matchedClient?.numeroDocumento || '00000000',
+                clienteTelefono: nuevaOrden.telefono || matchedClient?.telefono || 'N/A',
+                tipoEquipo: 'GARANTIA_OFICIAL',
+                marca: nuevaOrden.marca || 'MG SOLUTIONS',
+                modelo: nuevaOrden.modelo || nuevaOrden.producto || 'Equipo en Garantía',
+                numeroSerie: nuevaOrden.serie || 'S/N-SINDATO',
+                passwordEquipo: 'No aplica',
+                accesoriosDejados: ['Cargador original'],
+                fallaReportada: nuevaOrden.falla || 'Falla reclamada por garantía',
+                estadoEstetico: 'Inspección conforme. Sin golpes ni líquidos.',
+                prioridad: 'NORMAL',
+                tecnicoId: currentUser.id,
+                tecnicoNombre: currentUser.nombreCompleto,
+                recepcionadoPorId: currentUser.id,
+                recepcionadoPorNombre: currentUser.nombreCompleto,
+                fechaIngreso: nuevaOrden.fecha || new Date().toLocaleString('es-PE'),
+                fechaEstimadaEntrega: '3 a 7 días hábiles (Trámite oficial de Garantía)',
+                estado: 'RECEPCIONADO',
+                repuestos: [],
+                serviciosManoObra: [],
+                costoTotalRepuestos: 0,
+                costoTotalManoObra: 0,
+                costoTotal: 0,
+                adelantoPagado: 0,
+                saldoPendiente: 0,
+                bitacora: [
+                  {
+                    id: `b-${Date.now()}`,
+                    fecha: new Date().toLocaleString('es-PE'),
+                    autorNombre: currentUser.nombreCompleto,
+                    autorRol: currentUser.rol,
+                    titulo: 'Ingreso por Garantía Oficial de Tienda (S/ 0.00)',
+                    descripcion: `Equipo ingresado bajo garantía oficial con S/N ${nuevaOrden.serie}. Falla: ${nuevaOrden.falla}.`,
+                    estadoNuevo: 'RECEPCIONADO',
+                  },
+                ],
+                comunicaciones: [],
+                garantiaDias: 180,
+              };
+              onSaveOrden(fullOrder);
+            }
+          }}
+        />
+        {/* Ticket Intake Modal (Recepción en Mostrador) */}
+        <TicketIntakeModal
+          isOpen={isTicketModalOpen}
+          onClose={() => setIsTicketModalOpen(false)}
+          currentUser={currentUser}
+          clientes={clientes}
+          usuarios={usuarios}
+          categorias={categorias}
+          proveedores={proveedores}
+          ordenes={ordenes}
+          onSaveOrden={(nueva) => {
+            if (onSaveOrden) onSaveOrden(nueva);
+          }}
+          onSaveCliente={onSaveCliente}
+          onShowToast={onShowToast || ((_t, _m) => {})}
+        />
       </div>
     </div>
   );

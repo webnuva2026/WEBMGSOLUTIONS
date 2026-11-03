@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateToken, requireRoles } from '../middlewares/auth';
+import { authenticateToken, requireRoles, requirePermission } from '../middlewares/auth';
 import {
   getClients,
   getClientById,
@@ -11,15 +11,22 @@ import {
 
 const router = Router();
 
-// ─── CLIENTES (protegidas) ───
-// CRUD completo: ADMIN y SUPERADMIN
-router.get('/', authenticateToken, requireRoles('ADMIN', 'SUPERADMIN'), getClients);
-router.get('/:id', authenticateToken, requireRoles('ADMIN', 'SUPERADMIN'), getClientById);
-router.post('/', authenticateToken, requireRoles('ADMIN', 'SUPERADMIN'), createClient);
-router.put('/:id', authenticateToken, requireRoles('ADMIN', 'SUPERADMIN'), updateClient);
-router.patch('/:id/estado', authenticateToken, requireRoles('ADMIN', 'SUPERADMIN'), toggleClientStatus);
+// ─── CLIENTES (protegidas con validación de permiso dinámico) ───
+// Listar clientes: ADMIN, SUPERADMIN, y cualquier rol con permiso 'clientes' (o roles operativos autorizados)
+router.get('/', authenticateToken, requirePermission('clientes', 'FACTURADOR', 'SECRETARIA'), getClients);
+router.get('/:id', authenticateToken, requirePermission('clientes', 'FACTURADOR', 'SECRETARIA'), getClientById);
 
-// Búsqueda: ADMIN + SUPERADMIN + SECRETARIA + FACTURADOR
-router.get('/buscar/:documento', authenticateToken, requireRoles('ADMIN', 'SUPERADMIN', 'SECRETARIA', 'FACTURADOR'), searchClientByDoc);
+// Registrar cliente: ADMIN, SUPERADMIN, o cualquier rol con permiso 'clientes' (ej: Vendedor / FACTURADOR)
+router.post('/', authenticateToken, requirePermission('clientes', 'FACTURADOR', 'SECRETARIA'), createClient);
+
+// Modificar cliente: ADMIN, SUPERADMIN, o cualquier rol con permiso 'clientes'
+router.put('/:id', authenticateToken, requirePermission('clientes', 'FACTURADOR', 'SECRETARIA'), updateClient);
+
+// Activar/Desactivar cliente: ADMIN, SUPERADMIN o con permiso de gestión
+router.patch('/:id/estado', authenticateToken, requirePermission('clientes'), toggleClientStatus);
+
+// Búsqueda rápida por documento: disponible para todos con permiso o roles comerciales
+router.get('/buscar/:documento', authenticateToken, requirePermission('clientes', 'SECRETARIA', 'FACTURADOR'), searchClientByDoc);
 
 export default router;
+

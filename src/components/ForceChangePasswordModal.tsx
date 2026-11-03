@@ -23,33 +23,70 @@ export const ForceChangePasswordModal: React.FC<ForceChangePasswordModalProps> =
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Validations
-  const hasMinLength = nuevaPassword.length >= 6;
+  // Validaciones de Contraseña Segura
+  const hasMinLength = nuevaPassword.length >= 8;
   const hasUppercase = /[A-Z]/.test(nuevaPassword);
+  const hasLowercase = /[a-z]/.test(nuevaPassword);
   const hasNumber = /[0-9]/.test(nuevaPassword);
+  const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(nuevaPassword);
+  const notDefault = nuevaPassword.toLowerCase() !== 'admin2026!';
   const passwordsMatch = nuevaPassword.length > 0 && nuevaPassword === confirmarPassword;
+
+  const isPasswordValid =
+    hasMinLength &&
+    hasUppercase &&
+    hasLowercase &&
+    hasNumber &&
+    hasSpecial &&
+    notDefault &&
+    passwordsMatch;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
     if (!passwordActual) {
-      setErrorMsg('Debe ingresar su contraseña actual.');
+      setErrorMsg('Debe ingresar su contraseña actual o temporal.');
       return;
     }
 
     if (!hasMinLength) {
-      setErrorMsg('La nueva contraseña debe tener al menos 6 caracteres.');
+      setErrorMsg('La nueva contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+
+    if (!hasUppercase) {
+      setErrorMsg('La contraseña debe incluir al menos una letra mayúscula (A-Z).');
+      return;
+    }
+
+    if (!hasLowercase) {
+      setErrorMsg('La contraseña debe incluir al menos una letra minúscula (a-z).');
+      return;
+    }
+
+    if (!hasNumber) {
+      setErrorMsg('La contraseña debe incluir al menos un número (0-9).');
+      return;
+    }
+
+    if (!hasSpecial) {
+      setErrorMsg('La contraseña debe incluir al menos un carácter especial (@, $, !, %, *, ?, &, #, etc.).');
+      return;
+    }
+
+    if (!notDefault) {
+      setErrorMsg('Por seguridad, no puede utilizar la contraseña predeterminada (Admin2026!).');
+      return;
+    }
+
+    if (passwordActual === nuevaPassword) {
+      setErrorMsg('La nueva contraseña no puede ser igual a su contraseña actual.');
       return;
     }
 
     if (!passwordsMatch) {
       setErrorMsg('Las contraseñas no coinciden. Verifique ambas casillas.');
-      return;
-    }
-
-    if (passwordActual === nuevaPassword) {
-      setErrorMsg('La nueva contraseña no puede ser igual a la contraseña actual.');
       return;
     }
 
@@ -176,38 +213,91 @@ export const ForceChangePasswordModal: React.FC<ForceChangePasswordModalProps> =
           </div>
 
           {/* Validation Checklist */}
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1 text-[11px]">
-            <p className="font-bold text-slate-600 text-[10px] uppercase tracking-wider mb-1">
-              Requisitos de la contraseña:
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-[11px]">
+            <p className="font-bold text-slate-700 text-[10px] uppercase tracking-wider mb-1">
+              Requisitos de Seguridad Obligatorios:
             </p>
-            <div className="flex items-center gap-2">
-              {hasMinLength ? (
-                <Check className="w-3.5 h-3.5 text-emerald-600" />
-              ) : (
-                <X className="w-3.5 h-3.5 text-slate-300" />
-              )}
-              <span className={hasMinLength ? 'text-emerald-700 font-medium' : 'text-slate-500'}>
-                Al menos 6 caracteres
-              </span>
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+              <div className="flex items-center gap-1.5">
+                {hasMinLength ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                ) : (
+                  <X className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                )}
+                <span className={hasMinLength ? 'text-emerald-700 font-medium' : 'text-slate-500'}>
+                  Mínimo 8 caracteres
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {hasUppercase ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                ) : (
+                  <X className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                )}
+                <span className={hasUppercase ? 'text-emerald-700 font-medium' : 'text-slate-500'}>
+                  1 mayúscula (A-Z)
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {hasLowercase ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                ) : (
+                  <X className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                )}
+                <span className={hasLowercase ? 'text-emerald-700 font-medium' : 'text-slate-500'}>
+                  1 minúscula (a-z)
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {hasNumber ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                ) : (
+                  <X className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                )}
+                <span className={hasNumber ? 'text-emerald-700 font-medium' : 'text-slate-500'}>
+                  1 número (0-9)
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {hasSpecial ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                ) : (
+                  <X className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                )}
+                <span className={hasSpecial ? 'text-emerald-700 font-medium' : 'text-slate-500'}>
+                  1 símbolo (!@#$%^&*)
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {passwordsMatch ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                ) : (
+                  <X className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                )}
+                <span className={passwordsMatch ? 'text-emerald-700 font-medium' : 'text-slate-500'}>
+                  Coinciden exactamente
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              {passwordsMatch ? (
-                <Check className="w-3.5 h-3.5 text-emerald-600" />
-              ) : (
-                <X className="w-3.5 h-3.5 text-slate-300" />
-              )}
-              <span className={passwordsMatch ? 'text-emerald-700 font-medium' : 'text-slate-500'}>
-                Las contraseñas coinciden
-              </span>
-            </div>
+
+            {nuevaPassword.length > 0 && !notDefault && (
+              <div className="text-[10px] text-red-600 font-semibold pt-1">
+                ⚠️ No puede usar la contraseña inicial por defecto.
+              </div>
+            )}
           </div>
 
           {/* Actions */}
           <div className="pt-3 flex flex-col gap-2">
             <button
               type="submit"
-              disabled={loading || !hasMinLength || !passwordsMatch}
-              className="w-full py-3 bg-[#00346F] hover:bg-[#004A99] text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading || !isPasswordValid}
+              className="w-full py-3 bg-[#00346F] hover:bg-[#004A99] text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
               {loading ? 'Actualizando contraseña...' : 'Guardar y Continuar'}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Plus,
   Download,
@@ -48,6 +48,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [selectedEstado, setSelectedEstado] = useState<'ALL' | 'ACTIVO' | 'INACTIVO'>('ALL');
   const [page, setPage] = useState(1);
   const itemsPerPage = 8;
+
+  // Catálogos activos
+  const categoriasActivas = useMemo(() => {
+    return categorias.filter((c) => c.estado === 'ACTIVO');
+  }, [categorias]);
+
+  const marcasActivas = useMemo(() => {
+    return marcas.filter((m) => m.estado === 'ACTIVO');
+  }, [marcas]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -100,8 +109,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       codigoBarra: String(Math.floor(10000000 + Math.random() * 90000000)),
       codigo: `PROD-${Math.floor(100 + Math.random() * 900)}`,
       nombre: '',
-      categoriaId: categorias[0]?.id || 1,
-      marcaId: marcas[0]?.id || 1,
+      categoriaId: categoriasActivas[0]?.id || 1,
+      marcaId: marcasActivas[0]?.id || 1,
       sucursal: 'Principal',
       precioUnitario: 50.0,
       precioCosto: 35.0,
@@ -380,7 +389,17 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     <td className="py-3 px-4 font-bold text-[#00346F]">{prod.codigo}</td>
                     <td className="py-3 px-4 font-semibold text-slate-900">
                       <div>{prod.nombre}</div>
-                      <div className="text-[10px] text-slate-500 font-normal">Stock: {prod.stock} {prod.unidadMedida}</div>
+                      <div className="text-[10px] text-slate-500 font-normal flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <span className="font-semibold text-slate-700">Stock: {prod.stock} {prod.unidadMedida}</span>
+                        {prod.stockPorSede && Object.keys(prod.stockPorSede).length > 0 && (
+                          <span
+                            className="text-[9px] text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200"
+                            title={Object.entries(prod.stockPorSede).map(([sec, qty]) => `${sec}: ${qty}`).join(' | ')}
+                          >
+                            {Object.entries(prod.stockPorSede).map(([sec, qty]) => `${sec.replace(/^[0-9]+ - /, '').split(' ')[0]}: ${qty}`).join(' • ')}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-slate-600">
                       <span className="px-2 py-0.5 bg-slate-100 rounded text-[10px] font-medium">
@@ -570,7 +589,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     onChange={(e) => setFormData({ ...formData, categoriaId: Number(e.target.value) })}
                     className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-[#00346F]"
                   >
-                    {categorias.map((c) => (
+                    {categoriasActivas.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.nombre}
                       </option>
@@ -587,7 +606,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     onChange={(e) => setFormData({ ...formData, marcaId: Number(e.target.value) })}
                     className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-[#00346F]"
                   >
-                    {marcas.map((m) => (
+                    {marcasActivas.map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.nombre}
                       </option>
@@ -616,10 +635,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   <input
                     type="number"
                     step="0.01"
-                    min="0.1"
+                    min="0"
+                    placeholder="0.00"
                     required
-                    value={formData.precioUnitario}
-                    onChange={(e) => setFormData({ ...formData, precioUnitario: parseFloat(e.target.value) || 0 })}
+                    value={formData.precioUnitario === 0 ? '' : formData.precioUnitario}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setFormData({ ...formData, precioUnitario: v === '' ? 0 : parseFloat(v) || 0 });
+                    }}
                     className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-[#00346F]"
                   />
                 </div>
@@ -632,8 +656,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     type="number"
                     step="0.01"
                     min="0"
-                    value={formData.precioCosto}
-                    onChange={(e) => setFormData({ ...formData, precioCosto: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                    value={formData.precioCosto === 0 ? '' : formData.precioCosto}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setFormData({ ...formData, precioCosto: v === '' ? 0 : parseFloat(v) || 0 });
+                    }}
                     className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-[#00346F]"
                   />
                 </div>
@@ -645,9 +674,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   <input
                     type="number"
                     min="0"
+                    placeholder="0"
                     required
-                    value={formData.stock}
-                    onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
+                    value={formData.stock === 0 ? '' : formData.stock}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setFormData({ ...formData, stock: v === '' ? 0 : parseInt(v, 10) || 0 });
+                    }}
                     className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-[#00346F]"
                   />
                 </div>

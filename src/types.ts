@@ -51,9 +51,11 @@ export interface Usuario {
   ultimoAcceso: string;
   modulosPermitidos: string[]; // IDs de paneles permitidos: ['ventas', 'taller', ...]
   requiereCambioPassword?: boolean;
+  sucursalId?: number | null;
+  sucursalNombre?: string | null;
 }
 
-export type TipoEquipo = 'LAPTOP' | 'PC_ESCRITORIO' | 'IMPRESORA' | 'MONITOR' | 'COMPONENTE' | 'SERVIDOR' | 'OTRO';
+export type TipoEquipo = 'LAPTOP' | 'PC_ESCRITORIO' | 'IMPRESORA' | 'MONITOR' | 'COMPONENTE' | 'SERVIDOR' | 'OTRO' | (string & {});
 
 export type EstadoOrdenServicio =
   | 'RECEPCIONADO'
@@ -123,6 +125,8 @@ export interface OrdenServicio {
   tecnicoNombre: string;
   recepcionadoPorId: number;
   recepcionadoPorNombre: string;
+  sucursalId?: number;
+  sucursalNombre?: string;
   fechaIngreso: string;
   fechaEstimadaEntrega?: string;
   fechaSalida?: string;
@@ -173,12 +177,43 @@ export interface Categoria {
   nombre: string;
   descripcion?: string;
   estado: EstadoRegistro;
+  estadoId?: number;
+  esEquipoTaller?: boolean;
+  esVenta?: boolean;
+  esRepuestoTaller?: boolean;
+  totalProductos?: number;
+  createdAt?: string;
 }
 
 export interface Marca {
   id: number;
   nombre: string;
+  descripcion?: string;
+  categoriaId?: number | null;
+  categoriaNombre?: string | null;
   estado: EstadoRegistro;
+  estadoId?: number;
+  totalModelos?: number;
+  createdAt?: string;
+}
+
+export interface CaracteristicaModelo {
+  id?: number;
+  modeloId?: number;
+  atributo: string;
+  valor: string;
+}
+
+export interface Modelo {
+  id: number;
+  marcaId: number;
+  marcaNombre?: string;
+  nombre: string;
+  descripcion?: string;
+  estado: EstadoRegistro;
+  estadoId?: number;
+  createdAt?: string;
+  caracteristicas?: CaracteristicaModelo[];
 }
 
 export interface Producto {
@@ -197,6 +232,11 @@ export interface Producto {
   stockPorSede?: Record<string, number>;
   unidadMedida: string; // NIU, ZZ, KGM, etc.
   estado: EstadoRegistro;
+  modeloId?: number | null;
+  modeloNombre?: string | null;
+  requiereSerie?: boolean;
+  disponibleVenta?: boolean;
+  tipoDestino?: 'VENTA' | 'SERVICIO_TALLER' | 'MIXTO';
 }
 
 export interface EmpresaConfig {
@@ -222,18 +262,35 @@ export interface Sucursal {
   estado: EstadoRegistro;
 }
 
-export type EstadoMovimientoInventario = 'SOLICITADO' | 'APROBADO' | 'EN_TRANSITO' | 'RECIBIDO' | 'CANCELADO';
+export type EstadoMovimientoInventario = 'SOLICITADO' | 'APROBADO' | 'EN_TRANSITO' | 'RECIBIDO' | 'DEVUELTO' | 'CANCELADO';
 
 export interface MovimientoInventario {
   id: number;
+  codigo?: string;
+  tipo?: 'TRASLADO' | 'PRESTAMO';
   productoId: number;
   productoNombre: string;
-  cantidad: number;
+  productoCodigo?: string;
+  requiereSerie?: boolean;
+  sedeOrigenId?: number;
   sedeOrigen: string;
+  sedeDestinoId?: number;
   sedeDestino: string;
+  cantidad: number;
+  series?: string[];
   solicitadoPor: string;
+  aprobadoPor?: string;
+  recibidoPor?: string;
   fecha: string;
+  fechaSolicitud?: string;
+  fechaAprobacion?: string;
+  fechaEnvio?: string;
+  fechaRecepcion?: string;
+  fechaDevolucion?: string;
+  motivo?: string;
+  observaciones?: string;
   estado: EstadoMovimientoInventario;
+  estadoColor?: string;
 }
 
 export type TipoComprobante = 'BOLETA' | 'FACTURA' | 'NOTA_VENTA';
@@ -248,6 +305,7 @@ export interface ItemVenta {
   precioUnitario: number;
   cantidad: number;
   subtotal: number;
+  series?: string[];
 }
 
 export interface Venta {

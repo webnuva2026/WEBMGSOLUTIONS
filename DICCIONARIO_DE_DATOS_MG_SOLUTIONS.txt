@@ -1,0 +1,884 @@
+====================================================================================================
+                         DICCIONARIO DE DATOS - SISTEMA ERP MG SOLUTIONS                           
+====================================================================================================
+Base de Datos: mg_solutions_db
+Motor RDBMS:   MySQL 8.0 / MariaDB
+Codificacion:  utf8mb4 (utf8mb4_unicode_ci)
+Total Tablas:  39
+Fecha:         2026-10-06
+====================================================================================================
+
+INDICE DE TABLAS POR MODULO:
+----------------------------------------------------------------------------------------------------
+
+[ 1. MODULO DE SEGURIDAD, AUTENTICACION Y CONTROL DE ACCESO ]
+  * usuarios                     : Almacena las cuentas de usuario del sistema, credenciales encriptadas con bcrypt, bloqueo por fuerza bruta y rol principal asignado.
+  * roles                        : Define los 11 roles operativos y administrativos del sistema (SUPERADMIN, ADMIN, VENDEDOR, TECNICO, ALMACEN, etc.).
+  * permisos                     : Catalogo maestro de permisos granulares por modulo y accion (crear, editar, eliminar, ver, etc.).
+  * rol_permisos                 : Matriz dinamica que asocia roles con permisos predeterminados.
+  * usuario_permisos             : Sobrescritura o personalizacion de permisos a nivel individual por usuario.
+  * sesiones_tokens              : Gestion de tokens JWT y sesiones activas para control de concurrencia y revocacion.
+  * codigos_recuperacion         : Tokens temporales y de un solo uso para recuperacion segura de contrasenas por correo.
+
+[ 2. MODULO DE ORGANIZACION Y SEDES ]
+  * empresas                     : Configuracion corporativa principal (Razon Social, RUC, Direccion, Regimen, Logos, Redes).
+  * sucursales                   : Sedes o tiendas fisicas donde opera la empresa (Chiclayo Matriz, Sucursales secundarias).
+
+[ 3. MODULO DE PERSONAS, CLIENTES Y PERSONAL ]
+  * personas                     : Entidad unificada de personas naturales (datos basicos: DNI/RUC, nombres, apellidos, telefono, correo).
+  * clientes                     : Entidad comercial cliente (asociada a persona o personeria juridica con RUC/DNI, credito y estado).
+  * vendedores                   : Perfil y comision asignada a personal comercial.
+  * tecnicos                     : Especialistas tecnicos del taller de servicio y laboratorio de diagnostico.
+
+[ 4. MODULO DE CATALOGO MAESTRO Y PRODUCTOS ]
+  * categorias                   : Categorizacion jerarquica de productos (Laptops, Impresoras, Componentes, Redes, Accesorios).
+  * marcas                       : Marcas de fabricantes registradas (Lenovo, HP, Epson, ASUS, Logitech, etc.).
+  * modelos                      : Modelos especificos asociados a cada marca (ej: ThinkPad X1 Carbon, EcoTank L3250).
+  * detalle_modelo               : Especificaciones tecnicas preconfiguradas para modelos de hardware.
+  * productos                    : Maestro de articulos comerciables con precios de venta, costos base, codigo de barras y SKU.
+  * producto_detalle             : Especificaciones y atributos dinamicos vinculados a productos especificos.
+  * tipos_producto_detalle       : Catalogo de tipos de atributos tecnicos (Memoria RAM, Procesador, Almacenamiento, etc.).
+
+[ 5. MODULO DE INVENTARIO, UNIDADES FISICAS Y TRAZABILIDAD ]
+  * producto_stock_sede          : Control de stock fisico por producto distribuido en cada sucursal/sede.
+  * producto_unidades            : Trazabilidad individual de numeros de serie (S/N) fisicos para productos seriados.
+  * estados_unidad               : Estados fisicos de las unidades en inventario (DISPONIBLE, RESERVADO, VENDIDO, DEFECTUOSO, REPARACION).
+  * estados_movimiento           : Estados para el ciclo de vida de transferencias y movimientos de almacen.
+
+[ 6. MODULO DE VENTAS Y COMPROBANTES DE PAGO ]
+  * ventas                       : Cabecera de ventas, facturacion electronica (Boletas/Facturas), medios de pago y totales.
+  * detalle_ventas               : Lineas de producto comercializadas por cada transaccion de venta.
+  * tipos_comprobante            : Tipos de comprobantes de pago segun normativa SUNAT (01 Factura, 03 Boleta, 00 Nota de Venta).
+  * metodos_pago                 : Medios de recaudacion (Efectivo, Yape, Plin, Tarjeta Debito/Credito, Transferencia BCP/BBVA).
+
+[ 7. MODULO DE COMPRAS Y ABASTECIMIENTO ]
+  * compras                      : Registro de ordenes de compra y recepcion de mercaderia de proveedores mayoristas.
+  * detalle_compras              : Items, costos unitarios y cantidades adquiridas en cada compra.
+  * proveedores                  : Directorio comercial de distribuidores y proveedores mayoristas (Deltron, Ingram, etc.).
+
+[ 8. MODULO DE GARANTIAS Y POSVENTA ]
+  * producto_series_garantia     : Control posventa de garantias asociadas a numeros de serie vendidos y plazo de cobertura.
+
+[ 9. MODULO DE TALLER Y SOPORTE TECNICO ]
+  * ordenes_servicio             : Ordenes de servicio tecnico, tickets de reparacion de hardware, diagnosticos y cotizaciones.
+  * equipos                      : Equipos de clientes ingresados a taller (marca, modelo, numero de serie, accesorios dejados).
+  * tipos_equipo                 : Clasificacion de equipos ingresados a reparacion (Laptop, PC Escritorio, Impresora, Monitor).
+  * estados_orden_servicio       : Flujo de estados de la orden tecnica (RECEPCIONADO, EN DIAGNOSTICO, ESPERA REPUESTO, REPARADO, ENTREGADO).
+  * prioridades_orden            : Nivel de urgencia de la orden de trabajo (BAJA, MEDIA, ALTA, URGENTE).
+
+[ 10. MODULO DE ESTADOS Y TIPOS GENERALES ]
+  * estados                      : Catalogo maestro generico de estados (ACTIVO, INACTIVO, ANULADO, PENDIENTE).
+  * tipos_documento              : Catalogo de tipos de documento de identidad oficial (DNI, RUC, CE, PASAPORTE).
+
+====================================================================================================
+
+####################################################################################################
+### 1. MODULO DE SEGURIDAD, AUTENTICACION Y CONTROL DE ACCESO
+####################################################################################################
+
+====================================================================================================
+TABLA: USUARIOS
+DESCRIPCION: Almacena las cuentas de usuario del sistema, credenciales encriptadas con bcrypt, bloqueo por fuerza bruta y rol principal asignado.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de usuarios.
+username                    | varchar(50)        | NO    | UQ    | NULL         | Nombre de usuario para login
+password_hash               | varchar(255)       | NO    | -     | NULL         | Hash bcrypt de la contraseña
+nombre_completo             | varchar(150)       | NO    | -     | NULL         | Atributo de datos de la entidad.
+email                       | varchar(150)       | NO    | UQ    | NULL         | Correo electronico para comunicaciones o autenticacion.
+telefono_cifrado            | varchar(500)       | SI    | -     | NULL         | Teléfono encriptado con AES-256-CBC
+tipo_documento_id           | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+numero_documento_cifrado    | varchar(500)       | SI    | -     | NULL         | Nro de documento encriptado con AES-256-CBC
+persona_id                  | int                | SI    | UQ    | NULL         | Clave foranea (FK) de referencia relacional.
+rol_id                      | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+sucursal_id                 | int                | SI    | FK    | NULL         | Sede base asignada al usuario
+estado_id                   | int                | NO    | FK    | 1            | FK a estados (1=ACTIVO, 2=INACTIVO, 3=SUSPENDIDO)
+avatar_url                  | varchar(255)       | SI    | -     | NULL         | Atributo de datos de la entidad.
+requiere_cambio_password    | tinyint(1)         | SI    | -     | 1            | Forzar cambio de contraseña en primer login
+intentos_fallidos           | tinyint unsigned   | SI    | -     | 0            | Contador de intentos fallidos de login (max 5)
+bloqueado_hasta             | datetime           | SI    | -     | NULL         | Fecha/hora hasta cuando está bloqueado por intentos fallidos
+ultimo_acceso               | datetime           | SI    | -     | NULL         | Atributo de datos de la entidad.
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+updated_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de la ultima modificacion.
+created_by                  | int                | SI    | -     | NULL         | ID del admin que creó esta cuenta
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_usuarios_estado]
+  - Campo: [persona_id] -> Referencia: personas(id_persona)  [fk_usuarios_persona]
+  - Campo: [rol_id] -> Referencia: roles(id)  [fk_usuarios_rol]
+  - Campo: [sucursal_id] -> Referencia: sucursales(id)  [fk_usuarios_sucursal]
+  - Campo: [tipo_documento_id] -> Referencia: tipos_documento(id)  [fk_usuarios_tipo_doc]
+
+
+====================================================================================================
+TABLA: ROLES
+DESCRIPCION: Define los 11 roles operativos y administrativos del sistema (SUPERADMIN, ADMIN, VENDEDOR, TECNICO, ALMACEN, etc.).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de roles.
+codigo                      | varchar(30)        | NO    | UQ    | NULL         | ADMIN, SECRETARIA, TECNICO, FACTURADOR, ALMACEN, CAJERO
+nombre                      | varchar(60)        | NO    | -     | NULL         | Nombre legible del rol
+descripcion                 | varchar(255)       | SI    | -     | NULL         | Detalle informativo, notas u observaciones.
+modulos_predeterminados     | json               | SI    | -     | NULL         | Array JSON de módulos base heredados: ["ventas","caja"]
+es_sistema                  | tinyint(1)         | SI    | -     | 0            | TRUE = no se puede eliminar ni renombrar
+estado_id                   | int                | NO    | FK    | 1            | FK a estados (1=ACTIVO, 2=INACTIVO)
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+updated_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de la ultima modificacion.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_roles_estado]
+
+
+====================================================================================================
+TABLA: PERMISOS
+DESCRIPCION: Catalogo maestro de permisos granulares por modulo y accion (crear, editar, eliminar, ver, etc.).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de permisos.
+codigo                      | varchar(50)        | NO    | UQ    | NULL         | Código del módulo (ej: ventas, taller, compras)
+nombre                      | varchar(100)       | NO    | -     | NULL         | Nombre del panel o funcionalidad
+descripcion                 | varchar(255)       | SI    | -     | NULL         | Detalle informativo, notas u observaciones.
+categoria                   | varchar(50)        | SI    | -     | NULL         | Operaciones, Almacén, Taller, Administración
+icono                       | varchar(50)        | SI    | -     | NULL         | Icono lucide-react
+estado_id                   | int                | NO    | FK    | 1            | FK a estados (1=ACTIVO, 2=INACTIVO)
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_permisos_estado]
+
+
+====================================================================================================
+TABLA: ROL_PERMISOS
+DESCRIPCION: Matriz dinamica que asocia roles con permisos predeterminados.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+rol_id                      | int                | NO    | PK    | NULL         | FK a roles
+permiso_id                  | int                | NO    | PK    | NULL         | FK a permisos
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [permiso_id] -> Referencia: permisos(id)  [fk_rol_permisos_permiso]
+  - Campo: [rol_id] -> Referencia: roles(id)  [fk_rol_permisos_rol]
+
+
+====================================================================================================
+TABLA: USUARIO_PERMISOS
+DESCRIPCION: Sobrescritura o personalizacion de permisos a nivel individual por usuario.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+usuario_id                  | int                | NO    | PK    | NULL         | FK a usuarios
+permiso_id                  | int                | NO    | PK    | NULL         | FK a permisos
+permitido                   | tinyint(1)         | NO    | -     | 1            | 1 = Concedido, 0 = Denegado
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [permiso_id] -> Referencia: permisos(id)  [fk_usuario_permisos_permiso]
+  - Campo: [usuario_id] -> Referencia: usuarios(id)  [fk_usuario_permisos_usuario]
+
+
+====================================================================================================
+TABLA: SESIONES_TOKENS
+DESCRIPCION: Gestion de tokens JWT y sesiones activas para control de concurrencia y revocacion.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de sesiones_tokens.
+usuario_id                  | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+token_hash                  | varchar(255)       | NO    | IDX   | NULL         | ├Ültimos 32 chars del JWT como identificador
+ip_origen                   | varchar(45)        | SI    | -     | NULL         | IP del cliente (IPv4/IPv6)
+user_agent                  | varchar(255)       | SI    | -     | NULL         | Atributo de datos de la entidad.
+expira_en                   | datetime           | NO    | IDX   | NULL         | Atributo de datos de la entidad.
+revocado                    | tinyint(1)         | SI    | -     | 0            | TRUE = sesi├│n cerrada o revocada
+revocado_en                 | datetime           | SI    | -     | NULL         | Timestamp de revocaci├│n
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [usuario_id] -> Referencia: usuarios(id)  [fk_sesiones_usuario]
+
+
+====================================================================================================
+TABLA: CODIGOS_RECUPERACION
+DESCRIPCION: Tokens temporales y de un solo uso para recuperacion segura de contrasenas por correo.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de codigos_recuperacion.
+usuario_id                  | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+codigo                      | varchar(10)        | NO    | -     | NULL         | C├│digo OTP de 6 d├¡gitos
+expira_en                   | datetime           | NO    | IDX   | NULL         | Tiempo l├¡mite de validez (15 min)
+utilizado                   | tinyint(1)         | SI    | -     | 0            | TRUE = c├│digo ya canjeado
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [usuario_id] -> Referencia: usuarios(id)  [fk_recuperacion_usuario]
+
+
+####################################################################################################
+### 2. MODULO DE ORGANIZACION Y SEDES
+####################################################################################################
+
+====================================================================================================
+TABLA: EMPRESAS
+DESCRIPCION: Configuracion corporativa principal (Razon Social, RUC, Direccion, Regimen, Logos, Redes).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de empresas.
+ruc                         | char(11)           | NO    | UQ    | NULL         | RUC de 11 d├¡gitos SUNAT
+razon_social                | varchar(200)       | NO    | -     | NULL         | Raz├│n social registrada en SUNAT
+nombre_comercial            | varchar(200)       | SI    | -     | NULL         | Nombre comercial visible
+direccion_fiscal            | varchar(255)       | NO    | -     | NULL         | Direccion geografica o domicilio fiscal.
+email                       | varchar(150)       | SI    | -     | NULL         | Correo electronico para comunicaciones o autenticacion.
+telefono                    | varchar(30)        | SI    | -     | NULL         | Numero telefonico de contacto.
+departamento                | varchar(100)       | SI    | -     | Lambayeque   | Atributo de datos de la entidad.
+provincia                   | varchar(100)       | SI    | -     | Chiclayo     | Atributo de datos de la entidad.
+distrito                    | varchar(100)       | SI    | -     | Chiclayo     | Atributo de datos de la entidad.
+ubigeo                      | char(6)            | SI    | -     | 140101       | C├│digo UBIGEO INEI
+logo_url                    | varchar(500)       | SI    | -     | NULL         | URL del logo de la empresa
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+updated_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de la ultima modificacion.
+
+
+====================================================================================================
+TABLA: SUCURSALES
+DESCRIPCION: Sedes o tiendas fisicas donde opera la empresa (Chiclayo Matriz, Sucursales secundarias).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de sucursales.
+empresa_id                  | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+codigo                      | varchar(10)        | NO    | IDX   | NULL         | C├│digo correlativo: 0000, 0001, etc.
+nombre                      | varchar(120)       | NO    | -     | NULL         | Nombre oficial o denominacion.
+direccion                   | varchar(255)       | NO    | -     | NULL         | Direccion geografica o domicilio fiscal.
+telefono                    | varchar(30)        | SI    | -     | NULL         | Numero telefonico de contacto.
+es_principal                | tinyint(1)         | SI    | -     | 0            | TRUE = sede principal de la empresa
+estado_id                   | int                | NO    | FK    | 1            | FK a estados (1=ACTIVO, 2=INACTIVO)
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+updated_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de la ultima modificacion.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [empresa_id] -> Referencia: empresas(id)  [fk_sucursales_empresa]
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_sucursales_estado]
+
+
+####################################################################################################
+### 3. MODULO DE PERSONAS, CLIENTES Y PERSONAL
+####################################################################################################
+
+====================================================================================================
+TABLA: PERSONAS
+DESCRIPCION: Entidad unificada de personas naturales (datos basicos: DNI/RUC, nombres, apellidos, telefono, correo).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id_persona                  | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de personas.
+tipo_documento_id           | int                | SI    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+dni                         | varchar(20)        | SI    | UQ    | NULL         | Atributo de datos de la entidad.
+nombres                     | varchar(100)       | NO    | -     | NULL         | Atributo de datos de la entidad.
+apellidos                   | varchar(100)       | SI    | IDX   | NULL         | Atributo de datos de la entidad.
+telefono                    | varchar(10)        | SI    | -     | NULL         | Numero telefonico de contacto.
+correo                      | varchar(100)       | SI    | -     | NULL         | Correo electronico para comunicaciones o autenticacion.
+direccion                   | varchar(200)       | SI    | -     | NULL         | Direccion geografica o domicilio fiscal.
+estado_id                   | int                | NO    | FK    | 1            | FK a tabla estados (1=ACTIVO, 2=INACTIVO)
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+updated_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de la ultima modificacion.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_personas_estado]
+  - Campo: [tipo_documento_id] -> Referencia: tipos_documento(id)  [fk_personas_tipo_doc]
+
+
+====================================================================================================
+TABLA: CLIENTES
+DESCRIPCION: Entidad comercial cliente (asociada a persona o personeria juridica con RUC/DNI, credito y estado).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id_cliente                  | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de clientes.
+id_persona                  | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+ruc                         | varchar(11)        | SI    | UQ    | NULL         | Atributo de datos de la entidad.
+razon_social                | varchar(200)       | SI    | -     | NULL         | Nombre oficial o denominacion.
+nombre_empresa              | varchar(200)       | SI    | -     | NULL         | Atributo de datos de la entidad.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+created_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de registro.
+updated_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de la ultima modificacion.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_clientes_estado]
+  - Campo: [id_persona] -> Referencia: personas(id_persona)  [fk_clientes_persona]
+
+
+====================================================================================================
+TABLA: VENDEDORES
+DESCRIPCION: Perfil y comision asignada a personal comercial.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de vendedores.
+usuario_id                  | int                | NO    | UQ    | NULL         | Clave foranea (FK) de referencia relacional.
+comision_pct                | decimal(5,2)       | NO    | -     | 0.00         | Atributo de datos de la entidad.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+created_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_vendedores_estado]
+  - Campo: [usuario_id] -> Referencia: usuarios(id)  [fk_vendedores_usuario]
+
+
+====================================================================================================
+TABLA: TECNICOS
+DESCRIPCION: Especialistas tecnicos del taller de servicio y laboratorio de diagnostico.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de tecnicos.
+usuario_id                  | int                | NO    | UQ    | NULL         | Clave foranea (FK) de referencia relacional.
+especialidad                | varchar(200)       | SI    | -     | NULL         | Atributo de datos de la entidad.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+created_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_tecnicos_estado]
+  - Campo: [usuario_id] -> Referencia: usuarios(id)  [fk_tecnicos_usuario]
+
+
+####################################################################################################
+### 4. MODULO DE CATALOGO MAESTRO Y PRODUCTOS
+####################################################################################################
+
+====================================================================================================
+TABLA: CATEGORIAS
+DESCRIPCION: Categorizacion jerarquica de productos (Laptops, Impresoras, Componentes, Redes, Accesorios).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de categorias.
+nombre                      | varchar(100)       | NO    | UQ    | NULL         | Nombre oficial o denominacion.
+descripcion                 | text               | SI    | -     | NULL         | Detalle informativo, notas u observaciones.
+requiere_serie              | tinyint(1)         | NO    | -     | 0            | Atributo de datos de la entidad.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+created_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_categorias_estado]
+
+
+====================================================================================================
+TABLA: MARCAS
+DESCRIPCION: Marcas de fabricantes registradas (Lenovo, HP, Epson, ASUS, Logitech, etc.).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de marcas.
+nombre                      | varchar(100)       | NO    | UQ    | NULL         | Nombre oficial o denominacion.
+descripcion                 | text               | SI    | -     | NULL         | Detalle informativo, notas u observaciones.
+categoria_id                | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+created_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [categoria_id] -> Referencia: categorias(id)  [fk_marcas_categoria]
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_marcas_estado]
+
+
+====================================================================================================
+TABLA: MODELOS
+DESCRIPCION: Modelos especificos asociados a cada marca (ej: ThinkPad X1 Carbon, EcoTank L3250).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de modelos.
+marca_id                    | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+nombre                      | varchar(150)       | NO    | -     | NULL         | Nombre oficial o denominacion.
+descripcion                 | text               | SI    | -     | NULL         | Detalle informativo, notas u observaciones.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+created_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_modelos_estado]
+  - Campo: [marca_id] -> Referencia: marcas(id)  [fk_modelos_marca]
+
+
+====================================================================================================
+TABLA: DETALLE_MODELO
+DESCRIPCION: Especificaciones tecnicas preconfiguradas para modelos de hardware.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de detalle_modelo.
+modelo_id                   | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+atributo                    | varchar(100)       | NO    | -     | NULL         | Atributo de datos de la entidad.
+valor                       | varchar(500)       | SI    | -     | NULL         | Atributo de datos de la entidad.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [modelo_id] -> Referencia: modelos(id)  [fk_dm_modelo]
+
+
+====================================================================================================
+TABLA: PRODUCTOS
+DESCRIPCION: Maestro de articulos comerciables con precios de venta, costos base, codigo de barras y SKU.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de productos.
+codigo                      | varchar(50)        | SI    | -     | NULL         | Codigo identificador unico o correlativo.
+nombre                      | varchar(200)       | NO    | -     | NULL         | Nombre oficial o denominacion.
+descripcion                 | text               | SI    | -     | NULL         | Detalle informativo, notas u observaciones.
+categoria_id                | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+marca_id                    | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+modelo_id                   | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+requiere_serie              | tinyint(1)         | NO    | -     | 0            | Atributo de datos de la entidad.
+disponible_venta            | tinyint(1)         | NO    | -     | 1            | Atributo de datos de la entidad.
+tipo_destino                | enum('VENTA','SERV | NO    | -     | VENTA        | Atributo de datos de la entidad.
+precio_venta                | decimal(10,2)      | NO    | -     | 0.00         | Monto economico en moneda nacional (PEN).
+precio_costo                | decimal(10,2)      | NO    | -     | 0.00         | Monto economico en moneda nacional (PEN).
+stock_minimo                | int                | NO    | -     | 0            | Atributo de datos de la entidad.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+created_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de registro.
+updated_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de la ultima modificacion.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [categoria_id] -> Referencia: categorias(id)  [fk_productos_categoria]
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_productos_estado]
+  - Campo: [marca_id] -> Referencia: marcas(id)  [fk_productos_marca]
+  - Campo: [modelo_id] -> Referencia: modelos(id)  [fk_productos_modelo]
+
+
+====================================================================================================
+TABLA: PRODUCTO_DETALLE
+DESCRIPCION: Especificaciones y atributos dinamicos vinculados a productos especificos.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de producto_detalle.
+producto_id                 | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+tipo_detalle_id             | int                | SI    | -     | NULL         | Clave foranea (FK) de referencia relacional.
+valor                       | varchar(500)       | SI    | -     | NULL         | Atributo de datos de la entidad.
+created_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [producto_id] -> Referencia: productos(id)  [fk_pd_producto]
+
+
+====================================================================================================
+TABLA: TIPOS_PRODUCTO_DETALLE
+DESCRIPCION: Catalogo de tipos de atributos tecnicos (Memoria RAM, Procesador, Almacenamiento, etc.).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de tipos_producto_detalle.
+codigo                      | varchar(30)        | NO    | UQ    | NULL         | Codigo identificador unico o correlativo.
+nombre                      | varchar(60)        | NO    | -     | NULL         | Nombre oficial o denominacion.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_tipos_prod_det_estado]
+
+
+####################################################################################################
+### 5. MODULO DE INVENTARIO, UNIDADES FISICAS Y TRAZABILIDAD
+####################################################################################################
+
+====================================================================================================
+TABLA: PRODUCTO_STOCK_SEDE
+DESCRIPCION: Control de stock fisico por producto distribuido en cada sucursal/sede.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de producto_stock_sede.
+producto_id                 | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+sucursal_id                 | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+stock                       | int                | NO    | -     | 0            | Atributo de datos de la entidad.
+updated_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de la ultima modificacion.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [producto_id] -> Referencia: productos(id)  [fk_pss_producto]
+  - Campo: [sucursal_id] -> Referencia: sucursales(id)  [fk_pss_sucursal]
+
+
+====================================================================================================
+TABLA: PRODUCTO_UNIDADES
+DESCRIPCION: Trazabilidad individual de numeros de serie (S/N) fisicos para productos seriados.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de producto_unidades.
+producto_id                 | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+sucursal_id                 | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+numero_serie                | varchar(100)       | NO    | IDX   | NULL         | Atributo de datos de la entidad.
+estado_unidad_id            | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+tipo_destino                | enum('VENTA','SERV | NO    | -     | VENTA        | Atributo de datos de la entidad.
+disponible_venta            | tinyint(1)         | NO    | -     | 1            | Atributo de datos de la entidad.
+condicion                   | enum('NUEVO','USAD | NO    | -     | NUEVO        | Atributo de datos de la entidad.
+observaciones               | text               | SI    | -     | NULL         | Detalle informativo, notas u observaciones.
+costo_adquisicion           | decimal(10,2)      | SI    | -     | NULL         | Atributo de datos de la entidad.
+fecha_ingreso               | datetime           | NO    | -     | CURRENT_TIME | Atributo de datos de la entidad.
+created_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de registro.
+updated_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de la ultima modificacion.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_unidad_id] -> Referencia: estados_unidad(id)  [fk_pu_estado_unidad]
+  - Campo: [producto_id] -> Referencia: productos(id)  [fk_pu_producto]
+  - Campo: [sucursal_id] -> Referencia: sucursales(id)  [fk_pu_sucursal]
+
+
+====================================================================================================
+TABLA: ESTADOS_UNIDAD
+DESCRIPCION: Estados fisicos de las unidades en inventario (DISPONIBLE, RESERVADO, VENDIDO, DEFECTUOSO, REPARACION).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de estados_unidad.
+codigo                      | varchar(30)        | NO    | UQ    | NULL         | Codigo identificador unico o correlativo.
+nombre                      | varchar(60)        | NO    | -     | NULL         | Nombre oficial o denominacion.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_estados_unidad_estado]
+
+
+====================================================================================================
+TABLA: ESTADOS_MOVIMIENTO
+DESCRIPCION: Estados para el ciclo de vida de transferencias y movimientos de almacen.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de estados_movimiento.
+codigo                      | varchar(30)        | NO    | UQ    | NULL         | Codigo identificador unico o correlativo.
+nombre                      | varchar(50)        | NO    | -     | NULL         | Nombre oficial o denominacion.
+color_hex                   | varchar(10)        | SI    | -     | #3B82F6      | Atributo de datos de la entidad.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_estados_mov_estado]
+
+
+####################################################################################################
+### 6. MODULO DE VENTAS Y COMPROBANTES DE PAGO
+####################################################################################################
+
+====================================================================================================
+TABLA: VENTAS
+DESCRIPCION: Cabecera de ventas, facturacion electronica (Boletas/Facturas), medios de pago y totales.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de ventas.
+codigo_comprobante          | varchar(20)        | NO    | UQ    | NULL         | Codigo identificador unico o correlativo.
+tipo_comprobante_id         | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+cliente_id                  | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+usuario_id                  | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+sucursal_id                 | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+subtotal                    | decimal(10,2)      | NO    | -     | 0.00         | Monto economico en moneda nacional (PEN).
+igv                         | decimal(10,2)      | NO    | -     | 0.00         | Atributo de datos de la entidad.
+total                       | decimal(10,2)      | NO    | -     | 0.00         | Monto economico en moneda nacional (PEN).
+metodo_pago_id              | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+fecha_venta                 | datetime           | NO    | IDX   | CURRENT_TIME | Atributo de datos de la entidad.
+observaciones               | text               | SI    | -     | NULL         | Detalle informativo, notas u observaciones.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [cliente_id] -> Referencia: clientes(id_cliente)  [fk_ventas_cliente]
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_ventas_estado]
+  - Campo: [metodo_pago_id] -> Referencia: metodos_pago(id)  [fk_ventas_metodo_pago]
+  - Campo: [sucursal_id] -> Referencia: sucursales(id)  [fk_ventas_sucursal]
+  - Campo: [tipo_comprobante_id] -> Referencia: tipos_comprobante(id)  [fk_ventas_comprobante]
+  - Campo: [usuario_id] -> Referencia: usuarios(id)  [fk_ventas_usuario]
+
+
+====================================================================================================
+TABLA: DETALLE_VENTAS
+DESCRIPCION: Lineas de producto comercializadas por cada transaccion de venta.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de detalle_ventas.
+venta_id                    | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+producto_id                 | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+cantidad                    | int                | NO    | -     | 1            | Atributo de datos de la entidad.
+precio_unitario             | decimal(10,2)      | NO    | -     | 0.00         | Atributo de datos de la entidad.
+descuento                   | decimal(10,2)      | NO    | -     | 0.00         | Atributo de datos de la entidad.
+subtotal                    | decimal(10,2)      | NO    | -     | 0.00         | Monto economico en moneda nacional (PEN).
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [producto_id] -> Referencia: productos(id)  [fk_dv_producto]
+  - Campo: [venta_id] -> Referencia: ventas(id)  [fk_dv_venta]
+
+
+====================================================================================================
+TABLA: TIPOS_COMPROBANTE
+DESCRIPCION: Tipos de comprobantes de pago segun normativa SUNAT (01 Factura, 03 Boleta, 00 Nota de Venta).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de tipos_comprobante.
+codigo                      | varchar(25)        | NO    | UQ    | NULL         | BOLETA, FACTURA, NOTA_VENTA, GUIA_REMISION
+nombre                      | varchar(60)        | NO    | -     | NULL         | Nombre oficial o denominacion.
+serie_defecto               | varchar(10)        | SI    | -     | B001         | Atributo de datos de la entidad.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_tipos_comp_estado]
+
+
+====================================================================================================
+TABLA: METODOS_PAGO
+DESCRIPCION: Medios de recaudacion (Efectivo, Yape, Plin, Tarjeta Debito/Credito, Transferencia BCP/BBVA).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de metodos_pago.
+codigo                      | varchar(30)        | NO    | UQ    | NULL         | EFECTIVO, YAPE, PLIN, TARJETA, TRANSFERENCIA
+nombre                      | varchar(60)        | NO    | -     | NULL         | Nombre oficial o denominacion.
+requiere_referencia         | tinyint(1)         | SI    | -     | 0            | TRUE si requiere Nro de operación
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_metodos_pago_estado]
+
+
+####################################################################################################
+### 7. MODULO DE COMPRAS Y ABASTECIMIENTO
+####################################################################################################
+
+====================================================================================================
+TABLA: COMPRAS
+DESCRIPCION: Registro de ordenes de compra y recepcion de mercaderia de proveedores mayoristas.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de compras.
+codigo                      | varchar(20)        | NO    | UQ    | NULL         | Codigo identificador unico o correlativo.
+proveedor_id                | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+sucursal_id                 | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+total                       | decimal(10,2)      | NO    | -     | 0.00         | Monto economico en moneda nacional (PEN).
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+usuario_id                  | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+fecha_compra                | datetime           | NO    | -     | CURRENT_TIME | Atributo de datos de la entidad.
+observaciones               | text               | SI    | -     | NULL         | Detalle informativo, notas u observaciones.
+updated_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de la ultima modificacion.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_compras_estado]
+  - Campo: [proveedor_id] -> Referencia: proveedores(id)  [fk_compras_proveedor]
+  - Campo: [sucursal_id] -> Referencia: sucursales(id)  [fk_compras_sucursal]
+  - Campo: [usuario_id] -> Referencia: usuarios(id)  [fk_compras_usuario]
+
+
+====================================================================================================
+TABLA: DETALLE_COMPRAS
+DESCRIPCION: Items, costos unitarios y cantidades adquiridas en cada compra.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de detalle_compras.
+compra_id                   | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+producto_id                 | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+cantidad                    | int                | NO    | -     | 1            | Atributo de datos de la entidad.
+precio_costo_unit           | decimal(10,2)      | NO    | -     | 0.00         | Atributo de datos de la entidad.
+subtotal                    | decimal(10,2)      | NO    | -     | 0.00         | Monto economico en moneda nacional (PEN).
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [compra_id] -> Referencia: compras(id)  [fk_dc_compra]
+  - Campo: [producto_id] -> Referencia: productos(id)  [fk_dc_producto]
+
+
+====================================================================================================
+TABLA: PROVEEDORES
+DESCRIPCION: Directorio comercial de distribuidores y proveedores mayoristas (Deltron, Ingram, etc.).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de proveedores.
+ruc                         | varchar(11)        | SI    | UQ    | NULL         | Atributo de datos de la entidad.
+razon_social                | varchar(200)       | NO    | -     | NULL         | Nombre oficial o denominacion.
+nombre_contacto             | varchar(150)       | SI    | -     | NULL         | Atributo de datos de la entidad.
+telefono                    | varchar(20)        | SI    | -     | NULL         | Numero telefonico de contacto.
+email                       | varchar(100)       | SI    | -     | NULL         | Correo electronico para comunicaciones o autenticacion.
+direccion                   | text               | SI    | -     | NULL         | Direccion geografica o domicilio fiscal.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+created_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de registro.
+updated_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de la ultima modificacion.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_proveedores_estado]
+
+
+####################################################################################################
+### 8. MODULO DE GARANTIAS Y POSVENTA
+####################################################################################################
+
+====================================================================================================
+TABLA: PRODUCTO_SERIES_GARANTIA
+DESCRIPCION: Control posventa de garantias asociadas a numeros de serie vendidos y plazo de cobertura.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de producto_series_garantia.
+venta_id                    | int                | SI    | -     | NULL         | Clave foranea (FK) de referencia relacional.
+producto_id                 | int                | NO    | -     | NULL         | Clave foranea (FK) de referencia relacional.
+numero_serie                | varchar(100)       | NO    | UQ    | NULL         | Atributo de datos de la entidad.
+cliente_id                  | int                | SI    | -     | NULL         | Clave foranea (FK) de referencia relacional.
+meses_garantia              | int                | NO    | -     | 12           | Atributo de datos de la entidad.
+fecha_venta                 | datetime           | NO    | -     | CURRENT_TIME | Atributo de datos de la entidad.
+estado_garantia             | varchar(50)        | NO    | -     | ACTIVA       | Atributo de datos de la entidad.
+observaciones               | text               | SI    | -     | NULL         | Detalle informativo, notas u observaciones.
+created_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de registro.
+
+
+####################################################################################################
+### 9. MODULO DE TALLER Y SOPORTE TECNICO
+####################################################################################################
+
+====================================================================================================
+TABLA: ORDENES_SERVICIO
+DESCRIPCION: Ordenes de servicio tecnico, tickets de reparacion de hardware, diagnosticos y cotizaciones.
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de ordenes_servicio.
+codigo                      | varchar(20)        | NO    | UQ    | NULL         | Codigo identificador unico o correlativo.
+cliente_id                  | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+equipo_id                   | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+usuario_recibe_id           | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+usuario_tecnico_id          | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+descripcion_falla           | text               | SI    | -     | NULL         | Atributo de datos de la entidad.
+diagnostico                 | text               | SI    | -     | NULL         | Atributo de datos de la entidad.
+solucion                    | text               | SI    | -     | NULL         | Atributo de datos de la entidad.
+costo_servicio              | decimal(10,2)      | NO    | -     | 0.00         | Atributo de datos de la entidad.
+estado_orden_id             | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+prioridad_id                | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+fecha_ingreso               | datetime           | NO    | -     | CURRENT_TIME | Atributo de datos de la entidad.
+fecha_promesa               | datetime           | SI    | -     | NULL         | Atributo de datos de la entidad.
+fecha_entrega               | datetime           | SI    | -     | NULL         | Atributo de datos de la entidad.
+observaciones               | text               | SI    | -     | NULL         | Detalle informativo, notas u observaciones.
+updated_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de la ultima modificacion.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [cliente_id] -> Referencia: clientes(id_cliente)  [fk_os_cliente]
+  - Campo: [equipo_id] -> Referencia: equipos(id)  [fk_os_equipo]
+  - Campo: [estado_orden_id] -> Referencia: estados_orden_servicio(id)  [fk_os_estado]
+  - Campo: [prioridad_id] -> Referencia: prioridades_orden(id)  [fk_os_prioridad]
+  - Campo: [usuario_recibe_id] -> Referencia: usuarios(id)  [fk_os_recibe]
+  - Campo: [usuario_tecnico_id] -> Referencia: usuarios(id)  [fk_os_tecnico]
+
+
+====================================================================================================
+TABLA: EQUIPOS
+DESCRIPCION: Equipos de clientes ingresados a taller (marca, modelo, numero de serie, accesorios dejados).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de equipos.
+cliente_id                  | int                | NO    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+tipo_equipo_id              | int                | SI    | FK    | NULL         | Clave foranea (FK) de referencia relacional.
+marca                       | varchar(100)       | SI    | -     | NULL         | Atributo de datos de la entidad.
+modelo                      | varchar(100)       | SI    | -     | NULL         | Atributo de datos de la entidad.
+numero_serie                | varchar(100)       | SI    | -     | NULL         | Atributo de datos de la entidad.
+accesorios                  | text               | SI    | -     | NULL         | Atributo de datos de la entidad.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+fecha_registro              | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de registro.
+updated_at                  | datetime           | NO    | -     | CURRENT_TIME | Fecha y hora de la ultima modificacion.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [cliente_id] -> Referencia: clientes(id_cliente)  [fk_equipos_cliente]
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_equipos_estado]
+  - Campo: [tipo_equipo_id] -> Referencia: tipos_equipo(id)  [fk_equipos_tipo]
+
+
+====================================================================================================
+TABLA: TIPOS_EQUIPO
+DESCRIPCION: Clasificacion de equipos ingresados a reparacion (Laptop, PC Escritorio, Impresora, Monitor).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de tipos_equipo.
+codigo                      | varchar(30)        | NO    | UQ    | NULL         | LAPTOP, PC_ESCRITORIO, etc.
+nombre                      | varchar(60)        | NO    | -     | NULL         | Nombre oficial o denominacion.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_tipos_equipo_estado]
+
+
+====================================================================================================
+TABLA: ESTADOS_ORDEN_SERVICIO
+DESCRIPCION: Flujo de estados de la orden tecnica (RECEPCIONADO, EN DIAGNOSTICO, ESPERA REPUESTO, REPARADO, ENTREGADO).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de estados_orden_servicio.
+codigo                      | varchar(40)        | NO    | UQ    | NULL         | Codigo identificador unico o correlativo.
+nombre                      | varchar(60)        | NO    | -     | NULL         | Nombre oficial o denominacion.
+descripcion                 | varchar(150)       | SI    | -     | NULL         | Detalle informativo, notas u observaciones.
+secuencia_orden             | tinyint unsigned   | NO    | -     | 1            | Atributo de datos de la entidad.
+color_hex                   | varchar(10)        | SI    | -     | #004A99      | Atributo de datos de la entidad.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_estados_orden_estado]
+
+
+====================================================================================================
+TABLA: PRIORIDADES_ORDEN
+DESCRIPCION: Nivel de urgencia de la orden de trabajo (BAJA, MEDIA, ALTA, URGENTE).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de prioridades_orden.
+codigo                      | varchar(20)        | NO    | UQ    | NULL         | NORMAL, ALTA, URGENTE
+nombre                      | varchar(40)        | NO    | -     | NULL         | Nombre oficial o denominacion.
+nivel_orden                 | int                | NO    | -     | 1            | 1=Bajo, 2=Medio, 3=Alto
+color_hex                   | varchar(10)        | SI    | -     | #3B82F6      | Atributo de datos de la entidad.
+estado_id                   | int                | NO    | FK    | 1            | Clave foranea (FK) de referencia relacional.
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_prioridades_estado]
+
+
+####################################################################################################
+### 10. MODULO DE ESTADOS Y TIPOS GENERALES
+####################################################################################################
+
+====================================================================================================
+TABLA: ESTADOS
+DESCRIPCION: Catalogo maestro generico de estados (ACTIVO, INACTIVO, ANULADO, PENDIENTE).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de estados.
+nombre                      | varchar(30)        | NO    | UQ    | NULL         | ACTIVO, INACTIVO, SUSPENDIDO, DESCONTINUADO
+descripcion                 | varchar(150)       | SI    | -     | NULL         | Detalle informativo, notas u observaciones.
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+
+
+====================================================================================================
+TABLA: TIPOS_DOCUMENTO
+DESCRIPCION: Catalogo de tipos de documento de identidad oficial (DNI, RUC, CE, PASAPORTE).
+====================================================================================================
+CAMPO                       | TIPO DE DATO       | NULO  | CLAVE | DEFECTO      | DESCRIPCION
+----------------------------------------------------------------------------------------------------
+id                          | int                | NO    | PK    | NULL         | Identificador unico (Clave Primaria - PK) de tipos_documento.
+codigo                      | varchar(15)        | NO    | UQ    | NULL         | DNI, RUC, CE, PASAPORTE
+nombre                      | varchar(60)        | NO    | -     | NULL         | Nombre oficial o denominacion.
+longitud_exacta             | tinyint unsigned   | SI    | -     | NULL         | 8 para DNI, 11 para RUC
+estado_id                   | int                | NO    | FK    | 1            | FK a estados
+created_at                  | datetime           | SI    | -     | CURRENT_TIME | Fecha y hora de registro.
+----------------------------------------------------------------------------------------------------
+RELACIONES FORANEAS (FOREIGN KEYS):
+  - Campo: [estado_id] -> Referencia: estados(id)  [fk_tipos_doc_estado]
+
+

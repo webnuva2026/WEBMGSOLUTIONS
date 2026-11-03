@@ -14,6 +14,9 @@ import {
   INITIAL_MOVIMIENTOS_CAJA,
 } from './data/initialData';
 import { clientService } from './services/client.service';
+import { warehouseService } from './services/warehouse.service';
+import { categoryService } from './services/category.service';
+import { brandModelService } from './services/brandModel.service';
 import {
   Usuario,
   Cliente,
@@ -23,6 +26,7 @@ import {
   EmpresaConfig,
   Sucursal,
   MovimientoInventario,
+  EstadoMovimientoInventario,
   Equipo,
   Venta,
   Proveedor,
@@ -41,6 +45,7 @@ import { UsersManagementView } from './components/UsersManagementView';
 import { ClientsManagementView } from './components/ClientsManagementView';
 import { CategoriesView } from './components/CategoriesView';
 import { BrandsView } from './components/BrandsView';
+import { CatalogMasterView } from './components/CatalogMasterView';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { ServiceTrackingView } from './components/ServiceTrackingView';
 import { TechnicalWorkshopView } from './components/TechnicalWorkshopView';
@@ -52,6 +57,11 @@ import { PurchasesView } from './components/PurchasesView';
 import { CashRegisterView } from './components/CashRegisterView';
 import { ForceChangePasswordModal } from './components/ForceChangePasswordModal';
 import { authService } from './services/auth.service';
+import { companyService } from './services/company.service';
+import { userService } from './services/user.service';
+import { workshopService } from './services/workshop.service';
+import { transferService } from './services/transfer.service';
+import { purchaseService } from './services/purchase.service';
 
 export function App() {
   // Persistence state loaders
@@ -67,39 +77,16 @@ export function App() {
 
   const [usuarios, setUsuarios] = useState<Usuario[]>(() => {
     const saved = localStorage.getItem('mg_usuarios');
-    if (!saved) return INITIAL_USUARIOS;
-    const allowedModules = new Set([
-      'ventas',
-      'caja',
-      'panel-recepcion',
-      'panel-almacen',
-      'taller',
-      'clientes',
-      'productos',
-      'compras',
-      'categorias',
-      'marcas',
-      'usuarios',
-      'config-empresa',
-      'sucursales',
-      'movimientos',
-      'equipos',
-    ]);
-    return JSON.parse(saved).map((user: Usuario) => {
-      const modules = user.modulosPermitidos.filter((moduleId) => allowedModules.has(moduleId));
-      const rolePanel = user.rol === 'SECRETARIA' ? 'panel-recepcion' : user.rol === 'ALMACEN' ? 'panel-almacen' : null;
-      if (user.rol === 'ALMACEN' && !modules.includes('movimientos')) modules.push('movimientos');
-      if (user.rol === 'ALMACEN' && !modules.includes('compras')) modules.push('compras');
-      if (user.rol === 'ADMIN') {
-        if (!modules.includes('movimientos')) modules.push('movimientos');
-        if (!modules.includes('compras')) modules.push('compras');
-        if (!modules.includes('caja')) modules.push('caja');
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && !parsed.some((u: any) => u.username === 'kevin' || u.nombreCompleto?.includes('Santisteban') || u.username === 'guadalupe')) {
+        return parsed;
       }
-      return {
-        ...user,
-        modulosPermitidos: rolePanel && !modules.includes(rolePanel) ? [rolePanel, ...modules] : modules,
-      };
-    });
+    } catch {
+      // fallback
+    }
+    return [];
   });
 
   const [categorias, setCategorias] = useState<Categoria[]>(() => {
@@ -121,21 +108,157 @@ export function App() {
     }));
   });
 
-const [clientes, setClientes] = useState<Cliente[]>(() => {
+  const [clientes, setClientes] = useState<Cliente[]>(() => {
     const saved = localStorage.getItem('mg_clientes');
-    return saved ? JSON.parse(saved) : [];
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && !parsed.some((c: any) => c.razonSocial?.includes('MINERA DEL SUR'))) {
+          return parsed;
+        }
+      } catch {
+        // fallback
+      }
+    }
+    return [];
   });
 
   const [total, setTotal] = useState(0);
 
-  useEffect(() => {
-    clientService.getClients().then(res => {
-      if (res.success) {
+  // Multi-sede selection state (null = Todas las Sedes / Consolidado)
+  const [selectedSedeId, setSelectedSedeId] = useState<number | null>(() => {
+    const saved = localStorage.getItem('mg_selected_sede_id');
+    return saved && saved !== 'ALL' ? Number(saved) : null;
+  });
+
+  const handleSelectSede = (sedeId: number | null) => {
+    setSelectedSedeId(sedeId);
+    if (sedeId) {
+      localStorage.setItem('mg_selected_sede_id', String(sedeId));
+    } else {
+      localStorage.setItem('mg_selected_sede_id', 'ALL');
+    }
+  };
+
+  const loadDatabaseData = (sedeFilter: number | null = selectedSedeId) => {
+    clientService.getClients({ limit: 100 }).then((res) => {
+      if (res.success && res.data) {
         setClientes(res.data);
         setTotal(res.pagination.total);
+        localStorage.setItem('mg_clientes', JSON.stringify(res.data));
       }
     });
-  }, []);
+
+    // Cargar inventario desde MySQL filtrado por sede
+    warehouseService.getInventario({ sucursal_id: sedeFilter }).then((res) => {
+      if (res.success && res.inventario && res.inventario.length > 0) {
+        const mappedProds: Producto[] = res.inventario.map((item) => {
+          const branchRecord: Record<string, number> = {};
+          if (item.stockPorSede) {
+            item.stockPorSede.forEach((s) => {
+              branchRecord[s.sucursalNombre || 'Principal'] = s.stock;
+            });
+          }
+
+          return {
+            id: item.id,
+            codigo: item.codigo,
+            codigoBarra: item.codigo,
+            nombre: item.nombre,
+            categoriaId: item.categoria?.id || 1,
+            categoriaNombre: item.categoria?.nombre || 'General',
+            marcaId: item.marca?.id || 1,
+            marcaNombre: item.marca?.nombre || 'General',
+            modeloId: item.modelo?.id || null,
+            modeloNombre: item.modelo?.nombre || null,
+            sucursal: 'Principal - Chiclayo Centro',
+            precioUnitario: item.precioVenta || 0,
+            precioCosto: item.precioCosto || 0,
+            stock: sedeFilter ? (item.stockSede ?? item.stockTotal) : (item.stockTotal || 0),
+            stockPorSede: branchRecord,
+            unidadMedida: 'NIU',
+            estado: (item.estado as any) || 'ACTIVO',
+            requiereSerie: item.requiereSerie || item.categoria?.requiereSerie || false,
+            disponibleVenta: item.disponibleVenta !== false,
+            tipoDestino: item.tipoDestino || 'VENTA',
+          };
+        });
+        setProductos(mappedProds);
+      }
+    });
+
+    // Cargar datos de Empresa y Sucursales desde MySQL
+    companyService.getEmpresa().then((res) => {
+      if (res.success && res.empresa) {
+        setEmpresa(res.empresa);
+      }
+    });
+
+    companyService.getSucursales().then((res) => {
+      if (res.success && res.sucursales) {
+        setSucursales(res.sucursales);
+      }
+    });
+
+    // Cargar usuarios reales desde MySQL
+    userService.getUsers().then((res) => {
+      if (res.success && res.usuarios) {
+        setUsuarios(res.usuarios);
+        localStorage.setItem('mg_usuarios', JSON.stringify(res.usuarios));
+      }
+    });
+
+    // Cargar órdenes de servicio reales desde MySQL filtradas por sede
+    workshopService.getOrdenes({ sucursal_id: sedeFilter }).then((res) => {
+      if (res.success && res.ordenes && res.ordenes.length > 0) {
+        setOrdenes(res.ordenes);
+      }
+    });
+
+    // Cargar movimientos y préstamos de inventario reales desde MySQL
+    transferService.getMovimientos().then((res) => {
+      if (res.success && res.movimientos) {
+        setMovimientos(res.movimientos);
+        localStorage.setItem('mg_movimientos_inventario', JSON.stringify(res.movimientos));
+      }
+    });
+
+    // Cargar proveedores reales desde MySQL
+    purchaseService.getProveedores().then((res) => {
+      if (res.success && res.proveedores && res.proveedores.length > 0) {
+        setProveedores(res.proveedores);
+        localStorage.setItem('mg_proveedores', JSON.stringify(res.proveedores));
+      }
+    });
+
+    // Cargar compras y reabastecimiento reales desde MySQL
+    purchaseService.getCompras().then((res) => {
+      if (res.success && res.compras && res.compras.length > 0) {
+        setCompras(res.compras);
+        localStorage.setItem('mg_compras', JSON.stringify(res.compras));
+      }
+    });
+
+    // Cargar categorías reales desde MySQL
+    categoryService.getCategorias().then((res) => {
+      if (res.success && res.categorias && res.categorias.length > 0) {
+        setCategorias(res.categorias);
+        localStorage.setItem('mg_categorias', JSON.stringify(res.categorias));
+      }
+    });
+
+    // Cargar marcas reales desde MySQL
+    brandModelService.getMarcas().then((res) => {
+      if (res.success && res.marcas && res.marcas.length > 0) {
+        setMarcas(res.marcas);
+        localStorage.setItem('mg_marcas', JSON.stringify(res.marcas));
+      }
+    });
+  };
+
+  useEffect(() => {
+    loadDatabaseData(selectedSedeId);
+  }, [selectedSedeId]);
 
   const [ordenes, setOrdenes] = useState(() => {
     const saved = localStorage.getItem('mg_ordenes_servicio');
@@ -191,12 +314,17 @@ const [clientes, setClientes] = useState<Cliente[]>(() => {
   const [actionLoading, setActionLoading] = useState(false);
   const [showForceChangePassword, setShowForceChangePassword] = useState(false);
 
-
   // View Navigation
   const [activeView, setActiveView] = useState<string>('ventas');
   const [serviceClientId, setServiceClientId] = useState<number | undefined>();
   const [sidebarOpenMobile, setSidebarOpenMobile] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    if (currentUser) {
+      loadDatabaseData();
+    }
+  }, [activeView, currentUser]);
 
   // Modals & Notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -267,7 +395,12 @@ const [clientes, setClientes] = useState<Cliente[]>(() => {
   }, [currentUser]);
 
   useEffect(() => {
-    if (currentUser && currentUser.rol !== 'ADMIN' && !currentUser.modulosPermitidos.includes(activeView)) {
+    if (
+      currentUser &&
+      currentUser.rol !== 'ADMIN' &&
+      currentUser.rol !== 'SUPERADMIN' &&
+      !currentUser.modulosPermitidos.includes(activeView)
+    ) {
       setActiveView(currentUser.modulosPermitidos[0] || 'ventas');
     }
   }, [activeView, currentUser]);
@@ -313,6 +446,7 @@ const [clientes, setClientes] = useState<Cliente[]>(() => {
   // Handlers
   const handleLoginSuccess = (user: Usuario) => {
     setCurrentUser(user);
+    loadDatabaseData();
     // Si requiere cambio de contraseña, mostrar modal bloqueante
     if (user.requiereCambioPassword) {
       setShowForceChangePassword(true);
@@ -333,6 +467,7 @@ const [clientes, setClientes] = useState<Cliente[]>(() => {
 
   const handleForceChangeSuccess = () => {
     setShowForceChangePassword(false);
+    loadDatabaseData();
     if (currentUser) {
       const updatedUser = { ...currentUser, requiereCambioPassword: false };
       setCurrentUser(updatedUser);
@@ -364,7 +499,13 @@ const [clientes, setClientes] = useState<Cliente[]>(() => {
   const handleSaveOrden = (orden: typeof INITIAL_ORDENES_SERVICIO[number]) => {
     setOrdenes((prev) => {
       const exists = prev.find((item) => item.id === orden.id);
-      return exists ? prev.map((item) => (item.id === orden.id ? orden : item)) : [orden, ...prev];
+      const updated = exists ? prev.map((item) => (item.id === orden.id ? orden : item)) : [orden, ...prev];
+      try {
+        localStorage.setItem('mg_ordenes_servicio', JSON.stringify(updated));
+      } catch (err) {
+        console.warn('Error saving to localStorage:', err);
+      }
+      return updated;
     });
     setEquipos((previous) => {
       const equipment: Equipo = {
@@ -388,23 +529,28 @@ const [clientes, setClientes] = useState<Cliente[]>(() => {
     setActiveView('taller');
   };
 
-  const handleSaveMovimiento = (movimiento: MovimientoInventario) => {
-    setMovimientos((previous) => [movimiento, ...previous]);
+  const handleSaveMovimiento = async (data: any) => {
+    setActionLoading(true);
+    const res = await transferService.createMovimiento(data);
+    setActionLoading(false);
+    if (res.success) {
+      showToast('Movimiento registrado', res.message || 'Solicitud registrada exitosamente.', 'success');
+      loadDatabaseData();
+    } else {
+      showToast('Error', res.message || 'No se pudo registrar el movimiento.', 'error');
+    }
   };
 
-  const handleUpdateMovimiento = (movimiento: MovimientoInventario) => {
-    setMovimientos((previous) => {
-      const previousMovement = previous.find((item) => item.id === movimiento.id);
-      if (previousMovement && previousMovement.estado !== 'RECIBIDO' && movimiento.estado === 'RECIBIDO') {
-        updateProductBranchStock(previousMovement.productoId, previousMovement.sedeOrigen, -previousMovement.cantidad);
-        updateProductBranchStock(previousMovement.productoId, previousMovement.sedeDestino, previousMovement.cantidad);
-      }
-      if (previousMovement?.estado === 'RECIBIDO' && movimiento.estado !== 'RECIBIDO') {
-        updateProductBranchStock(previousMovement.productoId, previousMovement.sedeOrigen, previousMovement.cantidad);
-        updateProductBranchStock(previousMovement.productoId, previousMovement.sedeDestino, -previousMovement.cantidad);
-      }
-      return previous.map((item) => item.id === movimiento.id ? movimiento : item);
-    });
+  const handleUpdateMovimiento = async (movimientoId: number, nuevoEstado: EstadoMovimientoInventario) => {
+    setActionLoading(true);
+    const res = await transferService.updateEstado(movimientoId, nuevoEstado, currentUser?.nombreCompleto || 'Usuario');
+    setActionLoading(false);
+    if (res.success) {
+      showToast('Estado actualizado', res.message || `Movimiento actualizado a ${nuevoEstado}.`, 'success');
+      loadDatabaseData();
+    } else {
+      showToast('Error', res.message || 'No se pudo actualizar el estado.', 'error');
+    }
   };
 
   const updateProductBranchStock = (productoId: number, branch: string, delta: number) => {
@@ -456,6 +602,9 @@ const [clientes, setClientes] = useState<Cliente[]>(() => {
   // Sales Actions
   const handleSaveVenta = (newVenta: Venta) => {
     setVentas((prev) => [newVenta, ...prev]);
+    // Recargar inventario y datos actualizados desde MySQL
+    loadDatabaseData();
+
     // Also record in active cash register turn if open
     const openShift = cajasTurnos.find((c) => c.estado === 'ABIERTA');
     if (openShift) {
@@ -476,66 +625,76 @@ const [clientes, setClientes] = useState<Cliente[]>(() => {
   };
 
   // Purchases Actions
-  const handleSaveCompra = (newCompra: Compra) => {
-    setCompras((prev) => [newCompra, ...prev]);
-    // Increase stock in target branch and update unit cost
-    setProductos((prev) =>
-      prev.map((prod) => {
-        const item = newCompra.items.find((it) => it.productoId === prod.id);
-        if (!item) return prod;
-        const branchStock: Record<string, number> = { ...(prod.stockPorSede || { [prod.sucursal]: prod.stock }) };
-        branchStock[newCompra.sucursalDestino] = (branchStock[newCompra.sucursalDestino] || 0) + item.cantidad;
-        const newTotalStock = Object.values(branchStock).reduce((a: number, b: number) => a + b, 0);
-        return {
-          ...prod,
-          stock: newTotalStock,
-          stockPorSede: branchStock,
-          precioCosto: item.precioCostoUnitario,
-        };
-      })
-    );
+  const handleSaveCompra = async (newCompra: Compra) => {
+    setActionLoading(true);
+    const res = await purchaseService.createCompra({
+      codigoComprobante: newCompra.codigoComprobante,
+      proveedorId: newCompra.proveedorId,
+      sucursalDestino: newCompra.sucursalDestino,
+      compradorId: newCompra.compradorId,
+      items: newCompra.items.map((it) => ({
+        productoId: it.productoId,
+        cantidad: it.cantidad,
+        precioCostoUnitario: it.precioCostoUnitario,
+      })),
+      total: newCompra.total,
+      observaciones: newCompra.observaciones,
+    });
+    setActionLoading(false);
+
+    if (res.success) {
+      showToast('Compra registrada', res.message || 'Inventario reabastecido correctamente.', 'success');
+      loadDatabaseData();
+    } else {
+      showToast('Error', res.message || 'No se pudo guardar la compra en el servidor.', 'error');
+    }
   };
 
-  const handleAnularCompra = (compraId: number) => {
-    const target = compras.find((c) => c.id === compraId);
-    if (!target || target.estado === 'ANULADA') return;
+  const handleAnularCompra = async (compraId: number) => {
+    setActionLoading(true);
+    const res = await purchaseService.anularCompra(compraId);
+    setActionLoading(false);
 
-    setCompras((prev) =>
-      prev.map((c) => (c.id === compraId ? { ...c, estado: 'ANULADA' } : c))
-    );
-
-    // Revert stock
-    setProductos((prev) =>
-      prev.map((prod) => {
-        const item = target.items.find((it) => it.productoId === prod.id);
-        if (!item) return prod;
-        const branchStock: Record<string, number> = { ...(prod.stockPorSede || { [prod.sucursal]: prod.stock }) };
-        branchStock[target.sucursalDestino] = Math.max(
-          0,
-          (branchStock[target.sucursalDestino] || 0) - item.cantidad
-        );
-        const newTotalStock = Object.values(branchStock).reduce((a: number, b: number) => a + b, 0);
-        return {
-          ...prod,
-          stock: newTotalStock,
-          stockPorSede: branchStock,
-        };
-      })
-    );
+    if (res.success) {
+      showToast('Compra anulada', res.message || 'Stock revertido correctamente.', 'info');
+      loadDatabaseData();
+    } else {
+      showToast('Error', res.message || 'No se pudo anular la compra.', 'error');
+    }
   };
 
   // Suppliers Actions
-  const handleSaveProveedor = (prov: Proveedor) => {
-    setProveedores((prev) => {
-      const exists = prev.find((p) => p.id === prov.id);
-      return exists ? prev.map((p) => (p.id === prov.id ? prov : p)) : [prov, ...prev];
+  const handleSaveProveedor = async (prov: Proveedor) => {
+    setActionLoading(true);
+    const res = await purchaseService.createProveedor({
+      ruc: prov.ruc,
+      razonSocial: prov.razonSocial,
+      contacto: prov.contacto,
+      telefono: prov.telefono,
+      email: prov.email,
+      direccion: prov.direccion,
     });
+    setActionLoading(false);
+
+    if (res.success) {
+      showToast('Proveedor registrado', res.message || 'Proveedor guardado correctamente.', 'success');
+      loadDatabaseData();
+    } else {
+      showToast('Error', res.message || 'No se pudo guardar el proveedor.', 'error');
+    }
   };
 
-  const handleToggleProveedorEstado = (id: number) => {
-    setProveedores((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, estado: p.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO' } : p))
-    );
+  const handleToggleProveedorEstado = async (id: number) => {
+    setActionLoading(true);
+    const res = await purchaseService.toggleProveedorEstado(id);
+    setActionLoading(false);
+
+    if (res.success) {
+      showToast('Estado de proveedor actualizado', res.message || 'Estado actualizado.', 'info');
+      loadDatabaseData();
+    } else {
+      showToast('Error', res.message || 'No se pudo cambiar el estado.', 'error');
+    }
   };
 
   // Cash Register Actions
@@ -705,8 +864,14 @@ const [clientes, setClientes] = useState<Cliente[]>(() => {
             onBackToClient={() => setIsWorkerAccess(false)}
           />
         ) : (
-          <ServiceTrackingView ordenes={ordenes} onWorkerAccess={() => setIsWorkerAccess(true)} />
+          <ServiceTrackingView
+            ordenes={ordenes}
+            onWorkerAccess={() => setIsWorkerAccess(true)}
+            onSaveOrden={handleSaveOrden}
+            onShowToast={showToast}
+          />
         )}
+
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       </div>
     );
@@ -740,6 +905,9 @@ const [clientes, setClientes] = useState<Cliente[]>(() => {
         ordenes={ordenes}
         productos={productos}
         clientes={clientes}
+        sucursales={sucursales}
+        selectedSedeId={selectedSedeId}
+        onSelectSede={handleSelectSede}
       />
 
       {/* Main Layout Area */}
@@ -787,8 +955,14 @@ const [clientes, setClientes] = useState<Cliente[]>(() => {
               ordenes={ordenes}
               equipos={equipos}
               clientes={clientes}
+              usuarios={usuarios}
+              categorias={categorias}
+              proveedores={proveedores}
               setActiveView={setActiveView}
               onOpenServices={handleOpenServices}
+              onSaveOrden={handleSaveOrden}
+              onSaveCliente={handleSaveCliente}
+              onShowToast={showToast}
             />
           )}
 
@@ -799,6 +973,7 @@ const [clientes, setClientes] = useState<Cliente[]>(() => {
               movimientos={movimientos}
               sucursales={sucursales}
               setActiveView={setActiveView}
+              onShowToast={showToast}
             />
           )}
 
@@ -809,6 +984,8 @@ const [clientes, setClientes] = useState<Cliente[]>(() => {
               clientes={clientes}
               productos={productos}
               marcas={marcas}
+              categorias={categorias}
+              proveedores={proveedores}
               equipos={equipos}
               currentUser={currentUser}
               onSaveOrden={handleSaveOrden}
@@ -855,23 +1032,11 @@ const [clientes, setClientes] = useState<Cliente[]>(() => {
             />
           )}
 
-          {activeView === 'categorias' && (
-            <CategoriesView
-              categorias={categorias}
-              onSaveCategoria={handleSaveCategoria}
-              onToggleEstado={handleToggleCategoriaStatus}
+          {(activeView === 'catalogo' || activeView === 'categorias' || activeView === 'marcas') && (
+            <CatalogMasterView
+              initialTab={activeView === 'marcas' ? 'marcas' : 'categorias'}
               onShowToast={showToast}
-              readOnly={currentUser.rol !== 'ADMIN' && currentUser.rol !== 'ALMACEN'}
-            />
-          )}
-
-          {activeView === 'marcas' && (
-            <BrandsView
-              marcas={marcas}
-              onSaveMarca={handleSaveMarca}
-              onToggleEstado={handleToggleMarcaStatus}
-              onShowToast={showToast}
-              readOnly={currentUser.rol !== 'ADMIN' && currentUser.rol !== 'ALMACEN'}
+              readOnly={currentUser.rol !== 'ADMIN' && currentUser.rol !== 'SUPERADMIN' && currentUser.rol !== 'ALMACEN'}
             />
           )}
 
@@ -883,7 +1048,11 @@ const [clientes, setClientes] = useState<Cliente[]>(() => {
               onSaveSucursal={(suc) =>
                 setSucursales((prev) => {
                   const exists = prev.find((s) => s.id === suc.id);
-                  return exists ? prev.map((s) => (s.id === suc.id ? suc : s)) : [...prev, suc];
+                  const next = exists ? prev.map((s) => (s.id === suc.id ? suc : s)) : [...prev, suc];
+                  if (suc.esPrincipal) {
+                    return next.map((s) => (s.id === suc.id ? s : { ...s, esPrincipal: false }));
+                  }
+                  return next;
                 })
               }
               onToggleSucursalEstado={(id) =>

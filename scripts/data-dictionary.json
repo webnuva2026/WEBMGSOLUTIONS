@@ -1,0 +1,3886 @@
+{
+  "database": "mg_solutions_db",
+  "tables": [
+    {
+      "name": "categorias",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(100)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "descripcion",
+          "dataType": "text",
+          "columnType": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "requiere_serie",
+          "dataType": "tinyint",
+          "columnType": "tinyint(1)",
+          "nullable": false,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_categorias_estado"
+        }
+      ]
+    },
+    {
+      "name": "clientes",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id_cliente",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "id_persona",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "ruc",
+          "dataType": "varchar",
+          "columnType": "varchar(11)",
+          "nullable": true,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "razon_social",
+          "dataType": "varchar",
+          "columnType": "varchar(200)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "nombre_empresa",
+          "dataType": "varchar",
+          "columnType": "varchar(200)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        },
+        {
+          "name": "updated_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_clientes_estado"
+        },
+        {
+          "column": "id_persona",
+          "referencedTable": "personas",
+          "referencedColumn": "id_persona",
+          "constraint": "fk_clientes_persona"
+        }
+      ]
+    },
+    {
+      "name": "codigos_recuperacion",
+      "comment": "C├│digos OTP temporales para recuperaci├│n de contrase├▒a",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "usuario_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "codigo",
+          "dataType": "varchar",
+          "columnType": "varchar(10)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "C├│digo OTP de 6 d├¡gitos"
+        },
+        {
+          "name": "expira_en",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "Tiempo l├¡mite de validez (15 min)"
+        },
+        {
+          "name": "utilizado",
+          "dataType": "tinyint",
+          "columnType": "tinyint(1)",
+          "nullable": true,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "TRUE = c├│digo ya canjeado"
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "usuario_id",
+          "referencedTable": "usuarios",
+          "referencedColumn": "id",
+          "constraint": "fk_recuperacion_usuario"
+        }
+      ]
+    },
+    {
+      "name": "compras",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "codigo",
+          "dataType": "varchar",
+          "columnType": "varchar(20)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "proveedor_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "sucursal_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "total",
+          "dataType": "decimal",
+          "columnType": "decimal(10,2)",
+          "nullable": false,
+          "key": "",
+          "default": "0.00",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "usuario_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "fecha_compra",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        },
+        {
+          "name": "observaciones",
+          "dataType": "text",
+          "columnType": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "updated_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_compras_estado"
+        },
+        {
+          "column": "proveedor_id",
+          "referencedTable": "proveedores",
+          "referencedColumn": "id",
+          "constraint": "fk_compras_proveedor"
+        },
+        {
+          "column": "sucursal_id",
+          "referencedTable": "sucursales",
+          "referencedColumn": "id",
+          "constraint": "fk_compras_sucursal"
+        },
+        {
+          "column": "usuario_id",
+          "referencedTable": "usuarios",
+          "referencedColumn": "id",
+          "constraint": "fk_compras_usuario"
+        }
+      ]
+    },
+    {
+      "name": "detalle_compras",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "compra_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "producto_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "cantidad",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "precio_costo_unit",
+          "dataType": "decimal",
+          "columnType": "decimal(10,2)",
+          "nullable": false,
+          "key": "",
+          "default": "0.00",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "subtotal",
+          "dataType": "decimal",
+          "columnType": "decimal(10,2)",
+          "nullable": false,
+          "key": "",
+          "default": "0.00",
+          "extra": "",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "compra_id",
+          "referencedTable": "compras",
+          "referencedColumn": "id",
+          "constraint": "fk_dc_compra"
+        },
+        {
+          "column": "producto_id",
+          "referencedTable": "productos",
+          "referencedColumn": "id",
+          "constraint": "fk_dc_producto"
+        }
+      ]
+    },
+    {
+      "name": "detalle_modelo",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "modelo_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "atributo",
+          "dataType": "varchar",
+          "columnType": "varchar(100)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "valor",
+          "dataType": "varchar",
+          "columnType": "varchar(500)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "modelo_id",
+          "referencedTable": "modelos",
+          "referencedColumn": "id",
+          "constraint": "fk_dm_modelo"
+        }
+      ]
+    },
+    {
+      "name": "detalle_ventas",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "venta_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "producto_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "cantidad",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "precio_unitario",
+          "dataType": "decimal",
+          "columnType": "decimal(10,2)",
+          "nullable": false,
+          "key": "",
+          "default": "0.00",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "descuento",
+          "dataType": "decimal",
+          "columnType": "decimal(10,2)",
+          "nullable": false,
+          "key": "",
+          "default": "0.00",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "subtotal",
+          "dataType": "decimal",
+          "columnType": "decimal(10,2)",
+          "nullable": false,
+          "key": "",
+          "default": "0.00",
+          "extra": "",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "producto_id",
+          "referencedTable": "productos",
+          "referencedColumn": "id",
+          "constraint": "fk_dv_producto"
+        },
+        {
+          "column": "venta_id",
+          "referencedTable": "ventas",
+          "referencedColumn": "id",
+          "constraint": "fk_dv_venta"
+        }
+      ]
+    },
+    {
+      "name": "empresas",
+      "comment": "Datos fiscales e institucionales de la empresa",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "ruc",
+          "dataType": "char",
+          "columnType": "char(11)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "RUC de 11 d├¡gitos SUNAT"
+        },
+        {
+          "name": "razon_social",
+          "dataType": "varchar",
+          "columnType": "varchar(200)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "Raz├│n social registrada en SUNAT"
+        },
+        {
+          "name": "nombre_comercial",
+          "dataType": "varchar",
+          "columnType": "varchar(200)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "Nombre comercial visible"
+        },
+        {
+          "name": "direccion_fiscal",
+          "dataType": "varchar",
+          "columnType": "varchar(255)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "email",
+          "dataType": "varchar",
+          "columnType": "varchar(150)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "telefono",
+          "dataType": "varchar",
+          "columnType": "varchar(30)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "departamento",
+          "dataType": "varchar",
+          "columnType": "varchar(100)",
+          "nullable": true,
+          "key": "",
+          "default": "Lambayeque",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "provincia",
+          "dataType": "varchar",
+          "columnType": "varchar(100)",
+          "nullable": true,
+          "key": "",
+          "default": "Chiclayo",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "distrito",
+          "dataType": "varchar",
+          "columnType": "varchar(100)",
+          "nullable": true,
+          "key": "",
+          "default": "Chiclayo",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "ubigeo",
+          "dataType": "char",
+          "columnType": "char(6)",
+          "nullable": true,
+          "key": "",
+          "default": "140101",
+          "extra": "",
+          "comment": "C├│digo UBIGEO INEI"
+        },
+        {
+          "name": "logo_url",
+          "dataType": "varchar",
+          "columnType": "varchar(500)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "URL del logo de la empresa"
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        },
+        {
+          "name": "updated_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "equipos",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "cliente_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "tipo_equipo_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "marca",
+          "dataType": "varchar",
+          "columnType": "varchar(100)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "modelo",
+          "dataType": "varchar",
+          "columnType": "varchar(100)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "numero_serie",
+          "dataType": "varchar",
+          "columnType": "varchar(100)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "accesorios",
+          "dataType": "text",
+          "columnType": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "fecha_registro",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        },
+        {
+          "name": "updated_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "cliente_id",
+          "referencedTable": "clientes",
+          "referencedColumn": "id_cliente",
+          "constraint": "fk_equipos_cliente"
+        },
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_equipos_estado"
+        },
+        {
+          "column": "tipo_equipo_id",
+          "referencedTable": "tipos_equipo",
+          "referencedColumn": "id",
+          "constraint": "fk_equipos_tipo"
+        }
+      ]
+    },
+    {
+      "name": "estados",
+      "comment": "Cat├ílogo maestro de estados operativo/inactivo del sistema",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(30)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "ACTIVO, INACTIVO, SUSPENDIDO, DESCONTINUADO"
+        },
+        {
+          "name": "descripcion",
+          "dataType": "varchar",
+          "columnType": "varchar(150)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "estados_movimiento",
+      "comment": "Catálogo de estados de traslados y movimientos entre sedes",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "codigo",
+          "dataType": "varchar",
+          "columnType": "varchar(30)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(50)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "color_hex",
+          "dataType": "varchar",
+          "columnType": "varchar(10)",
+          "nullable": true,
+          "key": "",
+          "default": "#3B82F6",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_estados_mov_estado"
+        }
+      ]
+    },
+    {
+      "name": "estados_orden_servicio",
+      "comment": "Catálogo maestro de estados del flujo de servicio técnico",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "codigo",
+          "dataType": "varchar",
+          "columnType": "varchar(40)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(60)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "descripcion",
+          "dataType": "varchar",
+          "columnType": "varchar(150)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "secuencia_orden",
+          "dataType": "tinyint",
+          "columnType": "tinyint unsigned",
+          "nullable": false,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "color_hex",
+          "dataType": "varchar",
+          "columnType": "varchar(10)",
+          "nullable": true,
+          "key": "",
+          "default": "#004A99",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_estados_orden_estado"
+        }
+      ]
+    },
+    {
+      "name": "estados_unidad",
+      "comment": "Catálogo de estado operativo de unidades con serie/IMEI",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "codigo",
+          "dataType": "varchar",
+          "columnType": "varchar(30)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(60)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_estados_unidad_estado"
+        }
+      ]
+    },
+    {
+      "name": "marcas",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(100)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "descripcion",
+          "dataType": "text",
+          "columnType": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "categoria_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "categoria_id",
+          "referencedTable": "categorias",
+          "referencedColumn": "id",
+          "constraint": "fk_marcas_categoria"
+        },
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_marcas_estado"
+        }
+      ]
+    },
+    {
+      "name": "metodos_pago",
+      "comment": "Catálogo maestro de métodos de pago aceptados",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "codigo",
+          "dataType": "varchar",
+          "columnType": "varchar(30)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "EFECTIVO, YAPE, PLIN, TARJETA, TRANSFERENCIA"
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(60)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "requiere_referencia",
+          "dataType": "tinyint",
+          "columnType": "tinyint(1)",
+          "nullable": true,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "TRUE si requiere Nro de operación"
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_metodos_pago_estado"
+        }
+      ]
+    },
+    {
+      "name": "modelos",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "marca_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(150)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "descripcion",
+          "dataType": "text",
+          "columnType": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_modelos_estado"
+        },
+        {
+          "column": "marca_id",
+          "referencedTable": "marcas",
+          "referencedColumn": "id",
+          "constraint": "fk_modelos_marca"
+        }
+      ]
+    },
+    {
+      "name": "ordenes_servicio",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "codigo",
+          "dataType": "varchar",
+          "columnType": "varchar(20)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "cliente_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "equipo_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "usuario_recibe_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "usuario_tecnico_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "descripcion_falla",
+          "dataType": "text",
+          "columnType": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "diagnostico",
+          "dataType": "text",
+          "columnType": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "solucion",
+          "dataType": "text",
+          "columnType": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "costo_servicio",
+          "dataType": "decimal",
+          "columnType": "decimal(10,2)",
+          "nullable": false,
+          "key": "",
+          "default": "0.00",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_orden_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "prioridad_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "fecha_ingreso",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        },
+        {
+          "name": "fecha_promesa",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "fecha_entrega",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "observaciones",
+          "dataType": "text",
+          "columnType": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "updated_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "cliente_id",
+          "referencedTable": "clientes",
+          "referencedColumn": "id_cliente",
+          "constraint": "fk_os_cliente"
+        },
+        {
+          "column": "equipo_id",
+          "referencedTable": "equipos",
+          "referencedColumn": "id",
+          "constraint": "fk_os_equipo"
+        },
+        {
+          "column": "estado_orden_id",
+          "referencedTable": "estados_orden_servicio",
+          "referencedColumn": "id",
+          "constraint": "fk_os_estado"
+        },
+        {
+          "column": "prioridad_id",
+          "referencedTable": "prioridades_orden",
+          "referencedColumn": "id",
+          "constraint": "fk_os_prioridad"
+        },
+        {
+          "column": "usuario_recibe_id",
+          "referencedTable": "usuarios",
+          "referencedColumn": "id",
+          "constraint": "fk_os_recibe"
+        },
+        {
+          "column": "usuario_tecnico_id",
+          "referencedTable": "usuarios",
+          "referencedColumn": "id",
+          "constraint": "fk_os_tecnico"
+        }
+      ]
+    },
+    {
+      "name": "permisos",
+      "comment": "Catálogo de módulos y paneles con permisos del sistema",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "codigo",
+          "dataType": "varchar",
+          "columnType": "varchar(50)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "Código del módulo (ej: ventas, taller, compras)"
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(100)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "Nombre del panel o funcionalidad"
+        },
+        {
+          "name": "descripcion",
+          "dataType": "varchar",
+          "columnType": "varchar(255)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "categoria",
+          "dataType": "varchar",
+          "columnType": "varchar(50)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "Operaciones, Almacén, Taller, Administración"
+        },
+        {
+          "name": "icono",
+          "dataType": "varchar",
+          "columnType": "varchar(50)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "Icono lucide-react"
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": "FK a estados (1=ACTIVO, 2=INACTIVO)"
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_permisos_estado"
+        }
+      ]
+    },
+    {
+      "name": "personas",
+      "comment": "Datos personales base de clientes y contactos externos",
+      "columns": [
+        {
+          "name": "id_persona",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "tipo_documento_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "dni",
+          "dataType": "varchar",
+          "columnType": "varchar(20)",
+          "nullable": true,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "nombres",
+          "dataType": "varchar",
+          "columnType": "varchar(100)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "apellidos",
+          "dataType": "varchar",
+          "columnType": "varchar(100)",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "telefono",
+          "dataType": "varchar",
+          "columnType": "varchar(10)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "correo",
+          "dataType": "varchar",
+          "columnType": "varchar(100)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "direccion",
+          "dataType": "varchar",
+          "columnType": "varchar(200)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": "FK a tabla estados (1=ACTIVO, 2=INACTIVO)"
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        },
+        {
+          "name": "updated_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_personas_estado"
+        },
+        {
+          "column": "tipo_documento_id",
+          "referencedTable": "tipos_documento",
+          "referencedColumn": "id",
+          "constraint": "fk_personas_tipo_doc"
+        }
+      ]
+    },
+    {
+      "name": "prioridades_orden",
+      "comment": "Catálogo de niveles de prioridad de órdenes de servicio",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "codigo",
+          "dataType": "varchar",
+          "columnType": "varchar(20)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "NORMAL, ALTA, URGENTE"
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(40)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "nivel_orden",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": "1=Bajo, 2=Medio, 3=Alto"
+        },
+        {
+          "name": "color_hex",
+          "dataType": "varchar",
+          "columnType": "varchar(10)",
+          "nullable": true,
+          "key": "",
+          "default": "#3B82F6",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_prioridades_estado"
+        }
+      ]
+    },
+    {
+      "name": "producto_detalle",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "producto_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "tipo_detalle_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "valor",
+          "dataType": "varchar",
+          "columnType": "varchar(500)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "producto_id",
+          "referencedTable": "productos",
+          "referencedColumn": "id",
+          "constraint": "fk_pd_producto"
+        }
+      ]
+    },
+    {
+      "name": "producto_series_garantia",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "venta_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "producto_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "numero_serie",
+          "dataType": "varchar",
+          "columnType": "varchar(100)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "cliente_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "meses_garantia",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "",
+          "default": "12",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "fecha_venta",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        },
+        {
+          "name": "estado_garantia",
+          "dataType": "varchar",
+          "columnType": "varchar(50)",
+          "nullable": false,
+          "key": "",
+          "default": "ACTIVA",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "observaciones",
+          "dataType": "text",
+          "columnType": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "producto_stock_sede",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "producto_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "sucursal_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "stock",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "updated_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "producto_id",
+          "referencedTable": "productos",
+          "referencedColumn": "id",
+          "constraint": "fk_pss_producto"
+        },
+        {
+          "column": "sucursal_id",
+          "referencedTable": "sucursales",
+          "referencedColumn": "id",
+          "constraint": "fk_pss_sucursal"
+        }
+      ]
+    },
+    {
+      "name": "producto_unidades",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "producto_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "sucursal_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "numero_serie",
+          "dataType": "varchar",
+          "columnType": "varchar(100)",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_unidad_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "tipo_destino",
+          "dataType": "enum",
+          "columnType": "enum('VENTA','SERVICIO_TALLER','MIXTO')",
+          "nullable": false,
+          "key": "",
+          "default": "VENTA",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "disponible_venta",
+          "dataType": "tinyint",
+          "columnType": "tinyint(1)",
+          "nullable": false,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "condicion",
+          "dataType": "enum",
+          "columnType": "enum('NUEVO','USADO','OPEN_BOX','DANADO_RECEPCION','DEFECTUOSO')",
+          "nullable": false,
+          "key": "",
+          "default": "NUEVO",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "observaciones",
+          "dataType": "text",
+          "columnType": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "costo_adquisicion",
+          "dataType": "decimal",
+          "columnType": "decimal(10,2)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "fecha_ingreso",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        },
+        {
+          "name": "updated_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_unidad_id",
+          "referencedTable": "estados_unidad",
+          "referencedColumn": "id",
+          "constraint": "fk_pu_estado_unidad"
+        },
+        {
+          "column": "producto_id",
+          "referencedTable": "productos",
+          "referencedColumn": "id",
+          "constraint": "fk_pu_producto"
+        },
+        {
+          "column": "sucursal_id",
+          "referencedTable": "sucursales",
+          "referencedColumn": "id",
+          "constraint": "fk_pu_sucursal"
+        }
+      ]
+    },
+    {
+      "name": "productos",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "codigo",
+          "dataType": "varchar",
+          "columnType": "varchar(50)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(200)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "descripcion",
+          "dataType": "text",
+          "columnType": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "categoria_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "marca_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "modelo_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "requiere_serie",
+          "dataType": "tinyint",
+          "columnType": "tinyint(1)",
+          "nullable": false,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "disponible_venta",
+          "dataType": "tinyint",
+          "columnType": "tinyint(1)",
+          "nullable": false,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "tipo_destino",
+          "dataType": "enum",
+          "columnType": "enum('VENTA','SERVICIO_TALLER','MIXTO')",
+          "nullable": false,
+          "key": "",
+          "default": "VENTA",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "precio_venta",
+          "dataType": "decimal",
+          "columnType": "decimal(10,2)",
+          "nullable": false,
+          "key": "",
+          "default": "0.00",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "precio_costo",
+          "dataType": "decimal",
+          "columnType": "decimal(10,2)",
+          "nullable": false,
+          "key": "",
+          "default": "0.00",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "stock_minimo",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        },
+        {
+          "name": "updated_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "categoria_id",
+          "referencedTable": "categorias",
+          "referencedColumn": "id",
+          "constraint": "fk_productos_categoria"
+        },
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_productos_estado"
+        },
+        {
+          "column": "marca_id",
+          "referencedTable": "marcas",
+          "referencedColumn": "id",
+          "constraint": "fk_productos_marca"
+        },
+        {
+          "column": "modelo_id",
+          "referencedTable": "modelos",
+          "referencedColumn": "id",
+          "constraint": "fk_productos_modelo"
+        }
+      ]
+    },
+    {
+      "name": "proveedores",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "ruc",
+          "dataType": "varchar",
+          "columnType": "varchar(11)",
+          "nullable": true,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "razon_social",
+          "dataType": "varchar",
+          "columnType": "varchar(200)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "nombre_contacto",
+          "dataType": "varchar",
+          "columnType": "varchar(150)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "telefono",
+          "dataType": "varchar",
+          "columnType": "varchar(20)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "email",
+          "dataType": "varchar",
+          "columnType": "varchar(100)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "direccion",
+          "dataType": "text",
+          "columnType": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        },
+        {
+          "name": "updated_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_proveedores_estado"
+        }
+      ]
+    },
+    {
+      "name": "rol_permisos",
+      "comment": "Permisos predeterminados asignados a cada rol del sistema",
+      "columns": [
+        {
+          "name": "rol_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "",
+          "comment": "FK a roles"
+        },
+        {
+          "name": "permiso_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "",
+          "comment": "FK a permisos"
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "permiso_id",
+          "referencedTable": "permisos",
+          "referencedColumn": "id",
+          "constraint": "fk_rol_permisos_permiso"
+        },
+        {
+          "column": "rol_id",
+          "referencedTable": "roles",
+          "referencedColumn": "id",
+          "constraint": "fk_rol_permisos_rol"
+        }
+      ]
+    },
+    {
+      "name": "roles",
+      "comment": "Roles del sistema con m├│dulos predeterminados por rol",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "codigo",
+          "dataType": "varchar",
+          "columnType": "varchar(30)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "ADMIN, SECRETARIA, TECNICO, FACTURADOR, ALMACEN, CAJERO"
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(60)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "Nombre legible del rol"
+        },
+        {
+          "name": "descripcion",
+          "dataType": "varchar",
+          "columnType": "varchar(255)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "modulos_predeterminados",
+          "dataType": "json",
+          "columnType": "json",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "Array JSON de m├│dulos base heredados: [\"ventas\",\"caja\"]"
+        },
+        {
+          "name": "es_sistema",
+          "dataType": "tinyint",
+          "columnType": "tinyint(1)",
+          "nullable": true,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "TRUE = no se puede eliminar ni renombrar"
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": "FK a estados (1=ACTIVO, 2=INACTIVO)"
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        },
+        {
+          "name": "updated_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_roles_estado"
+        }
+      ]
+    },
+    {
+      "name": "sesiones_tokens",
+      "comment": "Auditor├¡a de sesiones JWT activas y revocadas",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "usuario_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "token_hash",
+          "dataType": "varchar",
+          "columnType": "varchar(255)",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "├Ültimos 32 chars del JWT como identificador"
+        },
+        {
+          "name": "ip_origen",
+          "dataType": "varchar",
+          "columnType": "varchar(45)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "IP del cliente (IPv4/IPv6)"
+        },
+        {
+          "name": "user_agent",
+          "dataType": "varchar",
+          "columnType": "varchar(255)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "expira_en",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "revocado",
+          "dataType": "tinyint",
+          "columnType": "tinyint(1)",
+          "nullable": true,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "TRUE = sesi├│n cerrada o revocada"
+        },
+        {
+          "name": "revocado_en",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "Timestamp de revocaci├│n"
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "usuario_id",
+          "referencedTable": "usuarios",
+          "referencedColumn": "id",
+          "constraint": "fk_sesiones_usuario"
+        }
+      ]
+    },
+    {
+      "name": "sucursales",
+      "comment": "Sedes y almacenes operativos",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "empresa_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "codigo",
+          "dataType": "varchar",
+          "columnType": "varchar(10)",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "C├│digo correlativo: 0000, 0001, etc."
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(120)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "direccion",
+          "dataType": "varchar",
+          "columnType": "varchar(255)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "telefono",
+          "dataType": "varchar",
+          "columnType": "varchar(30)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "es_principal",
+          "dataType": "tinyint",
+          "columnType": "tinyint(1)",
+          "nullable": true,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "TRUE = sede principal de la empresa"
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": "FK a estados (1=ACTIVO, 2=INACTIVO)"
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        },
+        {
+          "name": "updated_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "empresa_id",
+          "referencedTable": "empresas",
+          "referencedColumn": "id",
+          "constraint": "fk_sucursales_empresa"
+        },
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_sucursales_estado"
+        }
+      ]
+    },
+    {
+      "name": "tecnicos",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "usuario_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "especialidad",
+          "dataType": "varchar",
+          "columnType": "varchar(200)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_tecnicos_estado"
+        },
+        {
+          "column": "usuario_id",
+          "referencedTable": "usuarios",
+          "referencedColumn": "id",
+          "constraint": "fk_tecnicos_usuario"
+        }
+      ]
+    },
+    {
+      "name": "tipos_comprobante",
+      "comment": "Catálogo maestro de tipos de comprobante de pago",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "codigo",
+          "dataType": "varchar",
+          "columnType": "varchar(25)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "BOLETA, FACTURA, NOTA_VENTA, GUIA_REMISION"
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(60)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "serie_defecto",
+          "dataType": "varchar",
+          "columnType": "varchar(10)",
+          "nullable": true,
+          "key": "",
+          "default": "B001",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_tipos_comp_estado"
+        }
+      ]
+    },
+    {
+      "name": "tipos_documento",
+      "comment": "Catálogo maestro de tipos de documento de identidad",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "codigo",
+          "dataType": "varchar",
+          "columnType": "varchar(15)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "DNI, RUC, CE, PASAPORTE"
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(60)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "longitud_exacta",
+          "dataType": "tinyint",
+          "columnType": "tinyint unsigned",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "8 para DNI, 11 para RUC"
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": "FK a estados"
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_tipos_doc_estado"
+        }
+      ]
+    },
+    {
+      "name": "tipos_equipo",
+      "comment": "Catálogo maestro de tipos de equipo recibidos en taller",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "codigo",
+          "dataType": "varchar",
+          "columnType": "varchar(30)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "LAPTOP, PC_ESCRITORIO, etc."
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(60)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_tipos_equipo_estado"
+        }
+      ]
+    },
+    {
+      "name": "tipos_producto_detalle",
+      "comment": "Catálogo de destino de unidades individuales de producto",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "codigo",
+          "dataType": "varchar",
+          "columnType": "varchar(30)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "nombre",
+          "dataType": "varchar",
+          "columnType": "varchar(60)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_tipos_prod_det_estado"
+        }
+      ]
+    },
+    {
+      "name": "usuario_permisos",
+      "comment": "Permisos específicos por usuario para acceso a paneles",
+      "columns": [
+        {
+          "name": "usuario_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "",
+          "comment": "FK a usuarios"
+        },
+        {
+          "name": "permiso_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "",
+          "comment": "FK a permisos"
+        },
+        {
+          "name": "permitido",
+          "dataType": "tinyint",
+          "columnType": "tinyint(1)",
+          "nullable": false,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": "1 = Concedido, 0 = Denegado"
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "permiso_id",
+          "referencedTable": "permisos",
+          "referencedColumn": "id",
+          "constraint": "fk_usuario_permisos_permiso"
+        },
+        {
+          "column": "usuario_id",
+          "referencedTable": "usuarios",
+          "referencedColumn": "id",
+          "constraint": "fk_usuario_permisos_usuario"
+        }
+      ]
+    },
+    {
+      "name": "usuarios",
+      "comment": "Cuentas del personal con credenciales y datos sensibles cifrados",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "username",
+          "dataType": "varchar",
+          "columnType": "varchar(50)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": "Nombre de usuario para login"
+        },
+        {
+          "name": "password_hash",
+          "dataType": "varchar",
+          "columnType": "varchar(255)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "Hash bcrypt de la contrase├▒a"
+        },
+        {
+          "name": "nombre_completo",
+          "dataType": "varchar",
+          "columnType": "varchar(150)",
+          "nullable": false,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "email",
+          "dataType": "varchar",
+          "columnType": "varchar(150)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "telefono_cifrado",
+          "dataType": "varchar",
+          "columnType": "varchar(500)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "Tel├®fono encriptado con AES-256-CBC"
+        },
+        {
+          "name": "tipo_documento_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "numero_documento_cifrado",
+          "dataType": "varchar",
+          "columnType": "varchar(500)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "Nro de documento encriptado con AES-256-CBC"
+        },
+        {
+          "name": "persona_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "rol_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "sucursal_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": "Sede base asignada al usuario"
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": "FK a estados (1=ACTIVO, 2=INACTIVO, 3=SUSPENDIDO)"
+        },
+        {
+          "name": "avatar_url",
+          "dataType": "varchar",
+          "columnType": "varchar(255)",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "requiere_cambio_password",
+          "dataType": "tinyint",
+          "columnType": "tinyint(1)",
+          "nullable": true,
+          "key": "",
+          "default": "1",
+          "extra": "",
+          "comment": "Forzar cambio de contrase├▒a en primer login"
+        },
+        {
+          "name": "intentos_fallidos",
+          "dataType": "tinyint",
+          "columnType": "tinyint unsigned",
+          "nullable": true,
+          "key": "",
+          "default": "0",
+          "extra": "",
+          "comment": "Contador de intentos fallidos de login (max 5)"
+        },
+        {
+          "name": "bloqueado_hasta",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "Fecha/hora hasta cuando est├í bloqueado por intentos fallidos"
+        },
+        {
+          "name": "ultimo_acceso",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        },
+        {
+          "name": "updated_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": true,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
+          "comment": ""
+        },
+        {
+          "name": "created_by",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": "ID del admin que cre├│ esta cuenta"
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_usuarios_estado"
+        },
+        {
+          "column": "persona_id",
+          "referencedTable": "personas",
+          "referencedColumn": "id_persona",
+          "constraint": "fk_usuarios_persona"
+        },
+        {
+          "column": "rol_id",
+          "referencedTable": "roles",
+          "referencedColumn": "id",
+          "constraint": "fk_usuarios_rol"
+        },
+        {
+          "column": "sucursal_id",
+          "referencedTable": "sucursales",
+          "referencedColumn": "id",
+          "constraint": "fk_usuarios_sucursal"
+        },
+        {
+          "column": "tipo_documento_id",
+          "referencedTable": "tipos_documento",
+          "referencedColumn": "id",
+          "constraint": "fk_usuarios_tipo_doc"
+        }
+      ]
+    },
+    {
+      "name": "vendedores",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "usuario_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "comision_pct",
+          "dataType": "decimal",
+          "columnType": "decimal(5,2)",
+          "nullable": false,
+          "key": "",
+          "default": "0.00",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "created_at",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_vendedores_estado"
+        },
+        {
+          "column": "usuario_id",
+          "referencedTable": "usuarios",
+          "referencedColumn": "id",
+          "constraint": "fk_vendedores_usuario"
+        }
+      ]
+    },
+    {
+      "name": "ventas",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "PRI",
+          "default": null,
+          "extra": "auto_increment",
+          "comment": ""
+        },
+        {
+          "name": "codigo_comprobante",
+          "dataType": "varchar",
+          "columnType": "varchar(20)",
+          "nullable": false,
+          "key": "UNI",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "tipo_comprobante_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "cliente_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "usuario_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "sucursal_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "subtotal",
+          "dataType": "decimal",
+          "columnType": "decimal(10,2)",
+          "nullable": false,
+          "key": "",
+          "default": "0.00",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "igv",
+          "dataType": "decimal",
+          "columnType": "decimal(10,2)",
+          "nullable": false,
+          "key": "",
+          "default": "0.00",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "total",
+          "dataType": "decimal",
+          "columnType": "decimal(10,2)",
+          "nullable": false,
+          "key": "",
+          "default": "0.00",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "metodo_pago_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": true,
+          "key": "MUL",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "estado_id",
+          "dataType": "int",
+          "columnType": "int",
+          "nullable": false,
+          "key": "MUL",
+          "default": "1",
+          "extra": "",
+          "comment": ""
+        },
+        {
+          "name": "fecha_venta",
+          "dataType": "datetime",
+          "columnType": "datetime",
+          "nullable": false,
+          "key": "MUL",
+          "default": "CURRENT_TIMESTAMP",
+          "extra": "DEFAULT_GENERATED",
+          "comment": ""
+        },
+        {
+          "name": "observaciones",
+          "dataType": "text",
+          "columnType": "text",
+          "nullable": true,
+          "key": "",
+          "default": null,
+          "extra": "",
+          "comment": ""
+        }
+      ],
+      "foreignKeys": [
+        {
+          "column": "cliente_id",
+          "referencedTable": "clientes",
+          "referencedColumn": "id_cliente",
+          "constraint": "fk_ventas_cliente"
+        },
+        {
+          "column": "estado_id",
+          "referencedTable": "estados",
+          "referencedColumn": "id",
+          "constraint": "fk_ventas_estado"
+        },
+        {
+          "column": "metodo_pago_id",
+          "referencedTable": "metodos_pago",
+          "referencedColumn": "id",
+          "constraint": "fk_ventas_metodo_pago"
+        },
+        {
+          "column": "sucursal_id",
+          "referencedTable": "sucursales",
+          "referencedColumn": "id",
+          "constraint": "fk_ventas_sucursal"
+        },
+        {
+          "column": "tipo_comprobante_id",
+          "referencedTable": "tipos_comprobante",
+          "referencedColumn": "id",
+          "constraint": "fk_ventas_comprobante"
+        },
+        {
+          "column": "usuario_id",
+          "referencedTable": "usuarios",
+          "referencedColumn": "id",
+          "constraint": "fk_ventas_usuario"
+        }
+      ]
+    }
+  ]
+}

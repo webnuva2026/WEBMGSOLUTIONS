@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import {
   FileText,
-  User,
+  Mail,
   Lock,
+  Eye,
+  EyeOff,
   AlertCircle,
   ShieldAlert,
   CheckCircle2,
@@ -12,8 +14,10 @@ import {
   Receipt,
   Boxes,
 } from 'lucide-react';
+
 import { Usuario } from '../types';
 import { authService } from '../services/auth.service';
+import { PasswordRecoveryModal } from './PasswordRecoveryModal';
 
 interface LoginScreenProps {
   usuarios: Usuario[];
@@ -26,34 +30,39 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onLoginSuccess,
   onBackToClient,
 }) => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isRecoveryOpen, setIsRecoveryOpen] = useState(false);
+
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+
+    const cleanEmail = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      setErrorMsg('Por favor ingrese un correo electrónico válido (ejemplo: superadmin@mgsolutions.pe).');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const res = await authService.login(username.trim(), password);
+      const res = await authService.login(cleanEmail, password);
       if (res.success && res.user) {
         onLoginSuccess(res.user as Usuario);
       } else {
-        setErrorMsg(res.message || 'Usuario o contraseña incorrectos. Verifique sus credenciales.');
+        setErrorMsg(res.message || 'Correo o contraseña incorrectos. Verifique sus credenciales.');
       }
     } catch (err: any) {
       setErrorMsg('Error de conexión con el servidor. Verifique que el backend esté activo.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickFill = (user: Usuario) => {
-    setUsername(user.username);
-    setPassword('');
-    setErrorMsg(null);
   };
 
   return (
@@ -137,25 +146,26 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             )}
 
             <form onSubmit={handleLogin} className="space-y-5">
-              {/* Username Field */}
+              {/* Email Field */}
               <div>
                 <label
                   className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2"
-                  htmlFor="username"
+                  htmlFor="email"
                 >
-                  Usuario o Correo
+                  Correo Electrónico Corporativo *
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
-                    <User className="w-5 h-5" />
+                    <Mail className="w-5 h-5" />
                   </div>
                   <input
-                    id="username"
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Ej. tmilagros"
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="ejemplo: superadmin@mgsolutions.pe"
                     required
+                    autoComplete="email"
                     className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-300 rounded-xl text-base font-semibold text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#00346F] focus:border-[#00346F] transition-all"
                   />
                 </div>
@@ -172,12 +182,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   </label>
                   <button
                     type="button"
-                    onClick={() =>
-                      alert(
-                        'Para restablecer su contraseña, comuníquese con el Administrador del Sistema MG SOLUTIONS GROUP.'
-                      )
-                    }
-                    className="text-xs font-semibold text-[#004A99] hover:underline"
+                    onClick={() => setIsRecoveryOpen(true)}
+                    className="text-xs font-semibold text-[#004A99] hover:underline cursor-pointer"
                   >
                     ¿Olvidé mi contraseña?
                   </button>
@@ -188,15 +194,31 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   </div>
                   <input
                     id="password"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     required
-                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-300 rounded-xl text-base font-semibold text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#00346F] focus:border-[#00346F] transition-all"
+                    autoComplete="current-password"
+                    className="w-full pl-12 pr-12 py-3.5 bg-slate-50 border border-slate-300 rounded-xl text-base font-semibold text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#00346F] focus:border-[#00346F] transition-all"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer transition-colors"
+                    tabIndex={-1}
+                    title={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-5 h-5" />
+                    ) : (
+                      <Eye className="w-5 h-5" />
+                    )}
+                  </button>
                 </div>
               </div>
+
 
               {/* Submit Button */}
               <div className="pt-2">
@@ -217,39 +239,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               </div>
             </form>
           </div>
-
-          {/* Quick Demo Access Bar */}
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-              Acceso Rápido / Probar Validación de Estados
-            </p>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => handleQuickFill(usuarios[0])}
-                className="p-3 text-left bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm text-emerald-900 transition-colors flex items-center justify-between cursor-pointer"
-              >
-                <div>
-                  <span className="font-bold block truncate">tmilagros</span>
-                  <span className="text-xs text-emerald-700">Admin (ACTIVO)</span>
-                </div>
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickFill(usuarios[3])}
-                className="p-3 text-left bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl text-sm text-red-900 transition-colors flex items-center justify-between cursor-pointer"
-                title="Probar usuario inactivo"
-              >
-                <div>
-                  <span className="font-bold block truncate">ex_cajero_luis</span>
-                  <span className="text-xs text-red-700">Cajero (INACTIVO)</span>
-                </div>
-                <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -257,6 +246,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       <footer className="max-w-6xl w-full mx-auto text-center py-3 text-xs text-slate-500">
         © 2026 MG SOLUTIONS GROUP S.A.C. • Todos los derechos reservados.
       </footer>
+
+      {/* Password Recovery Modal */}
+      <PasswordRecoveryModal
+        isOpen={isRecoveryOpen}
+        onClose={() => setIsRecoveryOpen(false)}
+        onSuccessReset={(userOrEmail) => {
+          setEmail(userOrEmail);
+          setPassword('');
+          setErrorMsg(null);
+        }}
+      />
     </div>
   );
 };

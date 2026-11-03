@@ -26,6 +26,16 @@ import {
   UserPlus,
   ArrowRight,
   SlidersHorizontal,
+  Barcode,
+  ShieldCheck,
+  ShieldAlert,
+  AlertCircle,
+  Loader2,
+  RefreshCw,
+  Mail,
+  Send,
+  Check,
+  Sparkles,
 } from 'lucide-react';
 import {
   Producto,
@@ -38,6 +48,10 @@ import {
   TipoComprobante,
   MetodoPago,
 } from '../types';
+import { saleService, CreateVentaPayload } from '../services/sale.service';
+import { warehouseService, UnidadFisicaSerie } from '../services/warehouse.service';
+import { consultaService } from '../services/consulta.service';
+
 
 interface SalesPOSViewProps {
   currentUser: Usuario;
@@ -83,16 +97,22 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
   // Checkout State
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('BOLETA');
   const [isConsumidorFinal, setIsConsumidorFinal] = useState<boolean>(true);
-  const [selectedClientId, setSelectedClientId] = useState<number | undefined>(clientes[0]?.id);
+  const [selectedClientId, setSelectedClientId] = useState<number | undefined>(
+    () => clientes.find((c) => c.estado === 'ACTIVO')?.id
+  );
   const [clientSearchQuery, setClientSearchQuery] = useState('');
   const [isClientSearchOpen, setIsClientSearchOpen] = useState(false);
   const [metodoPago, setMetodoPago] = useState<MetodoPago>('EFECTIVO');
   const [montoRecibido, setMontoRecibido] = useState<string>('');
   const [descuentoGlobal, setDescuentoGlobal] = useState<number>(0);
+  const [createdClientLocal, setCreatedClientLocal] = useState<Cliente | null>(null);
 
   // Modal State for Generated Receipt
   const [completedVenta, setCompletedVenta] = useState<Venta | null>(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [receiptEmailInput, setReceiptEmailInput] = useState<string>('');
+  const [isSendingReceiptEmail, setIsSendingReceiptEmail] = useState<boolean>(false);
+  const [isReceiptEmailSent, setIsReceiptEmailSent] = useState<boolean>(false);
 
   // Quick Client Modal
   const [isQuickClientOpen, setIsQuickClientOpen] = useState(false);
@@ -105,15 +125,213 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
     direccionFiscal: '',
   });
 
-  // History Filter
+  // Consulta SUNAT (RUC) / RENIEC (DNI) State
+  const [isQueryingDoc, setIsQueryingDoc] = useState(false);
+  const [docStatusBadge, setDocStatusBadge] = useState<string | null>(null);
+
+  // Consultar documento ante SUNAT / RENIEC
+  const handleQueryDocument = async () => {
+    const num = quickClientForm.numeroDocumento.trim();
+    const tipo = quickClientForm.tipoDocumento;
+
+    if (tipo === 'DNI' && num.length !== 8) {
+      onShowToast('DNI inválido', 'El DNI debe contener 8 dígitos numéricos.', 'warning');
+      return;
+    }
+    if (tipo === 'RUC' && num.length !== 11) {
+      onShowToast('RUC inválido', 'El RUC debe contener 11 dígitos numéricos.', 'warning');
+      return;
+    }
+
+    setIsQueryingDoc(true);
+    setDocStatusBadge(null);
+    try {
+      if (tipo === 'RUC') {
+        const res = await consultaService.consultarRuc(num);
+        if (res.success && res.data) {
+          setQuickClientForm((prev) => ({
+            ...prev,
+            razonSocial: res.data!.razonSocial,
+            direccionFiscal: res.data!.direccion || prev.direccionFiscal,
+          }));
+          setDocStatusBadge(`SUNAT: ${res.data.estado} - ${res.data.condicion}`);
+          onShowToast('SUNAT: RUC Consultado', `${res.data.razonSocial} (${res.data.condicion})`, 'success');
+        } else {
+          onShowToast('No encontrado', res.message || 'No se encontró el RUC en SUNAT.', 'warning');
+        }
+      } else {
+        const res = await consultaService.consultarDni(num);
+        if (res.success && res.data) {
+          setQuickClientForm((prev) => ({
+            ...prev,
+            razonSocial: res.data!.nombreCompleto,
+          }));
+          setDocStatusBadge('RENIEC: Identidad Verificada');
+          onShowToast('RENIEC: DNI Consultado', res.data.nombreCompleto, 'success');
+        } else {
+          onShowToast('No encontrado', res.message || 'No se encontró el DNI en RENIEC.', 'warning');
+        }
+      }
+    } catch (err: any) {
+      console.error('Error al consultar documento:', err);
+      onShowToast('Error', 'Fallo de conexión al consultar el documento.', 'error');
+    } finally {
+      setIsQueryingDoc(false);
+    }
+  };
+
+  // History Filter & DB Sales Sync
   const [historySearch, setHistorySearch] = useState('');
+  const [dbVentas, setDbVentas] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [isSubmittingSale, setIsSubmittingSale] = useState(false);
+
+
+  // Enviar comprobante por correo electrónico
+  const handleSendReceiptEmail = async () => {
+    if (!completedVenta) return;
+    const targetEmail = receiptEmailInput.trim();
+    if (!targetEmail || !targetEmail.includes('@')) {
+      onShowToast('Correo inválido', 'Ingrese un correo electrónico válido para enviar el comprobante.', 'warning');
+      return;
+    }
+
+    setIsSendingReceiptEmail(true);
+    try {
+      const res = await saleService.enviarComprobanteEmail(completedVenta.id, targetEmail, {
+        clienteNombre: completedVenta.clienteNombre,
+        clienteDocumento: completedVenta.clienteDocumento,
+        clienteDireccion: completedVenta.clienteDireccion,
+        clienteEmail: targetEmail,
+      });
+
+      if (res.success) {
+        setIsReceiptEmailSent(true);
+        onShowToast(
+          'Correo enviado con éxito',
+          res.simulated
+            ? `Comprobante simulado en consola para ${targetEmail}`
+            : `El comprobante fue enviado exitosamente a ${targetEmail}`,
+          'success'
+        );
+      } else {
+        onShowToast('Error al enviar correo', res.message || 'No se pudo enviar el correo.', 'error');
+      }
+    } catch (err: any) {
+      console.error('Error al enviar comprobante por correo:', err);
+      onShowToast('Error', 'No se pudo conectar con el servicio de correo.', 'error');
+    } finally {
+      setIsSendingReceiptEmail(false);
+    }
+  };
+
+  // Series Selection Modal State
+  const [seriesModal, setSeriesModal] = useState<{
+    item: ItemVenta;
+    availableUnits: UnidadFisicaSerie[];
+    selectedSeries: string[];
+    manualInput: string;
+    loading: boolean;
+  } | null>(null);
+
+  // Cargar historial de ventas desde MySQL
+  const loadDbVentas = React.useCallback(async () => {
+    setLoadingHistory(true);
+    try {
+      const res = await saleService.getVentas({ limit: 100 });
+      if (res.success && res.ventas) {
+        setDbVentas(res.ventas);
+      }
+    } catch (err) {
+
+      console.error('Error al cargar ventas desde MySQL:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (activeTab === 'history') {
+      loadDbVentas();
+    }
+  }, [activeTab, loadDbVentas]);
+
+  // Abrir selector de serie para productos seriados
+  const handleOpenSeriesModal = async (item: ItemVenta) => {
+    const currentSelected = item.series || [];
+    setSeriesModal({
+      item,
+      availableUnits: [],
+      selectedSeries: [...currentSelected],
+      manualInput: '',
+      loading: true,
+    });
+
+    try {
+      const res = await warehouseService.getUnidades(item.productoId);
+      const units = res.success && res.unidades ? res.unidades.filter(u => u.estadoCodigo === 'DISPONIBLE' || u.estadoUnidadId === 1) : [];
+      setSeriesModal((prev) => (prev ? { ...prev, availableUnits: units, loading: false } : null));
+    } catch (err) {
+      console.error('Error al consultar series disponibles:', err);
+      setSeriesModal((prev) => (prev ? { ...prev, loading: false } : null));
+    }
+  };
+
+  const handleSaveSeriesForCartItem = (productoId: number, series: string[]) => {
+    setCart((prev) =>
+      prev.map((i) => (i.productoId === productoId ? { ...i, series } : i))
+    );
+    setSeriesModal(null);
+    onShowToast('Series asignadas', `${series.length} serie(s) vinculadas para garantía.`, 'info');
+  };
 
   // Selected client object
-  const selectedClient = clientes.find((c) => c.id === selectedClientId);
+  const selectedClient = clientes.find((c) => c.id === selectedClientId) || (createdClientLocal?.id === selectedClientId ? createdClientLocal : null);
 
-  // Extract unique categories and brands from products
+  // Valida si el carrito contiene Laptops o productos que obligatoriamente requieren cliente para garantía y serie
+  const requiresIdentifiedClient = useMemo(() => {
+    return cart.some((item) => {
+      const prod = productos.find((p) => p.id === item.productoId);
+      const cat = ((prod?.categoriaNombre || item.categoria || '') + '').toUpperCase();
+      const nom = ((prod?.nombre || item.nombre || '') + '').toUpperCase();
+      return (
+        Boolean(prod?.requiereSerie) ||
+        cat.includes('LAPTOP') ||
+        cat.includes('NOTEBOOK') ||
+        cat.includes('COMPUTADORA') ||
+        cat.includes('IMPRESORA') ||
+        nom.includes('LAPTOP') ||
+        nom.includes('NOTEBOOK') ||
+        Boolean(item.series && item.series.length > 0)
+      );
+    });
+  }, [cart, productos]);
+
+  // Si entra un producto con garantía (como laptop) y estaba en Consumidor Final, cambiar automáticamente a Buscar Cliente
+  React.useEffect(() => {
+    if (requiresIdentifiedClient && isConsumidorFinal) {
+      setIsConsumidorFinal(false);
+      setIsClientSearchOpen(true);
+      onShowToast(
+        'Cliente Requerido para Garantía',
+        'La venta incluye Laptops o Equipos con garantía. Debe seleccionar o registrar un cliente.',
+        'info'
+      );
+    }
+  }, [requiresIdentifiedClient]);
+
+  // Extract unique categories and brands from products (excluyendo repuestos exclusivos de taller)
   const categoriesList = useMemo(() => {
-    const set = new Set(productos.map((p) => p.categoriaNombre).filter(Boolean));
+    const set = new Set(
+      productos
+        .filter(
+          (p) =>
+            !p.categoriaNombre?.toUpperCase().includes('REPUESTO') &&
+            p.tipoDestino !== 'SERVICIO_TALLER'
+        )
+        .map((p) => p.categoriaNombre)
+        .filter(Boolean)
+    );
     return ['TODAS', ...Array.from(set)];
   }, [productos]);
 
@@ -126,6 +344,17 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
   const filteredProducts = useMemo(() => {
     return productos.filter((p) => {
       if (p.estado !== 'ACTIVO') return false;
+
+      // Ocultar productos no aptos para venta en mostrador (ej. uso interno de taller o lote en cuarentena/dañado)
+      if (p.disponibleVenta === false) return false;
+
+      // Excluir repuestos de uso interno técnico que no se venden en mostrador
+      if (
+        p.categoriaNombre?.toUpperCase().includes('REPUESTO') ||
+        p.tipoDestino === 'SERVICIO_TALLER'
+      ) {
+        return false;
+      }
 
       // Category filter
       if (selectedCategory !== 'TODAS' && p.categoriaNombre !== selectedCategory) {
@@ -266,14 +495,15 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
       fechaRegistro: new Date().toISOString().split('T')[0],
     };
 
+    setCreatedClientLocal(newClient);
     if (onSaveCliente) onSaveCliente(newClient);
     handleSelectClient(newClient);
     setIsQuickClientOpen(false);
     onShowToast('Cliente registrado', `${newClient.razonSocial} seleccionado para la venta.`, 'success');
   };
 
-  // Process Checkout & Emit Sale
-  const handleProcessSale = () => {
+  // Process Checkout & Emit Sale to MySQL
+  const handleProcessSale = async () => {
     if (cart.length === 0) {
       onShowToast('Carrito vacío', 'Agregue al menos un producto para realizar la venta.', 'warning');
       return;
@@ -281,6 +511,17 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
 
     if (!isConsumidorFinal && !selectedClient) {
       onShowToast('Cliente requerido', 'Seleccione un cliente o marque Consumidor Final.', 'warning');
+      return;
+    }
+
+    if (requiresIdentifiedClient && (isConsumidorFinal || !selectedClient)) {
+      onShowToast(
+        'Cliente Obligatorio por Garantía',
+        'La compra de una Laptop o equipo con garantía requiere obligatoriamente registrar o asociar un cliente para activar su póliza de cobertura.',
+        'warning'
+      );
+      setIsConsumidorFinal(false);
+      setIsClientSearchOpen(true);
       return;
     }
 
@@ -299,50 +540,139 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
       return;
     }
 
-    // Generate Code: B001-00010X or F001-00004X or NV-00010X
-    const prefix = tipoComprobante === 'FACTURA' ? 'F001' : tipoComprobante === 'BOLETA' ? 'B001' : 'NV01';
-    const nextNumber = String(ventas.length + 101).padStart(6, '0');
-    const codigoComprobante = `${prefix}-${nextNumber}`;
+    // Validar productos seriados (Laptops, Impresoras)
+    for (const item of cart) {
+      const prod = productos.find((p) => p.id === item.productoId);
+      const isSeriado =
+        prod?.requiereSerie ||
+        prod?.categoriaNombre?.toUpperCase().includes('LAPTOP') ||
+        prod?.categoriaNombre?.toUpperCase().includes('IMPRESORA');
 
-    const newSale: Venta = {
-      id: Date.now(),
-      codigoComprobante,
-      tipoComprobante,
-      clienteId: isConsumidorFinal ? undefined : selectedClient?.id,
-      clienteDocumento: isConsumidorFinal ? '00000000' : selectedClient?.numeroDocumento || '00000000',
-      clienteNombre: isConsumidorFinal ? 'CLIENTES VARIOS / CONSUMIDOR FINAL' : selectedClient?.razonSocial || 'CLIENTE',
-      clienteDireccion: isConsumidorFinal ? 'Chiclayo' : selectedClient?.direccionFiscal,
-      vendedorId: currentUser.id,
-      vendedorNombre: currentUser.nombreCompleto,
-      sucursal: activeSucursalNombre,
-      fecha: new Date().toLocaleString('es-PE', { hour12: false }),
-      items: [...cart],
-      subtotal: parseFloat(subtotalBase.toFixed(2)),
-      igv: parseFloat(igvCalculado.toFixed(2)),
-      descuento: descuentoGlobal,
-      total: parseFloat(totalNeto.toFixed(2)),
-      metodoPago,
-      montoRecibido: metodoPago === 'EFECTIVO' ? montoRecibidoNum || totalNeto : totalNeto,
-      vuelto: metodoPago === 'EFECTIVO' ? parseFloat(vueltoCalculado.toFixed(2)) : 0,
-      estado: 'EMITIDO',
-    };
+      if (isSeriado && (!item.series || item.series.length < item.cantidad)) {
+        onShowToast(
+          'Número de serie requerido',
+          `El producto "${item.nombre}" requiere asignar ${item.cantidad} número(s) de serie para el registro de garantía.`,
+          'warning'
+        );
+        handleOpenSeriesModal(item);
+        return;
+      }
+    }
 
-    // 1. Save sale to global state / localStorage
-    onSaveVenta(newSale);
+    setIsSubmittingSale(true);
+    try {
+      const tipoCompId = tipoComprobante === 'FACTURA' ? 2 : tipoComprobante === 'BOLETA' ? 1 : 3;
+      const metodoId = metodoPago === 'EFECTIVO' ? 1 : metodoPago === 'YAPE_PLIN' ? 2 : metodoPago === 'TARJETA' ? 4 : 5;
+      const targetSuc = sucursales.find(s => s.nombre === activeSucursalNombre) || sucursales[0];
+      const finalSucursalId = targetSuc ? targetSuc.id : (currentUser?.sucursalId || 1);
 
-    // 2. Discount stock for all sold items
-    cart.forEach((item) => {
-      onUpdateProductoStock(item.productoId, -item.cantidad);
-    });
+      const salePayload: CreateVentaPayload = {
+        clienteId: isConsumidorFinal ? 0 : (selectedClient?.id || 0),
+        tipoComprobanteId: tipoCompId,
+        metodoPagoId: metodoId,
+        sucursalId: finalSucursalId,
+        items: cart.map((item) => ({
+          productoId: item.productoId,
+          cantidad: item.cantidad,
+          precioUnitario: item.precioUnitario,
+          descuento: 0,
+          series: item.series || [],
+        })),
+        observaciones: `Venta POS emitida por ${currentUser.nombreCompleto}`,
+      };
 
-    // 3. Open receipt modal and reset cart
-    setCompletedVenta(newSale);
-    setIsReceiptModalOpen(true);
-    setCart([]);
-    setMontoRecibido('');
-    setDescuentoGlobal(0);
+      const res = await saleService.createVenta(salePayload);
 
-    onShowToast('Venta realizada con éxito', `Comprobante ${newSale.codigoComprobante} emitido correctamente.`, 'success');
+      // Si el backend responde error, alertamos
+      if (!res.success) {
+        onShowToast('Error en venta', res.message || 'No se pudo registrar la venta en la base de datos.', 'error');
+        return;
+      }
+
+      const prefix = tipoComprobante === 'FACTURA' ? 'F001' : tipoComprobante === 'BOLETA' ? 'B001' : 'NV01';
+      const nextNumber = String(ventas.length + 101).padStart(6, '0');
+      const codigoComprobanteFinal = res.venta?.codigoComprobante || `${prefix}-${nextNumber}`;
+
+      const newSale: Venta = {
+        id: res.venta?.id || Date.now(),
+        codigoComprobante: codigoComprobanteFinal,
+        tipoComprobante,
+        clienteId: isConsumidorFinal ? undefined : selectedClient?.id,
+        clienteDocumento: isConsumidorFinal ? '00000000' : selectedClient?.numeroDocumento || '00000000',
+        clienteNombre: isConsumidorFinal ? 'CLIENTES VARIOS / CONSUMIDOR FINAL' : selectedClient?.razonSocial || 'CLIENTE',
+        clienteDireccion: isConsumidorFinal ? 'Chiclayo' : selectedClient?.direccionFiscal,
+        vendedorId: currentUser.id,
+        vendedorNombre: currentUser.nombreCompleto,
+        sucursal: activeSucursalNombre,
+        fecha: res.venta?.fechaVenta ? new Date(res.venta.fechaVenta).toLocaleString('es-PE', { hour12: false }) : new Date().toLocaleString('es-PE', { hour12: false }),
+        items: [...cart],
+        subtotal: parseFloat(subtotalBase.toFixed(2)),
+        igv: parseFloat(igvCalculado.toFixed(2)),
+        descuento: descuentoGlobal,
+        total: parseFloat(totalNeto.toFixed(2)),
+        metodoPago,
+        montoRecibido: metodoPago === 'EFECTIVO' ? montoRecibidoNum || totalNeto : totalNeto,
+        vuelto: metodoPago === 'EFECTIVO' ? parseFloat(vueltoCalculado.toFixed(2)) : 0,
+        estado: 'EMITIDO',
+      };
+
+      // 1. Guardar local y actualizar stocks
+      onSaveVenta(newSale);
+      cart.forEach((item) => {
+        onUpdateProductoStock(item.productoId, -item.cantidad);
+      });
+
+      // 2. Abrir ticket y resetear carrito
+      setCompletedVenta(newSale);
+      const targetEmail = (selectedClient?.email || '').trim();
+      setReceiptEmailInput(targetEmail);
+      setIsReceiptEmailSent(false);
+      setIsReceiptModalOpen(true);
+      setCart([]);
+      setMontoRecibido('');
+      setDescuentoGlobal(0);
+
+      // 3. Envío automático del comprobante y detalle de compra por correo al cliente si tiene email
+      if (targetEmail && targetEmail.includes('@')) {
+        saleService
+          .enviarComprobanteEmail(res.venta?.id || newSale.id, targetEmail, {
+            clienteNombre: newSale.clienteNombre,
+            clienteDocumento: newSale.clienteDocumento,
+            codigoComprobante: newSale.codigoComprobante,
+            total: newSale.total,
+            itemsCount: newSale.items.length,
+          })
+          .then((mailRes) => {
+            if (mailRes.success) {
+              setIsReceiptEmailSent(true);
+              onShowToast(
+                'Comprobante Enviado al Correo',
+                `Se envió automáticamente el detalle de compra y garantía a ${targetEmail}`,
+                'success'
+              );
+            }
+          })
+          .catch((mailErr) => {
+            console.warn('Auto-envío de comprobante por correo:', mailErr);
+          });
+      }
+
+      onShowToast(
+        'Venta realizada con éxito',
+        targetEmail
+          ? `Comprobante ${codigoComprobanteFinal} emitido. Enviando copia a ${targetEmail}...`
+          : `Comprobante ${codigoComprobanteFinal} emitido en MySQL. Garantía activada.`,
+        'success'
+      );
+
+      // Refrescar lista de ventas de la BD
+      loadDbVentas();
+    } catch (err: any) {
+      console.error('Error al procesar venta:', err);
+      onShowToast('Error', 'Ocurrió un error inesperado al emitir la venta.', 'error');
+    } finally {
+      setIsSubmittingSale(false);
+    }
   };
 
   // Helper icon for product category
@@ -356,16 +686,16 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-[#F8F9FF] min-h-screen overflow-hidden">
+    <div className="flex-1 flex flex-col bg-[#F8F9FF] h-[calc(100vh-4.2rem)] max-h-[calc(100vh-4.2rem)] overflow-hidden">
       {/* Top POS Header Bar */}
-      <header className="bg-white border-b border-slate-200 px-6 py-3.5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-xs">
+      <header className="bg-white border-b border-slate-200 px-6 py-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-xs flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#00346F] text-white flex items-center justify-center shadow-md">
+          <div className="w-9 h-9 rounded-xl bg-[#00346F] text-white flex items-center justify-center shadow-md">
             <ShoppingCart className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold text-[#0B1C30]">
+              <h1 className="text-sm font-bold text-[#0B1C30]">
                 Punto de Venta • MG Solutions
               </h1>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
@@ -422,30 +752,49 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
 
       {/* TAB 1: TERMINAL POS */}
       {activeTab === 'pos' && (
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
           {/* LEFT SIDE: PRODUCT CATALOG */}
-          <div className="flex-1 flex flex-col p-4 md:p-6 overflow-y-auto space-y-4">
+          <div className="flex-1 flex flex-col p-3 md:p-4 overflow-y-auto space-y-3 min-h-0">
             {/* Search and Filters Bar */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
-              <div className="flex flex-col sm:flex-row gap-3">
+            <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs space-y-2.5">
+              <div className="flex flex-col sm:flex-row gap-2.5">
                 <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                   <input
                     type="text"
                     value={searchProductQuery}
                     onChange={(e) => setSearchProductQuery(e.target.value)}
-                    placeholder="Buscar laptop, impresora, accesorio por nombre, modelo o código de barra..."
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const q = searchProductQuery.trim().toLowerCase();
+                        if (!q) return;
+                        const match = filteredProducts.find(
+                          (p) =>
+                            p.codigoBarra?.toLowerCase() === q ||
+                            p.codigo.toLowerCase() === q ||
+                            p.nombre.toLowerCase().includes(q)
+                        ) || filteredProducts[0];
+                        if (match) {
+                          handleAddToCart(match);
+                          setSearchProductQuery('');
+                          onShowToast('Producto añadido', `${match.nombre} agregado al carrito`, 'info');
+                        }
+                      }
+                    }}
+                    placeholder="Escanear con pistola o buscar por código / modelo (Enter para agregar)..."
                     className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:bg-white focus:outline-none focus:border-[#00346F]"
                   />
                   {searchProductQuery && (
                     <button
                       onClick={() => setSearchProductQuery('')}
-                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                      className="absolute right-3 top-2 text-slate-400 hover:text-slate-600 text-xs font-bold"
                     >
                       ×
                     </button>
                   )}
                 </div>
+
 
                 <div className="flex items-center gap-2">
                   <select
@@ -596,9 +945,9 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
           </div>
 
           {/* RIGHT SIDE: CART & CHECKOUT TERMINAL */}
-          <div className="w-full lg:w-[420px] bg-white border-l border-slate-200 flex flex-col shadow-lg">
+          <div className="w-full lg:w-[410px] xl:w-[430px] bg-white border-l border-slate-200 flex flex-col h-full overflow-hidden shadow-lg flex-shrink-0">
             {/* Cart Header */}
-            <div className="p-4 border-b border-slate-200 bg-[#EFF4FF] flex justify-between items-center">
+            <div className="px-3.5 py-2.5 border-b border-slate-200 bg-[#EFF4FF] flex justify-between items-center flex-shrink-0">
               <div className="flex items-center gap-2">
                 <ShoppingCart className="w-4 h-4 text-[#00346F]" />
                 <h2 className="text-xs font-bold text-[#00346F] uppercase tracking-wider">
@@ -616,17 +965,17 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
               )}
             </div>
 
-            {/* Cart Items List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[220px] max-h-[300px] lg:max-h-none">
+            {/* Cart Items List - Max height constrained so checkout panel is never pushed down */}
+            <div className="overflow-y-auto p-2.5 space-y-2 border-b border-slate-200 max-h-[26vh] xl:max-h-[30vh] bg-slate-50/50 flex-shrink-0">
               {cart.length > 0 ? (
                 cart.map((item) => (
                   <div
                     key={item.productoId}
-                    className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 hover:bg-slate-100/60 transition-colors"
+                    className="p-2.5 bg-white border border-slate-200 rounded-xl space-y-1.5 hover:border-blue-300 transition-colors shadow-2xs"
                   >
                     <div className="flex justify-between items-start gap-2">
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-800 line-clamp-2">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-xs font-bold text-slate-800 line-clamp-1">
                           {item.nombre}
                         </h4>
                         <p className="font-mono text-[10px] text-slate-500">
@@ -636,19 +985,19 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                       <button
                         type="button"
                         onClick={() => handleRemoveFromCart(item.productoId)}
-                        className="text-slate-400 hover:text-red-600 p-1"
+                        className="text-slate-400 hover:text-red-600 p-0.5"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
 
-                    <div className="flex justify-between items-center pt-1 border-t border-slate-200/60">
+                    <div className="flex justify-between items-center pt-1 border-t border-slate-100">
                       {/* Quantity Controls */}
-                      <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg p-0.5">
+                      <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg p-0.5">
                         <button
                           type="button"
                           onClick={() => handleUpdateQuantity(item.productoId, -1)}
-                          className="w-6 h-6 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded font-bold"
+                          className="w-5 h-5 flex items-center justify-center text-slate-600 hover:bg-slate-200 rounded font-bold"
                         >
                           <Minus className="w-3 h-3" />
                         </button>
@@ -658,7 +1007,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                         <button
                           type="button"
                           onClick={() => handleUpdateQuantity(item.productoId, 1)}
-                          className="w-6 h-6 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded font-bold"
+                          className="w-5 h-5 flex items-center justify-center text-slate-600 hover:bg-slate-200 rounded font-bold"
                         >
                           <Plus className="w-3 h-3" />
                         </button>
@@ -670,21 +1019,63 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                         </span>
                       </div>
                     </div>
+
+                    {/* Selector de Serie Física para Productos Seriados */}
+                    {(() => {
+                      const prod = productos.find((p) => p.id === item.productoId);
+                      const isSeriado =
+                        prod?.requiereSerie ||
+                        prod?.categoriaNombre?.toUpperCase().includes('LAPTOP') ||
+                        prod?.categoriaNombre?.toUpperCase().includes('IMPRESORA');
+
+                      if (!isSeriado) return null;
+
+                      const hasAllSeries = item.series && item.series.length >= item.cantidad;
+
+                      return (
+                        <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between gap-1.5 text-[10px]">
+                          <div className="flex items-center gap-1 min-w-0 flex-1">
+                            <Barcode className="w-3 h-3 text-[#00346F] flex-shrink-0" />
+                            {hasAllSeries ? (
+                              <span className="truncate text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                S/N: {item.series!.join(', ')}
+                              </span>
+                            ) : (
+                              <span className="truncate text-amber-700 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                S/N Pendiente ({item.series?.length || 0}/{item.cantidad})
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSeriesModal(item)}
+                            className={`px-2 py-0.5 rounded font-bold transition-all flex items-center gap-1 flex-shrink-0 text-[10px] ${
+                              hasAllSeries
+                                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                : 'bg-[#00346F] hover:bg-[#004A99] text-white shadow-xs'
+                            }`}
+                          >
+                            <ShieldCheck className="w-3 h-3" />
+                            <span>{hasAllSeries ? 'Cambiar S/N' : 'Asignar S/N'}</span>
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))
               ) : (
-                <div className="py-12 text-center text-slate-400 space-y-2">
-                  <ShoppingCart className="w-10 h-10 mx-auto text-slate-200" />
+                <div className="py-4 text-center text-slate-400 space-y-1">
+                  <ShoppingCart className="w-6 h-6 mx-auto text-slate-300" />
                   <p className="font-semibold text-xs text-slate-600">El carrito está vacío</p>
-                  <p className="text-[11px] text-slate-400 max-w-[240px] mx-auto">
-                    Seleccione laptops, impresoras o accesorios del catálogo izquierdo para iniciar la venta.
+                  <p className="text-[10px] text-slate-400 max-w-[200px] mx-auto">
+                    Seleccione productos del catálogo o use el lector de código de barras.
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Checkout Options Panel */}
-            <div className="p-4 border-t border-slate-200 bg-slate-50/80 space-y-3 text-xs">
+            {/* Checkout Options Panel - Compact & Directly Accessible */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-2 text-xs bg-white">
               {/* Client Selection */}
               <div>
                 <div className="flex justify-between items-center mb-1">
@@ -701,16 +1092,41 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-1.5 mb-2">
+                {/* Alerta de Cliente Requerido para Laptops / Equipos con Garantía */}
+                {requiresIdentifiedClient && (
+                  <div className="mb-2 p-2 bg-amber-50 border border-amber-300 rounded-lg text-[11px] text-amber-900 flex items-start gap-2 shadow-xs animate-in fade-in">
+                    <ShieldAlert className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-amber-900">Cliente Obligatorio por Garantía</p>
+                      <p className="text-[10px] text-amber-800 leading-tight mt-0.5">
+                        El carrito contiene laptops o equipos con garantía oficial. Debe seleccionar o registrar un cliente para la emisión de la póliza.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                   <button
                     type="button"
                     onClick={() => {
+                      if (requiresIdentifiedClient) {
+                        onShowToast(
+                          'No permitido para laptops',
+                          'Las Laptops y equipos requieren asociar un cliente específico para el registro de su garantía.',
+                          'warning'
+                        );
+                        return;
+                      }
                       setIsConsumidorFinal(true);
                       setIsClientSearchOpen(false);
                       if (tipoComprobante === 'FACTURA') setTipoComprobante('BOLETA');
                     }}
-                    className={`py-1.5 px-2 rounded-lg font-bold text-[11px] border transition-all text-center ${
-                      isConsumidorFinal
+                    disabled={requiresIdentifiedClient}
+                    title={requiresIdentifiedClient ? 'Deshabilitado: La venta contiene equipos con garantía' : ''}
+                    className={`py-1 px-2 rounded-lg font-bold text-[11px] border transition-all text-center ${
+                      requiresIdentifiedClient
+                        ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+                        : isConsumidorFinal
                         ? 'bg-[#00346F] text-white border-[#00346F]'
                         : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                     }`}
@@ -724,7 +1140,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                       setIsConsumidorFinal(false);
                       setIsClientSearchOpen(true);
                     }}
-                    className={`py-1.5 px-2 rounded-lg font-bold text-[11px] border transition-all text-center ${
+                    className={`py-1 px-2 rounded-lg font-bold text-[11px] border transition-all text-center ${
                       !isConsumidorFinal
                         ? 'bg-[#00346F] text-white border-[#00346F]'
                         : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
@@ -733,6 +1149,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                     Buscar Cliente
                   </button>
                 </div>
+
 
                 {/* Selected Client Card or Search Combobox */}
                 {!isConsumidorFinal && (
@@ -773,6 +1190,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                         <div className="mt-1 max-h-36 overflow-y-auto border border-slate-200 rounded-lg bg-white divide-y divide-slate-100 shadow-lg">
                           {clientes
                             .filter((c) => {
+                              if (c.estado !== 'ACTIVO') return false;
                               if (!clientSearchQuery.trim()) return true;
                               const q = clientSearchQuery.toLowerCase();
                               return (
@@ -912,16 +1330,25 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
               {/* Main Action Button */}
               <button
                 type="button"
-                disabled={cart.length === 0}
+                disabled={cart.length === 0 || isSubmittingSale}
                 onClick={handleProcessSale}
                 className={`w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 ${
-                  cart.length === 0
+                  cart.length === 0 || isSubmittingSale
                     ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                     : 'bg-[#00346F] hover:bg-[#004A99] text-white'
                 }`}
               >
-                <Receipt className="w-4 h-4" />
-                <span>EMITIR {tipoComprobante} • S/ {totalNeto.toFixed(2)}</span>
+                {isSubmittingSale ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>EMITIENDO EN MYSQL...</span>
+                  </>
+                ) : (
+                  <>
+                    <Receipt className="w-4 h-4" />
+                    <span>EMITIR {tipoComprobante} • S/ {totalNeto.toFixed(2)}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -933,23 +1360,41 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
         <div className="flex-1 p-6 overflow-y-auto space-y-4">
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
-              <h3 className="text-sm font-bold text-slate-800">
-                Historial de Comprobantes y Ventas Emitidas
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-800">
+                  Historial de Comprobantes y Ventas (Base de Datos MySQL)
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-[#00346F]">
+                  {dbVentas.length > 0 ? `${dbVentas.length} registros en BD` : `${ventas.length} registros locales`}
+                </span>
+              </div>
               <p className="text-[11px] text-slate-500">
-                Registro de facturas, boletas y tickets emitidos por el equipo de ventas.
+                Registro de comprobantes emitidos en el sistema con vinculación de números de serie y garantías vigentes.
               </p>
             </div>
 
-            <div className="relative w-full sm:w-72">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                value={historySearch}
-                onChange={(e) => setHistorySearch(e.target.value)}
-                placeholder="Buscar por comprobante o cliente..."
-                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:outline-none focus:border-[#00346F]"
-              />
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={loadDbVentas}
+                disabled={loadingHistory}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center gap-1.5 border border-slate-300 transition-colors"
+                title="Sincronizar con MySQL"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingHistory ? 'animate-spin text-[#00346F]' : ''}`} />
+                <span>Refrescar</span>
+              </button>
+
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  placeholder="Buscar por comprobante o cliente..."
+                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:outline-none focus:border-[#00346F]"
+                />
+              </div>
             </div>
           </div>
 
@@ -960,226 +1405,367 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                   <th className="py-2.5 px-3">N° Comprobante</th>
                   <th className="py-2.5 px-3">Fecha y Hora</th>
                   <th className="py-2.5 px-3">Cliente Receptor</th>
-                  <th className="py-2.5 px-3">Ítems Vendidos</th>
+                  <th className="py-2.5 px-3">Ítems / Detalle</th>
                   <th className="py-2.5 px-3">Método Pago</th>
                   <th className="py-2.5 px-3 text-right">Total (S/)</th>
                   <th className="py-2.5 px-3 text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {ventas
-                  .filter((v) => {
+                {loadingHistory ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-500">
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-[#00346F]" />
+                        <span>Consultando ventas en MySQL...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (dbVentas.length > 0 ? dbVentas : ventas)
+                  .filter((v: any) => {
                     if (!historySearch.trim()) return true;
                     const q = historySearch.toLowerCase();
-                    return (
-                      v.codigoComprobante.toLowerCase().includes(q) ||
-                      v.clienteNombre.toLowerCase().includes(q) ||
-                      v.clienteDocumento.includes(q)
-                    );
+                    const comp = (v.codigoComprobante || '').toLowerCase();
+                    const cliName = (v.cliente?.nombre || v.clienteNombre || '').toLowerCase();
+                    const cliDoc = v.cliente?.documento || v.clienteDocumento || '';
+                    return comp.includes(q) || cliName.includes(q) || cliDoc.includes(q);
                   })
-                  .map((sale) => (
-                    <tr key={sale.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-2.5 px-3">
-                        <span className="font-mono font-bold text-[#00346F]">
-                          {sale.codigoComprobante}
-                        </span>
-                        <span className="block text-[10px] text-slate-400">
-                          {sale.tipoComprobante}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-slate-600">{sale.fecha}</td>
-                      <td className="py-2.5 px-3">
-                        <span className="font-semibold text-slate-800 block">
-                          {sale.clienteNombre}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          Doc: {sale.clienteDocumento}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-slate-600">
-                        {sale.items.length} producto(s)
-                        <span className="block text-[10px] text-slate-400 line-clamp-1">
-                          {sale.items.map((i) => `${i.cantidad}x ${i.nombre}`).join(', ')}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 font-semibold text-slate-700">
-                        {sale.metodoPago}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-extrabold text-[#00346F]">
-                        S/ {sale.total.toFixed(2)}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCompletedVenta(sale);
-                            setIsReceiptModalOpen(true);
-                          }}
-                          className="px-2.5 py-1 bg-white hover:bg-blue-50 border border-slate-300 hover:border-blue-400 text-[#00346F] rounded-lg font-bold text-[11px] flex items-center gap-1 mx-auto shadow-xs"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          <span>Ver Ticket</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  .map((sale: any) => {
+                    const isDb = Boolean(sale.cliente && typeof sale.cliente === 'object');
+                    const compCode = sale.codigoComprobante;
+                    const compType = sale.tipoComprobanteNombre || sale.tipoComprobante || 'BOLETA';
+                    const fechaStr = sale.fechaVenta
+                      ? new Date(sale.fechaVenta).toLocaleString('es-PE', { hour12: false })
+                      : sale.fecha || '-';
+                    const cliName = isDb ? sale.cliente.nombre : sale.clienteNombre;
+                    const cliDoc = isDb ? sale.cliente.documento : sale.clienteDocumento;
+                    const itemsDesc = isDb
+                      ? `${sale.totalItems || 1} producto(s) en BD`
+                      : `${sale.items?.length || 1} producto(s)`;
+
+                    return (
+                      <tr key={sale.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-2.5 px-3">
+                          <span className="font-mono font-bold text-[#00346F]">
+                            {compCode}
+                          </span>
+                          <span className="block text-[10px] text-slate-400">
+                            {compType}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-600">{fechaStr}</td>
+                        <td className="py-2.5 px-3">
+                          <span className="font-semibold text-slate-800 block">
+                            {cliName}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            Doc: {cliDoc || '00000000'}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-600">
+                          <span className="font-medium text-slate-700">{itemsDesc}</span>
+                          {sale.sucursal && (
+                            <span className="block text-[10px] text-slate-400">
+                              Sede: {sale.sucursal}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 font-semibold text-slate-700">
+                          {sale.metodoPago}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-extrabold text-[#00346F]">
+                          S/ {Number(sale.total).toFixed(2)}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (isDb) {
+                                // Consultar detalle con series desde el backend
+                                const detail = await saleService.getVentaById(sale.id);
+                                if (detail.success && detail.venta) {
+                                  const v = detail.venta;
+                                  const ticketObj: Venta = {
+                                    id: v.id,
+                                    codigoComprobante: v.codigoComprobante,
+                                    tipoComprobante: (v.tipoComprobante as any) || 'BOLETA',
+                                    clienteId: v.cliente?.id,
+                                    clienteDocumento: v.cliente?.documento || '00000000',
+                                    clienteNombre: v.cliente?.nombre || 'CLIENTE',
+                                    clienteDireccion: v.cliente?.direccion,
+                                    vendedorId: 1,
+                                    vendedorNombre: v.vendedor || 'Vendedor',
+                                    sucursal: v.sucursal || 'Principal',
+                                    fecha: v.fechaVenta ? new Date(v.fechaVenta).toLocaleString('es-PE', { hour12: false }) : '-',
+                                    items: (v.items || []).map((it) => ({
+                                      productoId: it.productoId,
+                                      codigo: it.codigo,
+                                      nombre: it.nombre,
+                                      categoria: '',
+                                      marca: it.marca || '',
+                                      precioUnitario: it.precioUnitario,
+                                      cantidad: it.cantidad,
+                                      subtotal: it.subtotal,
+                                      series: it.series?.map((s) => s.numeroSerie) || [],
+                                    })),
+                                    subtotal: v.subtotal || 0,
+                                    igv: v.igv || 0,
+                                    descuento: 0,
+                                    total: v.total,
+                                    metodoPago: (v.metodoPago as any) || 'EFECTIVO',
+                                    estado: 'EMITIDO',
+                                  };
+                                  setCompletedVenta(ticketObj);
+                                  setReceiptEmailInput(v.cliente?.email || '');
+                                  setIsReceiptEmailSent(false);
+                                  setIsReceiptModalOpen(true);
+                                  return;
+                                }
+                              }
+                              setCompletedVenta(sale);
+                              setReceiptEmailInput((sale as any)?.cliente?.email || (sale as any)?.clienteEmail || '');
+                              setIsReceiptEmailSent(false);
+                              setIsReceiptModalOpen(true);
+                            }}
+
+                            className="px-2.5 py-1 bg-white hover:bg-blue-50 border border-slate-300 hover:border-blue-400 text-[#00346F] rounded-lg font-bold text-[11px] flex items-center gap-1 mx-auto shadow-xs"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>Ver Ticket</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* MODAL DE COMPROBANTE GENERADO (TICKET POS / FACTURA) */}
+      {/* MODAL DE COMPROBANTE GENERADO (TICKET POS / FACTURA / ENVÍO AL CORREO DEL CLIENTE) */}
       {isReceiptModalOpen && completedVenta && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-3.5 border-b border-slate-200 bg-[#00346F] text-white flex justify-between items-center">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col max-h-[92vh]">
+            {/* Modal Header */}
+            <div className="p-3.5 border-b border-slate-200 bg-[#00346F] text-white flex justify-between items-center no-print flex-shrink-0">
               <div className="flex items-center gap-2">
                 <Receipt className="w-4 h-4 text-emerald-400" />
                 <h3 className="text-xs font-bold uppercase tracking-wider">
-                  Comprobante Electrónico Emitido
+                  Comprobante Emitido • MG Solutions
                 </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setIsReceiptModalOpen(false)}
-                className="text-white/70 hover:text-white"
+                onClick={() => {
+                  setIsReceiptModalOpen(false);
+                  setCompletedVenta(null);
+                }}
+                className="text-white/70 hover:text-white transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Thermal Ticket Format Container */}
-            <div className="p-5 overflow-y-auto font-mono text-[11px] text-slate-800 space-y-3 bg-white">
-              {/* Header Empresa */}
-              <div className="text-center space-y-0.5 border-b border-dashed border-slate-300 pb-3">
-                <p className="font-extrabold text-sm tracking-tight text-black">
-                  {empresa.nombreComercial || 'MG SOLUTIONS GROUP'}
-                </p>
-                <p className="text-[10px] text-slate-600">{empresa.razonSocial}</p>
-                <p className="text-[10px] font-bold">RUC: {empresa.ruc}</p>
-                <p className="text-[9px] text-slate-500 leading-tight">
-                  {empresa.direccionFiscal}
-                </p>
-                <p className="text-[9px] text-slate-500">Tel: {empresa.telefono}</p>
-              </div>
-
-              {/* Comprobante Info */}
-              <div className="text-center py-1 border-b border-dashed border-slate-300">
-                <p className="font-bold text-xs uppercase tracking-wider text-black">
-                  {completedVenta.tipoComprobante === 'FACTURA'
-                    ? 'FACTURA ELECTRÓNICA'
-                    : completedVenta.tipoComprobante === 'BOLETA'
-                    ? 'BOLETA DE VENTA ELECTRÓNICA'
-                    : 'NOTA DE VENTA / TICKET'}
-                </p>
-                <p className="font-bold text-sm text-[#00346F]">
-                  {completedVenta.codigoComprobante}
-                </p>
-                <p className="text-[10px] text-slate-500 mt-0.5">
-                  Fecha de emisión: {completedVenta.fecha}
-                </p>
-              </div>
-
-              {/* Cliente Info */}
-              <div className="space-y-0.5 border-b border-dashed border-slate-300 pb-2 text-[10px]">
-                <p>
-                  <span className="font-bold">CLIENTE:</span> {completedVenta.clienteNombre}
-                </p>
-                <p>
-                  <span className="font-bold">DOC:</span> {completedVenta.clienteDocumento}
-                </p>
-                {completedVenta.clienteDireccion && (
-                  <p>
-                    <span className="font-bold">DIR:</span> {completedVenta.clienteDireccion}
+            {/* Scrollable Content: Ticket & Email Section */}
+            <div className="flex-1 overflow-y-auto">
+              {/* Thermal Ticket Format Container */}
+              <div className="printable-content p-5 font-mono text-[11px] text-slate-800 space-y-3 bg-white">
+                {/* Header Empresa */}
+                <div className="text-center space-y-0.5 border-b border-dashed border-slate-300 pb-3">
+                  <p className="font-extrabold text-sm tracking-tight text-black">
+                    {empresa.nombreComercial || 'MG SOLUTIONS GROUP'}
                   </p>
-                )}
-                <p>
-                  <span className="font-bold">CAJERO/VENDEDOR:</span>{' '}
-                  {completedVenta.vendedorNombre}
-                </p>
-                <p>
-                  <span className="font-bold">SEDE:</span> {completedVenta.sucursal}
-                </p>
-              </div>
-
-              {/* Items Table */}
-              <div className="space-y-1 border-b border-dashed border-slate-300 pb-2">
-                <div className="flex justify-between font-bold border-b border-slate-200 pb-1 text-[10px]">
-                  <span>CANT / DESCRIPCIÓN</span>
-                  <span>TOTAL</span>
+                  <p className="text-[10px] text-slate-600">{empresa.razonSocial}</p>
+                  <p className="text-[10px] font-bold">RUC: {empresa.ruc}</p>
+                  <p className="text-[9px] text-slate-500 leading-tight">
+                    {empresa.direccionFiscal}
+                  </p>
+                  <p className="text-[9px] text-slate-500">Tel: {empresa.telefono}</p>
                 </div>
-                {completedVenta.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-start text-[10px]">
-                    <div className="pr-2">
-                      <p className="font-semibold text-black">
-                        {item.cantidad} x {item.nombre}
-                      </p>
-                      <p className="text-[9px] text-slate-500">
-                        P.U: S/ {item.precioUnitario.toFixed(2)}
-                      </p>
-                    </div>
-                    <span className="font-bold text-black flex-shrink-0">
-                      S/ {item.subtotal.toFixed(2)}
-                    </span>
+
+                {/* Comprobante Info */}
+                <div className="text-center py-1 border-b border-dashed border-slate-300">
+                  <p className="font-bold text-xs uppercase tracking-wider text-black">
+                    {completedVenta.tipoComprobante === 'FACTURA'
+                      ? 'FACTURA ELECTRÓNICA'
+                      : completedVenta.tipoComprobante === 'BOLETA'
+                      ? 'BOLETA DE VENTA ELECTRÓNICA'
+                      : 'NOTA DE VENTA / TICKET'}
+                  </p>
+                  <p className="font-bold text-sm text-[#00346F]">
+                    {completedVenta.codigoComprobante}
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    Fecha de emisión: {completedVenta.fecha}
+                  </p>
+                </div>
+
+                {/* Cliente Info */}
+                <div className="space-y-0.5 border-b border-dashed border-slate-300 pb-2 text-[10px]">
+                  <p>
+                    <span className="font-bold">CLIENTE:</span> {completedVenta.clienteNombre}
+                  </p>
+                  <p>
+                    <span className="font-bold">DOC:</span> {completedVenta.clienteDocumento}
+                  </p>
+                  {completedVenta.clienteDireccion && (
+                    <p>
+                      <span className="font-bold">DIR:</span> {completedVenta.clienteDireccion}
+                    </p>
+                  )}
+                  <p>
+                    <span className="font-bold">CAJERO/VENDEDOR:</span>{' '}
+                    {completedVenta.vendedorNombre}
+                  </p>
+                  <p>
+                    <span className="font-bold">SEDE:</span> {completedVenta.sucursal}
+                  </p>
+                </div>
+
+                {/* Items Table */}
+                <div className="space-y-1 border-b border-dashed border-slate-300 pb-2">
+                  <div className="flex justify-between font-bold border-b border-slate-200 pb-1 text-[10px]">
+                    <span>CANT / DESCRIPCIÓN</span>
+                    <span>TOTAL</span>
                   </div>
-                ))}
+                  {completedVenta.items.map((item, idx) => (
+                    <div key={idx} className="space-y-0.5 border-b border-dashed border-slate-100 pb-1">
+                      <div className="flex justify-between items-start text-[10px]">
+                        <div className="pr-2">
+                          <p className="font-semibold text-black">
+                            {item.cantidad} x {item.nombre}
+                          </p>
+                          <p className="text-[9px] text-slate-500">
+                            P.U: S/ {item.precioUnitario.toFixed(2)}
+                          </p>
+                        </div>
+                        <span className="font-bold text-black flex-shrink-0">
+                          S/ {item.subtotal.toFixed(2)}
+                        </span>
+                      </div>
+                      {item.series && item.series.length > 0 && (
+                        <div className="text-[8.5px] font-mono text-blue-900 bg-blue-50 px-1 py-0.5 rounded">
+                          <span>S/N: {item.series.join(', ')}</span>
+                          <span className="font-bold text-emerald-700 ml-1.5">• Garantía 12m</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Totals */}
+                <div className="space-y-1 text-[11px] border-b border-dashed border-slate-300 pb-2">
+                  <div className="flex justify-between">
+                    <span>OP. GRAVADA:</span>
+                    <span>S/ {completedVenta.subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>I.G.V. (18%):</span>
+                    <span>S/ {completedVenta.igv.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-extrabold text-sm text-black border-t border-slate-300 pt-1">
+                    <span>TOTAL A PAGAR:</span>
+                    <span>S/ {completedVenta.total.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-600 pt-1">
+                    <span>FORMA DE PAGO:</span>
+                    <span className="font-bold">{completedVenta.metodoPago}</span>
+                  </div>
+                  {completedVenta.metodoPago === 'EFECTIVO' && (
+                    <>
+                      <div className="flex justify-between text-[10px] text-slate-600">
+                        <span>MONTO RECIBIDO:</span>
+                        <span>S/ {(completedVenta.montoRecibido || completedVenta.total).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px] text-emerald-800 font-bold">
+                        <span>VUELTO:</span>
+                        <span>S/ {(completedVenta.vuelto || 0).toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Footer Notice */}
+                <div className="text-center space-y-1 text-[9px] text-slate-500">
+                  <p>Representación impresa de la Boleta/Factura Electrónica.</p>
+                  <p>Consulte su documento en www.sunat.gob.pe</p>
+                  <p className="font-bold text-black pt-1">¡GRACIAS POR SU PREFERENCIA!</p>
+                </div>
               </div>
 
-              {/* Totals */}
-              <div className="space-y-1 text-[11px] border-b border-dashed border-slate-300 pb-2">
-                <div className="flex justify-between">
-                  <span>OP. GRAVADA:</span>
-                  <span>S/ {completedVenta.subtotal.toFixed(2)}</span>
+              {/* SECCIÓN: ENVIAR COMPROBANTE AL CORREO ELECTRÓNICO DEL CLIENTE (no-print) */}
+              <div className="no-print p-4 bg-gradient-to-r from-blue-50 to-indigo-50/60 border-t border-slate-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#00346F]">
+                    <Mail className="w-4 h-4 text-[#00346F]" />
+                    <span>Enviar al Correo Electrónico del Cliente</span>
+                  </div>
+                  {isReceiptEmailSent && (
+                    <span className="flex items-center gap-1 text-[10px] font-extrabold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200 animate-in fade-in">
+                      <Check className="w-3 h-3" />
+                      ¡Enviado!
+                    </span>
+                  )}
                 </div>
-                <div className="flex justify-between">
-                  <span>I.G.V. (18%):</span>
-                  <span>S/ {completedVenta.igv.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between font-extrabold text-sm text-black border-t border-slate-300 pt-1">
-                  <span>TOTAL A PAGAR:</span>
-                  <span>S/ {completedVenta.total.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-[10px] text-slate-600 pt-1">
-                  <span>FORMA DE PAGO:</span>
-                  <span className="font-bold">{completedVenta.metodoPago}</span>
-                </div>
-                {completedVenta.metodoPago === 'EFECTIVO' && (
-                  <>
-                    <div className="flex justify-between text-[10px] text-slate-600">
-                      <span>MONTO RECIBIDO:</span>
-                      <span>S/ {(completedVenta.montoRecibido || completedVenta.total).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-[10px] text-emerald-800 font-bold">
-                      <span>VUELTO:</span>
-                      <span>S/ {(completedVenta.vuelto || 0).toFixed(2)}</span>
-                    </div>
-                  </>
-                )}
-              </div>
 
-              {/* Footer Notice */}
-              <div className="text-center space-y-1 text-[9px] text-slate-500">
-                <p>Representación impresa de la Boleta/Factura Electrónica.</p>
-                <p>Consulte su documento en www.sunat.gob.pe</p>
-                <p className="font-bold text-black pt-1">¡GRACIAS POR SU PREFERENCIA!</p>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={receiptEmailInput}
+                    onChange={(e) => {
+                      setReceiptEmailInput(e.target.value);
+                      setIsReceiptEmailSent(false);
+                    }}
+                    placeholder="correo-del-cliente@gmail.com"
+                    className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-[#00346F] shadow-2xs"
+                  />
+                  <button
+                    type="button"
+                    disabled={isSendingReceiptEmail || !receiptEmailInput.trim()}
+                    onClick={handleSendReceiptEmail}
+                    className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs flex-shrink-0 ${
+                      isSendingReceiptEmail || !receiptEmailInput.trim()
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'bg-[#00346F] hover:bg-[#004A99] text-white active:scale-95'
+                    }`}
+                  >
+                    {isSendingReceiptEmail ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Enviando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Enviar</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-500 leading-tight">
+                  Se enviará el comprobante digital oficial de compra con el desglose de productos y la garantía de 12 meses al buzón del cliente.
+                </p>
               </div>
             </div>
 
-            {/* Modal Actions */}
-            <div className="p-3 border-t border-slate-200 bg-slate-50 flex gap-2">
+            {/* Modal Actions (no-print) */}
+            <div className="p-3 border-t border-slate-200 bg-slate-50 flex gap-2 no-print flex-shrink-0">
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="flex-1 py-2 bg-[#00346F] hover:bg-[#004A99] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm"
+                className="flex-1 py-2.5 bg-[#00346F] hover:bg-[#004A99] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
               >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Imprimir Ticket</span>
+                <Printer className="w-4 h-4" />
+                <span>Imprimir Ticket (80mm)</span>
               </button>
               <button
                 type="button"
-                onClick={() => setIsReceiptModalOpen(false)}
-                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold"
+                onClick={() => {
+                  setIsReceiptModalOpen(false);
+                  setCompletedVenta(null);
+                }}
+                className="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-all"
               >
                 Cerrar
               </button>
@@ -1187,6 +1773,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
           </div>
         </div>
       )}
+
 
       {/* MODAL REGISTRO RÁPIDO DE CLIENTE */}
       {isQuickClientOpen && (
@@ -1227,22 +1814,72 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                   </select>
                 </div>
                 <div className="col-span-2">
-                  <label className="block font-bold text-slate-700 mb-1">N° Documento *</label>
-                  <input
-                    type="text"
-                    required
-                    value={quickClientForm.numeroDocumento}
-                    onChange={(e) =>
-                      setQuickClientForm({
-                        ...quickClientForm,
-                        numeroDocumento: e.target.value,
-                      })
-                    }
-                    placeholder={quickClientForm.tipoDocumento === 'DNI' ? '47891234' : '20609737524'}
-                    className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-[#00346F]"
-                  />
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block font-bold text-slate-700">N° Documento *</label>
+                    <span className="text-[10px] text-slate-400">
+                      {quickClientForm.tipoDocumento === 'RUC' ? '11 dígitos' : '8 dígitos'}
+                    </span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      required
+                      inputMode="numeric"
+                      maxLength={quickClientForm.tipoDocumento === 'RUC' ? 11 : 8}
+                      value={quickClientForm.numeroDocumento}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/\D/g, '');
+                        if (quickClientForm.tipoDocumento === 'DNI') {
+                          val = val.slice(0, 8);
+                        } else {
+                          val = val.slice(0, 11);
+                        }
+                        setQuickClientForm({
+                          ...quickClientForm,
+                          numeroDocumento: val,
+                        });
+                        setDocStatusBadge(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleQueryDocument();
+                        }
+                      }}
+                      placeholder={quickClientForm.tipoDocumento === 'DNI' ? '47891234' : '20609737524'}
+                      className="flex-1 p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-[#00346F] focus:outline-none focus:border-[#00346F]"
+                    />
+                    <button
+                      type="button"
+                      disabled={isQueryingDoc || !quickClientForm.numeroDocumento}
+                      onClick={handleQueryDocument}
+                      className="px-3 py-2 bg-[#00346F] hover:bg-[#004A99] disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs flex-shrink-0 active:scale-95"
+                      title={quickClientForm.tipoDocumento === 'RUC' ? 'Consultar RUC en SUNAT' : 'Consultar DNI en RENIEC'}
+                    >
+                      {isQueryingDoc ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Consultando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                          <span>{quickClientForm.tipoDocumento === 'RUC' ? 'Buscar SUNAT' : 'Buscar RENIEC'}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Badge de Estado SUNAT / RENIEC */}
+                  {docStatusBadge && (
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md animate-in fade-in">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                      <span>{docStatusBadge}</span>
+                    </div>
+                  )}
                 </div>
               </div>
+
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
@@ -1252,12 +1889,16 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                   type="text"
                   required
                   value={quickClientForm.razonSocial}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    if (quickClientForm.tipoDocumento === 'DNI') {
+                      val = val.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑäëïöüÄËÏÖÜ\s]/g, '');
+                    }
                     setQuickClientForm({
                       ...quickClientForm,
-                      razonSocial: e.target.value,
-                    })
-                  }
+                      razonSocial: val.toUpperCase(),
+                    });
+                  }}
                   placeholder="Ej: CORPORACIÓN ACEROS S.A.C."
                   className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium"
                 />
@@ -1268,11 +1909,13 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                   <label className="block font-bold text-slate-700 mb-1">Teléfono</label>
                   <input
                     type="text"
+                    inputMode="numeric"
+                    maxLength={9}
                     value={quickClientForm.telefono}
                     onChange={(e) =>
                       setQuickClientForm({
                         ...quickClientForm,
-                        telefono: e.target.value,
+                        telefono: e.target.value.replace(/\D/g, '').slice(0, 9),
                       })
                     }
                     placeholder="987654321"
@@ -1280,7 +1923,12 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Email</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block font-bold text-slate-700">Email</label>
+                    <span className="text-[10px] text-blue-700 font-semibold flex items-center gap-0.5">
+                      <Mail className="w-2.5 h-2.5" /> Envío automático
+                    </span>
+                  </div>
                   <input
                     type="email"
                     value={quickClientForm.email}
@@ -1329,6 +1977,252 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE ASIGNACIÓN DE NÚMEROS DE SERIE FÍSICOS */}
+      {seriesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-slate-200 bg-[#00346F] text-white flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Barcode className="w-5 h-5 text-emerald-400" />
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider">
+                    Asignar Números de Serie • Control de Garantía
+                  </h3>
+                  <p className="text-[11px] text-blue-100 font-medium">
+                    {seriesModal.item.nombre}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSeriesModal(null)}
+                className="text-white/70 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-4 text-xs">
+              <div className="flex justify-between items-center p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                <div>
+                  <span className="text-[11px] font-bold text-[#00346F]">
+                    Cantidad a entregar al cliente:
+                  </span>
+                  <div className="text-base font-extrabold text-slate-800">
+                    {seriesModal.item.cantidad} unidad(es)
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[11px] font-bold text-slate-600">
+                    Series seleccionadas:
+                  </span>
+                  <div
+                    className={`text-base font-extrabold ${
+                      seriesModal.selectedSeries.length === seriesModal.item.cantidad
+                        ? 'text-emerald-600'
+                        : 'text-amber-600'
+                    }`}
+                  >
+                    {seriesModal.selectedSeries.length} / {seriesModal.item.cantidad}
+                  </div>
+                </div>
+              </div>
+
+              {/* Input manual / lector de código de barras */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Escanear o Escribir Serie Física (Código de Barras / QR):
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={seriesModal.manualInput}
+                    onChange={(e) =>
+                      setSeriesModal({ ...seriesModal, manualInput: e.target.value.toUpperCase() })
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const val = seriesModal.manualInput.trim();
+                        if (val && !seriesModal.selectedSeries.includes(val)) {
+                          if (seriesModal.selectedSeries.length >= seriesModal.item.cantidad) {
+                            onShowToast(
+                              'Límite de cantidad',
+                              `Solo puede asignar ${seriesModal.item.cantidad} serie(s) para este ítem.`,
+                              'warning'
+                            );
+                            return;
+                          }
+                          setSeriesModal({
+                            ...seriesModal,
+                            selectedSeries: [...seriesModal.selectedSeries, val],
+                            manualInput: '',
+                          });
+                        }
+                      }
+                    }}
+                    placeholder="Ej: LNV-X1C-2026-004 o escanear..."
+                    className="flex-1 p-2 bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const val = seriesModal.manualInput.trim();
+                      if (val && !seriesModal.selectedSeries.includes(val)) {
+                        if (seriesModal.selectedSeries.length >= seriesModal.item.cantidad) {
+                          onShowToast(
+                            'Límite de cantidad',
+                            `Solo puede asignar ${seriesModal.item.cantidad} serie(s) para este ítem.`,
+                            'warning'
+                          );
+                          return;
+                        }
+                        setSeriesModal({
+                          ...seriesModal,
+                          selectedSeries: [...seriesModal.selectedSeries, val],
+                          manualInput: '',
+                        });
+                      }
+                    }}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold text-xs"
+                  >
+                    + Agregar
+                  </button>
+                </div>
+              </div>
+
+              {/* Lista de Unidades Físicas Registradas en MySQL para este producto */}
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="font-bold text-slate-700">
+                    Series disponibles en inventario físico:
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-mono">
+                    {seriesModal.availableUnits.length} disponibles
+                  </span>
+                </div>
+
+                {seriesModal.loading ? (
+                  <div className="p-6 text-center text-slate-500 flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#00346F]" />
+                    <span>Consultando unidades en almacén...</span>
+                  </div>
+                ) : seriesModal.availableUnits.length > 0 ? (
+                  <div className="max-h-48 overflow-y-auto space-y-1.5 border border-slate-200 rounded-xl p-2 bg-slate-50">
+                    {seriesModal.availableUnits.map((unit) => {
+                      const isChecked = seriesModal.selectedSeries.includes(unit.numeroSerie);
+
+                      return (
+                        <div
+                          key={unit.id}
+                          onClick={() => {
+                            if (isChecked) {
+                              setSeriesModal({
+                                ...seriesModal,
+                                selectedSeries: seriesModal.selectedSeries.filter(
+                                  (s) => s !== unit.numeroSerie
+                                ),
+                              });
+                            } else {
+                              if (seriesModal.selectedSeries.length >= seriesModal.item.cantidad) {
+                                onShowToast(
+                                  'Límite alcanzado',
+                                  `Ya seleccionó las ${seriesModal.item.cantidad} series requeridas.`,
+                                  'warning'
+                                );
+                                return;
+                              }
+                              setSeriesModal({
+                                ...seriesModal,
+                                selectedSeries: [...seriesModal.selectedSeries, unit.numeroSerie],
+                              });
+                            }
+                          }}
+                          className={`p-2.5 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${
+                            isChecked
+                              ? 'bg-blue-50 border-blue-400 ring-1 ring-blue-300'
+                              : 'bg-white border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              readOnly
+                              className="rounded text-[#00346F] focus:ring-0"
+                            />
+                            <div>
+                              <span className="font-mono font-bold text-slate-800">
+                                {unit.numeroSerie}
+                              </span>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[9px] px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded font-bold">
+                                  {unit.condicion || 'NUEVO'}
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  Sede: {unit.sucursalNombre || 'Principal'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          {isChecked && (
+                            <span className="text-[10px] font-extrabold text-blue-700 bg-blue-100 px-2 py-0.5 rounded">
+                              Asignado
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-center space-y-1">
+                    <p className="font-bold text-amber-800">
+                      No hay series físicas precargadas en almacén para este producto.
+                    </p>
+                    <p className="text-[11px] text-amber-700">
+                      Puede ingresar o escanear manualmente los números de serie en el campo superior.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-between items-center">
+              <span className="text-[11px] text-slate-500">
+                Garantía automática: <strong>12 meses</strong> a partir de la emisión.
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSeriesModal(null)}
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={seriesModal.selectedSeries.length === 0}
+                  onClick={() =>
+                    handleSaveSeriesForCartItem(
+                      seriesModal.item.productoId,
+                      seriesModal.selectedSeries
+                    )
+                  }
+                  className={`px-4 py-2 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm ${
+                    seriesModal.selectedSeries.length === 0
+                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                      : 'bg-[#00346F] hover:bg-[#004A99] text-white'
+                  }`}
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Confirmar Series ({seriesModal.selectedSeries.length})</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

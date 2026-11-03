@@ -82,7 +82,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
   const [searchProductQuery, setSearchProductQuery] = useState('');
   const [selectedProductId, setSelectedProductId] = useState<number | ''>('');
   const [itemCantidad, setItemCantidad] = useState<number>(1);
-  const [itemPrecioCosto, setItemPrecioCosto] = useState<number>(0);
+  const [itemPrecioCosto, setItemPrecioCosto] = useState<number | string>(0);
+
 
   // Modal Compra Detalle / Imprimir
   const [selectedCompraDetail, setSelectedCompraDetail] = useState<Compra | null>(null);
@@ -133,7 +134,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
       onShowToast('Cantidad inválida', 'La cantidad debe ser mayor a 0.', 'warning');
       return;
     }
-    if (itemPrecioCosto <= 0) {
+    const costoNum = Number(itemPrecioCosto) || 0;
+    if (costoNum <= 0) {
       onShowToast('Precio inválido', 'El costo unitario debe ser mayor a 0.', 'warning');
       return;
     }
@@ -143,8 +145,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
     if (existingIndex >= 0) {
       const updated = [...cartItems];
       updated[existingIndex].cantidad += itemCantidad;
-      updated[existingIndex].precioCostoUnitario = itemPrecioCosto;
-      updated[existingIndex].subtotal = updated[existingIndex].cantidad * itemPrecioCosto;
+      updated[existingIndex].precioCostoUnitario = costoNum;
+      updated[existingIndex].subtotal = updated[existingIndex].cantidad * costoNum;
       setCartItems(updated);
     } else {
       const newItem: ItemCompra = {
@@ -154,11 +156,12 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
         categoria: selectedProductObj.categoriaNombre,
         marca: selectedProductObj.marcaNombre,
         cantidad: itemCantidad,
-        precioCostoUnitario: itemPrecioCosto,
-        subtotal: itemCantidad * itemPrecioCosto,
+        precioCostoUnitario: costoNum,
+        subtotal: itemCantidad * costoNum,
       };
       setCartItems([...cartItems, newItem]);
     }
+
 
     // Reset item picker
     setSelectedProductId('');
@@ -583,12 +586,15 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                           <label className="block text-[11px] font-bold text-slate-600">Costo Unit. Compra (S/)</label>
                           <input
                             type="number"
-                            step="0.10"
+                            step="any"
                             min="0"
-                            value={itemPrecioCosto}
-                            onChange={(e) => setItemPrecioCosto(parseFloat(e.target.value) || 0)}
-                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-800"
+                            value={itemPrecioCosto === 0 ? '' : itemPrecioCosto}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => setItemPrecioCosto(e.target.value)}
+                            placeholder="0.00"
+                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-800 focus:border-[#00346F] focus:outline-none"
                           />
+
                         </div>
                         <div className="flex flex-col justify-end">
                           <button
@@ -1110,9 +1116,11 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                   <label className="block text-xs font-bold text-slate-700">Teléfono / WhatsApp</label>
                   <input
                     type="text"
+                    inputMode="numeric"
+                    maxLength={9}
                     value={proveedorForm.telefono}
-                    onChange={(e) => setProveedorForm({ ...proveedorForm, telefono: e.target.value })}
-                    placeholder="+51 974 812 390"
+                    onChange={(e) => setProveedorForm({ ...proveedorForm, telefono: e.target.value.replace(/\D/g, '').slice(0, 9) })}
+                    placeholder="974812390"
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
                   />
                 </div>
