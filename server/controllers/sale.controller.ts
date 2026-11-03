@@ -390,13 +390,22 @@ export async function createVenta(req: AuthenticatedRequest, res: Response): Pro
         }
       }
 
-      // Descontar stock en producto_stock_sede
-      await connection.query(
+      // Descontar stock en producto_stock_sede (primero en la sucursal activa; si no tiene fila con stock allí, en la sede con stock disponible)
+      const [updSedeRes] = await connection.query<ResultSetHeader>(
         `UPDATE producto_stock_sede 
          SET stock = GREATEST(0, stock - ?), updated_at = NOW()
-         WHERE producto_id = ? AND sucursal_id = ?`,
+         WHERE producto_id = ? AND sucursal_id = ? AND stock > 0`,
         [cantidad, prodId, sucursalId]
       );
+      if (updSedeRes.affectedRows === 0) {
+        await connection.query(
+          `UPDATE producto_stock_sede 
+           SET stock = GREATEST(0, stock - ?), updated_at = NOW()
+           WHERE producto_id = ? AND stock > 0
+           ORDER BY stock DESC LIMIT 1`,
+          [cantidad, prodId]
+        );
+      }
     }
 
     await connection.commit();

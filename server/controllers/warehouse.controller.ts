@@ -219,10 +219,10 @@ export async function getInventarioJerarquico(req: Request, res: Response): Prom
         tipoDestino: p.tipoDestino,
         estado: p.estado,
         estadoId: p.estadoId,
-        stockTotal: Number(p.stockTotal) || 0,
+        stockTotal: Math.max(Number(p.stockTotal) || 0, Number(p.seriesDisponibles) || 0),
         stockSede: sucursalIdQuery
           ? (stockPorSedeMap.get(p.productoId)?.find(s => s.sucursalId === sucursalIdQuery)?.stock ?? 0)
-          : (Number(p.stockTotal) || 0),
+          : Math.max(Number(p.stockTotal) || 0, Number(p.seriesDisponibles) || 0),
         stockPorSede: stockPorSedeMap.get(p.productoId) || [],
         seriesMetricas: {
           total: Number(p.totalSeries) || 0,

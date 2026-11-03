@@ -4626,8 +4626,8 @@ async function getInventarioJerarquico(req, res) {
         tipoDestino: p.tipoDestino,
         estado: p.estado,
         estadoId: p.estadoId,
-        stockTotal: Number(p.stockTotal) || 0,
-        stockSede: sucursalIdQuery ? stockPorSedeMap.get(p.productoId)?.find((s) => s.sucursalId === sucursalIdQuery)?.stock ?? 0 : Number(p.stockTotal) || 0,
+        stockTotal: Math.max(Number(p.stockTotal) || 0, Number(p.seriesDisponibles) || 0),
+        stockSede: sucursalIdQuery ? stockPorSedeMap.get(p.productoId)?.find((s) => s.sucursalId === sucursalIdQuery)?.stock ?? 0 : Math.max(Number(p.stockTotal) || 0, Number(p.seriesDisponibles) || 0),
         stockPorSede: stockPorSedeMap.get(p.productoId) || [],
         seriesMetricas: {
           total: Number(p.totalSeries) || 0,
@@ -5336,12 +5336,21 @@ async function createVenta(req, res) {
           );
         }
       }
-      await connection.query(
+      const [updSedeRes] = await connection.query(
         `UPDATE producto_stock_sede 
          SET stock = GREATEST(0, stock - ?), updated_at = NOW()
-         WHERE producto_id = ? AND sucursal_id = ?`,
+         WHERE producto_id = ? AND sucursal_id = ? AND stock > 0`,
         [cantidad, prodId, sucursalId]
       );
+      if (updSedeRes.affectedRows === 0) {
+        await connection.query(
+          `UPDATE producto_stock_sede 
+           SET stock = GREATEST(0, stock - ?), updated_at = NOW()
+           WHERE producto_id = ? AND stock > 0
+           ORDER BY stock DESC LIMIT 1`,
+          [cantidad, prodId]
+        );
+      }
     }
     await connection.commit();
     res.status(201).json({

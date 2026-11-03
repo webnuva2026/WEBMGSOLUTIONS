@@ -164,6 +164,11 @@ export function App() {
               });
             }
 
+            const realAvailableStock = Math.max(
+              Number(item.stockTotal) || 0,
+              Number(item.seriesMetricas?.disponibles) || 0
+            );
+
             return {
               id: item.id,
               codigo: item.codigo,
@@ -175,10 +180,10 @@ export function App() {
               marcaNombre: item.marca?.nombre || 'General',
               modeloId: item.modelo?.id || null,
               modeloNombre: item.modelo?.nombre || null,
-              sucursal: 'Principal - Chiclayo Centro',
+              sucursal: item.stockPorSede?.[0]?.sucursalNombre || 'Principal - Chiclayo Centro',
               precioUnitario: item.precioVenta || 0,
               precioCosto: item.precioCosto || 0,
-              stock: sedeFilter ? (item.stockSede ?? item.stockTotal) : (item.stockTotal || 0),
+              stock: sedeFilter && (item.stockSede ?? 0) > 0 ? (item.stockSede ?? realAvailableStock) : realAvailableStock,
               stockPorSede: branchRecord,
               unidadMedida: 'NIU',
               estado: (item.estado as any) || 'ACTIVO',
@@ -266,6 +271,12 @@ export function App() {
   useEffect(() => {
     loadDatabaseData(selectedSedeId);
   }, [selectedSedeId]);
+
+  useEffect(() => {
+    if (activeView === 'ventas' || activeView === 'panel-almacen' || activeView === 'productos') {
+      loadDatabaseData(selectedSedeId);
+    }
+  }, [activeView]);
 
   const [ordenes, setOrdenes] = useState<OrdenServicio[]>(() => {
     const saved = localStorage.getItem('mg_ordenes_servicio');

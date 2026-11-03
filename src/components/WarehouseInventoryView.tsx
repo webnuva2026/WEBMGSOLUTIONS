@@ -205,6 +205,7 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
         // Actualizar resumen
         const resStats = await warehouseService.getResumen();
         if (resStats.success && resStats.data) setResumen(resStats.data);
+        if (onProductCreated) onProductCreated();
       } else {
         onShowToast('Error', res.message || 'No se pudo cambiar la visibilidad.', 'error');
       }
@@ -261,6 +262,7 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
           if (updatedProd) setSelectedProductoForSeries(updatedProd);
         }
         if (resRes.success && resRes.data) setResumen(resRes.data);
+        if (onProductCreated) onProductCreated();
 
         // Volver a la pestaña de listado
         setActiveSeriesTab('list');
@@ -309,6 +311,7 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
           if (updatedProd) setSelectedProductoForSeries(updatedProd);
         }
         if (resRes.success && resRes.data) setResumen(resRes.data);
+        if (onProductCreated) onProductCreated();
 
         setUnidadToQuarantine(null);
         setMotivoCuarentena('');
@@ -348,6 +351,7 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
           if (updatedProd) setSelectedProductoForSeries(updatedProd);
         }
         if (resRes.success && resRes.data) setResumen(resRes.data);
+        if (onProductCreated) onProductCreated();
       } else {
         onShowToast('Error', res.message, 'error');
       }
