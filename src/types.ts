@@ -352,6 +352,8 @@ export interface ItemCompra {
   cantidad: number;
   precioCostoUnitario: number;
   subtotal: number;
+  requiereSerie?: boolean;
+  series?: string[];
 }
 
 export interface Compra {

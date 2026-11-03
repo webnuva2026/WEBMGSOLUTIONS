@@ -656,6 +656,7 @@ export function App() {
         productoId: it.productoId,
         cantidad: it.cantidad,
         precioCostoUnitario: it.precioCostoUnitario,
+        series: it.series || [],
       })),
       total: newCompra.total,
       observaciones: newCompra.observaciones,

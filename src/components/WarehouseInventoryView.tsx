@@ -691,11 +691,10 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
                 key={d.id}
                 type="button"
                 onClick={() => setSelectedDestino(d.id as any)}
-                className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
-                  selectedDestino === d.id
-                    ? 'bg-[#00346F] text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
+                className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${selectedDestino === d.id
+                  ? 'bg-[#00346F] text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
               >
                 {d.label}
               </button>
@@ -706,20 +705,20 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
               selectedDestino !== 'ALL' ||
               filtroCondicion !== 'ALL' ||
               searchTerm) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCategoriaId('ALL');
-                  setSelectedMarcaId('ALL');
-                  setSelectedDestino('ALL');
-                  setFiltroCondicion('ALL');
-                  setSearchTerm('');
-                }}
-                className="ml-auto flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700"
-              >
-                <X className="h-3 w-3" /> Limpiar Filtros
-              </button>
-            )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategoriaId('ALL');
+                    setSelectedMarcaId('ALL');
+                    setSelectedDestino('ALL');
+                    setFiltroCondicion('ALL');
+                    setSearchTerm('');
+                  }}
+                  className="ml-auto flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700"
+                >
+                  <X className="h-3 w-3" /> Limpiar Filtros
+                </button>
+              )}
           </div>
         </div>
 
@@ -749,9 +748,8 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
               return (
                 <div
                   key={item.id}
-                  className={`relative overflow-hidden rounded-2xl border bg-white p-5 shadow-sm transition hover:shadow-md ${
-                    hasQuarantine ? 'border-amber-300/80 bg-amber-50/10' : 'border-slate-200'
-                  }`}
+                  className={`relative overflow-hidden rounded-2xl border bg-white p-5 shadow-sm transition hover:shadow-md ${hasQuarantine ? 'border-amber-300/80 bg-amber-50/10' : 'border-slate-200'
+                    }`}
                 >
                   <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                     {/* Bloque Izquierdo: Jerarquía y Detalles Técnicos */}
@@ -775,19 +773,18 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
 
                         {/* Badge de Tipo de Destino */}
                         <span
-                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold ${
-                            item.tipoDestino === 'VENTA'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : item.tipoDestino === 'SERVICIO_TALLER'
+                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold ${item.tipoDestino === 'VENTA'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : item.tipoDestino === 'SERVICIO_TALLER'
                               ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
                               : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}
+                            }`}
                         >
                           {item.tipoDestino === 'VENTA'
                             ? 'Venta Comercial'
                             : item.tipoDestino === 'SERVICIO_TALLER'
-                            ? 'Uso Interno Taller'
-                            : 'Mixto (Repuesto Vendible)'}
+                              ? 'Uso Interno Taller'
+                              : 'Mixto (Repuesto Vendible)'}
                         </span>
                       </div>
 
@@ -873,11 +870,10 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
                           {item.stockPorSede.map((s) => (
                             <span
                               key={s.sucursalId}
-                              className={`px-2 py-0.5 rounded-full font-bold border ${
-                                selectedSedeFilter === s.sucursalId
-                                  ? 'bg-[#00346F] text-white border-[#00346F]'
-                                  : 'bg-slate-100 text-slate-600 border-slate-200'
-                              }`}
+                              className={`px-2 py-0.5 rounded-full font-bold border ${selectedSedeFilter === s.sucursalId
+                                ? 'bg-[#00346F] text-white border-[#00346F]'
+                                : 'bg-slate-100 text-slate-600 border-slate-200'
+                                }`}
                               title={`${s.sucursalNombre}: ${s.stock} unidades`}
                             >
                               {s.sucursalNombre.replace(/^[0-9]+ - /, '').split(' ')[0]}: {s.stock}
@@ -900,14 +896,12 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
                                 ? 'Haga clic para ocultar a los vendedores en Punto de Venta'
                                 : 'Haga clic para mostrar a los vendedores en Punto de Venta'
                             }
-                            className={`flex h-6 w-11 items-center rounded-full p-1 transition-colors ${
-                              item.disponibleVenta ? 'bg-emerald-600' : 'bg-slate-300'
-                            }`}
+                            className={`flex h-6 w-11 items-center rounded-full p-1 transition-colors ${item.disponibleVenta ? 'bg-emerald-600' : 'bg-slate-300'
+                              }`}
                           >
                             <div
-                              className={`h-4 w-4 rounded-full bg-white shadow-md transition-transform ${
-                                item.disponibleVenta ? 'translate-x-5' : 'translate-x-0'
-                              }`}
+                              className={`h-4 w-4 rounded-full bg-white shadow-md transition-transform ${item.disponibleVenta ? 'translate-x-5' : 'translate-x-0'
+                                }`}
                             />
                           </button>
                         )}
@@ -981,11 +975,10 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveSeriesTab('list')}
-                  className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${
-                    activeSeriesTab === 'list'
-                      ? 'border-[#00346F] text-[#00346F]'
-                      : 'border-transparent text-slate-500 hover:text-slate-700'
-                  }`}
+                  className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${activeSeriesTab === 'list'
+                    ? 'border-[#00346F] text-[#00346F]'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                    }`}
                 >
                   <Package className="h-4 w-4" />
                   Unidades Físicas Registradas ({unidadesList.length})
@@ -994,11 +987,10 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveSeriesTab('add')}
-                    className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${
-                      activeSeriesTab === 'add'
-                        ? 'border-[#00346F] text-[#00346F]'
-                        : 'border-transparent text-slate-500 hover:text-slate-700'
-                    }`}
+                    className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${activeSeriesTab === 'add'
+                      ? 'border-[#00346F] text-[#00346F]'
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                      }`}
                   >
                     <Plus className="h-4 w-4" />
                     + Ingresar Nuevas Series (Recepción)
@@ -1068,15 +1060,14 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
 
                                 <td className="py-3">
                                   <span
-                                    className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold ${
-                                      isDanado
-                                        ? 'bg-rose-100 text-rose-800'
-                                        : isVendido
+                                    className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold ${isDanado
+                                      ? 'bg-rose-100 text-rose-800'
+                                      : isVendido
                                         ? 'bg-slate-200 text-slate-700'
                                         : isTaller
-                                        ? 'bg-indigo-100 text-indigo-800'
-                                        : 'bg-emerald-100 text-emerald-800'
-                                    }`}
+                                          ? 'bg-indigo-100 text-indigo-800'
+                                          : 'bg-emerald-100 text-emerald-800'
+                                      }`}
                                   >
                                     {isDanado ? '⚠️ En Cuarentena' : u.estadoNombre}
                                   </span>

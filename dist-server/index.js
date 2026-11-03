@@ -6906,6 +6906,18 @@ async function createCompra(req, res) {
       const cant = Number(item.cantidad) || 1;
       const costoUnit = Number(item.precioCostoUnitario || item.precioUnitario || 0);
       const itemSubtotal = cant * costoUnit;
+      const [prodCheck] = await connection.query(
+        "SELECT id, nombre, requiere_serie FROM productos WHERE id = ?",
+        [prodId]
+      );
+      if (prodCheck.length === 0) {
+        await connection.rollback();
+        res.status(400).json({
+          success: false,
+          message: `El producto '${item.nombre || "ID " + prodId}' no existe en la base de datos de almac\xE9n.`
+        });
+        return;
+      }
       await connection.query(
         `INSERT INTO detalle_compras (compra_id, producto_id, cantidad, precio_costo_unit, subtotal)
          VALUES (?, ?, ?, ?, ?)`,
@@ -6934,12 +6946,25 @@ async function createCompra(req, res) {
       }
       if (Array.isArray(item.series) && item.series.length > 0) {
         for (const s of item.series) {
-          if (s && String(s).trim()) {
+          const cleanSerie = String(s || "").trim().toUpperCase();
+          if (!cleanSerie) continue;
+          const [existingUnit] = await connection.query(
+            "SELECT id FROM producto_unidades WHERE producto_id = ? AND numero_serie = ?",
+            [prodId, cleanSerie]
+          );
+          if (existingUnit.length > 0) {
+            await connection.query(
+              `UPDATE producto_unidades 
+               SET sucursal_id = ?, estado_unidad_id = 1, disponible_venta = 1, condicion = 'NUEVO', costo_adquisicion = ?, updated_at = NOW()
+               WHERE id = ?`,
+              [targetSucursalId, costoUnit, existingUnit[0].id]
+            );
+          } else {
             await connection.query(
               `INSERT INTO producto_unidades 
                (producto_id, sucursal_id, numero_serie, estado_unidad_id, tipo_destino, disponible_venta, condicion, costo_adquisicion, fecha_ingreso)
                VALUES (?, ?, ?, 1, 'VENTA', 1, 'NUEVO', ?, NOW())`,
-              [prodId, targetSucursalId, String(s).trim(), costoUnit]
+              [prodId, targetSucursalId, cleanSerie, costoUnit]
             );
           }
         }

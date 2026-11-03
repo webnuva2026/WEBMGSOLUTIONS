@@ -27,6 +27,9 @@ import {
   Mail,
   MapPin,
   FileSpreadsheet,
+  Barcode,
+  QrCode,
+  Boxes,
 } from 'lucide-react';
 import {
   Compra,
@@ -89,6 +92,12 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
   const [selectedCompraDetail, setSelectedCompraDetail] = useState<Compra | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
+  // --- SERIES MODAL STATE (ALMACÉN) ---
+  const [seriesModalItemIndex, setSeriesModalItemIndex] = useState<number | null>(null);
+  const [currentInputSerie, setCurrentInputSerie] = useState<string>('');
+  const [bulkSeriesInput, setBulkSeriesInput] = useState<string>('');
+  const [isBulkMode, setIsBulkMode] = useState<boolean>(false);
+
   // --- PROVEEDOR MODAL STATE ---
   const [isProveedorModalOpen, setIsProveedorModalOpen] = useState(false);
   const [editingProveedor, setEditingProveedor] = useState<Proveedor | null>(null);
@@ -140,6 +149,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
       return;
     }
 
+    const isSeriado = !!(selectedProductObj.requiereSerie || (selectedProductObj.categoriaId && selectedProductObj.categoriaId <= 3));
+
     // Check if already in cart
     const existingIndex = cartItems.findIndex((item) => item.productoId === selectedProductObj.id);
     if (existingIndex >= 0) {
@@ -147,6 +158,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
       updated[existingIndex].cantidad += itemCantidad;
       updated[existingIndex].precioCostoUnitario = costoNum;
       updated[existingIndex].subtotal = updated[existingIndex].cantidad * costoNum;
+      updated[existingIndex].requiereSerie = isSeriado;
       setCartItems(updated);
     } else {
       const newItem: ItemCompra = {
@@ -158,10 +170,11 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
         cantidad: itemCantidad,
         precioCostoUnitario: costoNum,
         subtotal: itemCantidad * costoNum,
+        requiereSerie: isSeriado,
+        series: [],
       };
       setCartItems([...cartItems, newItem]);
     }
-
 
     // Reset item picker
     setSelectedProductId('');
@@ -173,6 +186,83 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
 
   const handleRemoveItem = (index: number) => {
     setCartItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // --- SERIES MANAGEMENT FOR ACTIVE ITEM ---
+  const activeSeriesItem = seriesModalItemIndex !== null ? cartItems[seriesModalItemIndex] : null;
+
+  const handleOpenSeriesModal = (index: number) => {
+    setSeriesModalItemIndex(index);
+    setCurrentInputSerie('');
+    setBulkSeriesInput('');
+    setIsBulkMode(false);
+  };
+
+  const handleAddSingleSerie = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (seriesModalItemIndex === null || !activeSeriesItem) return;
+    const clean = currentInputSerie.trim().toUpperCase();
+    if (!clean) return;
+
+    const currentSeries = activeSeriesItem.series || [];
+    if (currentSeries.includes(clean)) {
+      onShowToast('Serie duplicada', `La serie '${clean}' ya fue ingresada para este producto.`, 'warning');
+      return;
+    }
+    if (currentSeries.length >= activeSeriesItem.cantidad) {
+      onShowToast('Límite alcanzado', `Ya se ingresaron las ${activeSeriesItem.cantidad} series de este producto.`, 'warning');
+      return;
+    }
+
+    const updated = [...cartItems];
+    updated[seriesModalItemIndex].series = [...currentSeries, clean];
+    setCartItems(updated);
+    setCurrentInputSerie('');
+  };
+
+  const handleRemoveSerie = (serieIndex: number) => {
+    if (seriesModalItemIndex === null || !activeSeriesItem) return;
+    const updated = [...cartItems];
+    const filtered = (activeSeriesItem.series || []).filter((_, i) => i !== serieIndex);
+    updated[seriesModalItemIndex].series = filtered;
+    setCartItems(updated);
+  };
+
+  const handleApplyBulkSeries = () => {
+    if (seriesModalItemIndex === null || !activeSeriesItem) return;
+    const lines = bulkSeriesInput
+      .split(/[\n,;]+/)
+      .map((s) => s.trim().toUpperCase())
+      .filter((s) => s.length > 0);
+
+    if (lines.length === 0) {
+      onShowToast('Texto vacío', 'Pegue los números de serie en el campo de texto.', 'warning');
+      return;
+    }
+
+    const uniqueLines = Array.from(new Set(lines));
+    const targetCount = activeSeriesItem.cantidad;
+    const finalSeries = uniqueLines.slice(0, targetCount);
+
+    const updated = [...cartItems];
+    updated[seriesModalItemIndex].series = finalSeries;
+    setCartItems(updated);
+    setIsBulkMode(false);
+    onShowToast('Series asignadas', `${finalSeries.length} series registradas correctamente.`, 'success');
+  };
+
+  const handleAutoGenerateSeries = () => {
+    if (seriesModalItemIndex === null || !activeSeriesItem) return;
+    const targetCount = activeSeriesItem.cantidad;
+    const prefix = `SN-${activeSeriesItem.marca.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+    const generated: string[] = [];
+    for (let i = 1; i <= targetCount; i++) {
+      generated.push(`${prefix}-${String(i).padStart(3, '0')}`);
+    }
+    const updated = [...cartItems];
+    updated[seriesModalItemIndex].series = generated;
+    setCartItems(updated);
+    onShowToast('Series generadas', `Se autogeneraron ${targetCount} series correlativas.`, 'info');
   };
 
   // Financial totals for the purchase
@@ -196,6 +286,18 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
     if (cartItems.length === 0) {
       onShowToast('Orden vacía', 'Agrega al menos un producto a la compra para ingresar a stock.', 'error');
       return;
+    }
+
+    // Validar que los productos seriados tengan sus series completas
+    for (const item of cartItems) {
+      if (item.requiereSerie && (item.series?.length || 0) < item.cantidad) {
+        onShowToast(
+          'Faltan series físicas',
+          `El producto '${item.nombre}' requiere ${item.cantidad} series físicas (${item.series?.length || 0} registradas). Haga clic en 'Asignar series'.`,
+          'warning'
+        );
+        return;
+      }
     }
 
     const newCompra: Compra = {
@@ -647,25 +749,53 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                   cartItems.map((item, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-xs"
+                      className="flex flex-col gap-2 rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-xs"
                     >
-                      <div className="flex-1 pr-3">
-                        <p className="font-bold text-slate-800">{item.nombre}</p>
-                        <p className="text-[11px] text-slate-500">
-                          {item.cantidad} un. x S/ {item.precioCostoUnitario.toFixed(2)} | {item.marca}
-                        </p>
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 pr-3">
+                          <p className="font-bold text-slate-800">{item.nombre}</p>
+                          <p className="text-[11px] text-slate-500">
+                            {item.cantidad} un. x S/ {item.precioCostoUnitario.toFixed(2)} | {item.marca}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-black text-sm text-[#00346F]">
+                            S/ {item.subtotal.toFixed(2)}
+                          </span>
+                          <button
+                            onClick={() => handleRemoveItem(index)}
+                            className="rounded-lg p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600 cursor-pointer"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-black text-sm text-[#00346F]">
-                          S/ {item.subtotal.toFixed(2)}
-                        </span>
-                        <button
-                          onClick={() => handleRemoveItem(index)}
-                          className="rounded-lg p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
+
+                      {/* Control de series para ingreso a almacén */}
+                      {item.requiereSerie && (
+                        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/60">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSeriesModal(index)}
+                            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold border transition-colors cursor-pointer ${
+                              (item.series?.length || 0) === item.cantidad
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                            }`}
+                          >
+                            <Barcode className="h-3.5 w-3.5" />
+                            {(item.series?.length || 0) === item.cantidad
+                              ? `✓ ${item.cantidad} series asignadas`
+                              : `⚠️ Asignar series (${item.series?.length || 0}/${item.cantidad})`}
+                          </button>
+
+                          {item.series && item.series.length > 0 && (
+                            <span className="text-[10px] text-slate-500 truncate max-w-[280px]">
+                              {item.series.join(', ')}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))
                 )}
@@ -1187,6 +1317,178 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL DE ASIGNACIÓN DE SERIES PARA ALMACÉN */}
+      {seriesModalItemIndex !== null && activeSeriesItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="bg-[#00346F] text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-white">
+                  <Barcode className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Series Físicas para Almacén</h3>
+                  <p className="text-[11px] text-blue-200 truncate max-w-[320px]">
+                    {activeSeriesItem.nombre}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSeriesModalItemIndex(null)}
+                className="text-white/70 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Sub-header / Progress */}
+            <div className="bg-blue-50/70 border-b border-blue-100 p-3.5 px-5 flex items-center justify-between text-xs">
+              <div>
+                <span className="font-bold text-[#00346F]">Cantidad requerida: </span>
+                <span className="font-black text-slate-800">{activeSeriesItem.cantidad} unidades</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black ${
+                  (activeSeriesItem.series?.length || 0) === activeSeriesItem.cantidad
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    : 'bg-amber-100 text-amber-800 border border-amber-300'
+                }`}>
+                  {activeSeriesItem.series?.length || 0} de {activeSeriesItem.cantidad} ingresadas
+                </span>
+              </div>
+            </div>
+
+            {/* Mode switch */}
+            <div className="p-5 pb-0 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setIsBulkMode(false)}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                  !isBulkMode
+                    ? 'bg-[#00346F] text-white border-[#00346F]'
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                Pistoleo / Uno por Uno
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsBulkMode(true)}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                  isBulkMode
+                    ? 'bg-[#00346F] text-white border-[#00346F]'
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                Pegar Lote / Múltiples
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-4 flex-1">
+              {!isBulkMode ? (
+                <form onSubmit={handleAddSingleSerie} className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={currentInputSerie}
+                      onChange={(e) => setCurrentInputSerie(e.target.value.toUpperCase())}
+                      placeholder="Escanear con pistola o escribir serie..."
+                      className="w-full pl-9 pr-3 py-2 text-xs font-mono font-bold uppercase rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#00346F] outline-none"
+                    />
+                    <Barcode className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!currentInputSerie.trim() || (activeSeriesItem.series?.length || 0) >= activeSeriesItem.cantidad}
+                    className="px-4 py-2 bg-[#00346F] hover:bg-[#004A99] disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Agregar
+                  </button>
+                </form>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-600 block">
+                    Pegar series (una por línea o separadas por comas):
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={bulkSeriesInput}
+                    onChange={(e) => setBulkSeriesInput(e.target.value.toUpperCase())}
+                    placeholder={`SN-${activeSeriesItem.marca}-001\nSN-${activeSeriesItem.marca}-002`}
+                    className="w-full p-2.5 text-xs font-mono rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#00346F] outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleApplyBulkSeries}
+                    className="w-full py-2 bg-[#00346F] hover:bg-[#004A99] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Cargar Lista de Series
+                  </button>
+                </div>
+              )}
+
+              {/* Quick auto-generator if batch has no barcodes */}
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[11px] text-slate-500">¿Lote sin código de barras?</span>
+                <button
+                  type="button"
+                  onClick={handleAutoGenerateSeries}
+                  className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                >
+                  ⚡ Autogenerar {activeSeriesItem.cantidad} series correlativas
+                </button>
+              </div>
+
+              {/* Lista de series ingresadas */}
+              <div>
+                <p className="text-xs font-bold text-slate-700 mb-2">
+                  Series Registradas ({activeSeriesItem.series?.length || 0}):
+                </p>
+                {(!activeSeriesItem.series || activeSeriesItem.series.length === 0) ? (
+                  <div className="py-6 border-2 border-dashed border-slate-200 rounded-xl text-center text-slate-400 text-xs">
+                    No se han ingresado números de serie todavía.
+                  </div>
+                ) : (
+                  <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                    {activeSeriesItem.series.map((s, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono"
+                      >
+                        <span className="font-bold text-slate-800">
+                          #{idx + 1}. {s}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSerie(idx)}
+                          className="text-slate-400 hover:text-rose-600 p-0.5 rounded transition-colors cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-slate-50 p-4 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSeriesModalItemIndex(null)}
+                className="px-4 py-2 bg-[#00346F] hover:bg-[#004A99] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Listo / Confirmar
+              </button>
+            </div>
           </div>
         </div>
       )}
