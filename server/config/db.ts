@@ -13,6 +13,10 @@ export const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
   charset: 'utf8mb4',
+  ssl:
+    process.env.DB_SSL === 'true' || process.env.NODE_ENV === 'production'
+      ? { minVersion: 'TLSv1.2', rejectUnauthorized: false }
+      : undefined,
 });
 
 // Helper de prueba de conexión
