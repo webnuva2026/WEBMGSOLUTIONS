@@ -1,5 +1,12 @@
 import 'dotenv/config';
+import dns from 'dns';
 import express from 'express';
+
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch {
+  // Ignorar si no aplica
+}
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';

@@ -1,21 +1,30 @@
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 import path from 'path';
+import dns from 'dns';
+
+// CRÍTICO PARA RENDER / DOCKER / LINUX:
+// Forzar resolución DNS IPv4 primero. En Render el enrutamiento IPv6 hacia smtp.gmail.com
+// se queda colgado por más de 2 minutos (ETIMEDOUT) y bloquea el envío de correos.
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch {
+  // Ignorar en versiones antiguas de Node
+}
 
 // Asegurar carga inmediata de variables de entorno
 dotenv.config();
 
 // Configuración del transporte Nodemailer (Google / Gmail SMTP u otro)
-export function getMailTransporter() {
+export function getMailTransporter(overridePort?: number) {
   // Si no están en process.env (por ejemplo si el servidor no fue reiniciado tras editar el .env), recargar con override
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
     dotenv.config({ override: true });
   }
 
   const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-  // En servidores en la nube (Render/AWS/Linux), el puerto 587 con STARTTLS es el estándar universal más rápido y confiable
-  const port = parseInt(process.env.SMTP_PORT || '587', 10);
-  const secure = process.env.SMTP_SECURE === 'true' ? true : (port === 465);
+  const port = overridePort || parseInt(process.env.SMTP_PORT || '465', 10);
+  const secure = port === 465 ? true : (process.env.SMTP_SECURE === 'true');
   const user = (process.env.SMTP_USER || 'mgsolutionsg@gmail.com').trim();
   // Eliminar espacios que Google suele colocar en las contraseñas de app (ej: "abcd efgh ijkl mnop")
   const pass = (process.env.SMTP_PASS || 'qpulsrkfhicknmox').replace(/\s+/g, '');
@@ -36,10 +45,29 @@ export function getMailTransporter() {
     tls: {
       rejectUnauthorized: false,
     },
-    connectionTimeout: 5000,
-    greetingTimeout: 5000,
-    socketTimeout: 6000,
-  });
+    family: 4, // Forzar IPv4 estrictamente para evitar cuelgues de 2 min por IPv6 en Render
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 10000,
+  } as any);
+}
+
+/**
+ * Envía un correo probando primero el puerto principal (465 SSL IPv4) y, si falla, reintenta por 587 STARTTLS IPv4
+ */
+async function sendMailWithRetry(mailOptions: any): Promise<void> {
+  const primaryTransporter = getMailTransporter(465);
+  if (!primaryTransporter) {
+    throw new Error('Transporter SMTP no disponible');
+  }
+  try {
+    await primaryTransporter.sendMail(mailOptions);
+  } catch (firstErr: any) {
+    console.warn('⚠️ Reintentando envío SMTP por puerto 587 IPv4 tras fallo en 465:', firstErr?.message);
+    const fallbackTransporter = getMailTransporter(587);
+    if (!fallbackTransporter) throw firstErr;
+    await fallbackTransporter.sendMail(mailOptions);
+  }
 }
 
 /**
@@ -218,7 +246,7 @@ export async function sendRecoveryCodeEmail(
   `;
 
   try {
-    await transporter.sendMail({
+    await sendMailWithRetry({
       from: fromEmail,
       to: toEmail,
       subject: `🔑 ${codigoOtp} es tu código de recuperación - MG Solutions`,
@@ -521,7 +549,7 @@ export async function sendWelcomeCredentialsEmail(params: {
   `;
 
   try {
-    await transporter.sendMail({
+    await sendMailWithRetry({
       from: fromEmail,
       to: toEmail,
       subject: `🎉 Bienvenido a MG Solutions ERP - Sus Credenciales de Acceso`,
@@ -846,7 +874,7 @@ export async function sendWorkshopTicketEmail(params: {
   `;
 
   try {
-    await transporter.sendMail({
+    await sendMailWithRetry({
       from: fromEmail,
       to: toEmail,
       subject: `📋 Ticket de Servicio Técnico ${codigoOrden} - MG Solutions`,
@@ -1180,7 +1208,7 @@ export async function sendSaleReceiptEmail(params: {
   `;
 
   try {
-    await transporter.sendMail({
+    await sendMailWithRetry({
       from: fromEmail,
       to: toEmail,
       subject: `🧾 ${tipoComprobante} ${codigoComprobante} - MG Solutions`,

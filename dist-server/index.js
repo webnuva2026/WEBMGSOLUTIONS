@@ -90,13 +90,14 @@ __export(mailer_exports, {
 });
 import nodemailer from "nodemailer";
 import dotenv4 from "dotenv";
-function getMailTransporter() {
+import dns from "dns";
+function getMailTransporter(overridePort) {
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
     dotenv4.config({ override: true });
   }
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = parseInt(process.env.SMTP_PORT || "587", 10);
-  const secure = process.env.SMTP_SECURE === "true" ? true : port === 465;
+  const port = overridePort || parseInt(process.env.SMTP_PORT || "465", 10);
+  const secure = port === 465 ? true : process.env.SMTP_SECURE === "true";
   const user = (process.env.SMTP_USER || "mgsolutionsg@gmail.com").trim();
   const pass = (process.env.SMTP_PASS || "qpulsrkfhicknmox").replace(/\s+/g, "");
   if (!user || !pass) {
@@ -114,10 +115,26 @@ function getMailTransporter() {
     tls: {
       rejectUnauthorized: false
     },
-    connectionTimeout: 5e3,
-    greetingTimeout: 5e3,
-    socketTimeout: 6e3
+    family: 4,
+    // Forzar IPv4 estrictamente para evitar cuelgues de 2 min por IPv6 en Render
+    connectionTimeout: 8e3,
+    greetingTimeout: 8e3,
+    socketTimeout: 1e4
   });
+}
+async function sendMailWithRetry(mailOptions) {
+  const primaryTransporter = getMailTransporter(465);
+  if (!primaryTransporter) {
+    throw new Error("Transporter SMTP no disponible");
+  }
+  try {
+    await primaryTransporter.sendMail(mailOptions);
+  } catch (firstErr) {
+    console.warn("\u26A0\uFE0F Reintentando env\xEDo SMTP por puerto 587 IPv4 tras fallo en 465:", firstErr?.message);
+    const fallbackTransporter = getMailTransporter(587);
+    if (!fallbackTransporter) throw firstErr;
+    await fallbackTransporter.sendMail(mailOptions);
+  }
 }
 async function verifySMTPConnection() {
   const transporter = getMailTransporter();
@@ -279,7 +296,7 @@ async function sendRecoveryCodeEmail(toEmail, nombreUsuario, codigoOtp) {
 </html>
   `;
   try {
-    await transporter.sendMail({
+    await sendMailWithRetry({
       from: fromEmail,
       to: toEmail,
       subject: `\u{1F511} ${codigoOtp} es tu c\xF3digo de recuperaci\xF3n - MG Solutions`,
@@ -565,7 +582,7 @@ async function sendWelcomeCredentialsEmail(params) {
 </html>
   `;
   try {
-    await transporter.sendMail({
+    await sendMailWithRetry({
       from: fromEmail,
       to: toEmail,
       subject: `\u{1F389} Bienvenido a MG Solutions ERP - Sus Credenciales de Acceso`,
@@ -870,7 +887,7 @@ async function sendWorkshopTicketEmail(params) {
 </html>
   `;
   try {
-    await transporter.sendMail({
+    await sendMailWithRetry({
       from: fromEmail,
       to: toEmail,
       subject: `\u{1F4CB} Ticket de Servicio T\xE9cnico ${codigoOrden} - MG Solutions`,
@@ -1165,7 +1182,7 @@ async function sendSaleReceiptEmail(params) {
 </html>
   `;
   try {
-    await transporter.sendMail({
+    await sendMailWithRetry({
       from: fromEmail,
       to: toEmail,
       subject: `\u{1F9FE} ${tipoComprobante} ${codigoComprobante} - MG Solutions`,
@@ -1185,12 +1202,17 @@ Gracias por su compra en MG SOLUTIONS GROUP S.A.C.`,
 }
 var init_mailer = __esm({
   "server/utils/mailer.ts"() {
+    try {
+      dns.setDefaultResultOrder("ipv4first");
+    } catch {
+    }
     dotenv4.config();
   }
 });
 
 // server/index.ts
 import "dotenv/config";
+import dns2 from "dns";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -2071,6 +2093,7 @@ async function createUser(req, res) {
     res.status(201).json({
       success: true,
       message: `Usuario '${finalUsername}' creado con \xE9xito y credenciales enviadas a ${email}.`,
+      passwordTemporal: rawPassword,
       usuario: {
         id: result.insertId,
         username: finalUsername,
@@ -2175,41 +2198,37 @@ async function updateUser(req, res) {
     params.push(userId);
     await pool.query(`UPDATE usuarios SET ${updates.join(", ")} WHERE id = ?`, params);
     if (emailChanged && normalizedNewEmail) {
-      try {
-        const transporter = getMailTransporter();
-        const fromEmail = process.env.SMTP_FROM || "MG Solutions <notificaciones@mgsolutions.pe>";
-        if (transporter) {
-          await transporter.sendMail({
-            from: fromEmail,
-            to: normalizedNewEmail,
-            subject: "\u2709\uFE0F Correo electr\xF3nico actualizado - MG Solutions ERP",
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-                <div style="text-align: center; margin-bottom: 20px;">
-                  <h2 style="color: #00346F; margin: 0;">MG SOLUTIONS GROUP S.A.C.</h2>
-                  <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Actualizaci\xF3n de Cuenta de Acceso</p>
-                </div>
-                <p style="font-size: 14px; color: #334155;">Estimado(a) <strong>${currentUserData.nombre_completo || currentUserData.username}</strong>,</p>
-                <p style="font-size: 14px; color: #334155; line-height: 1.5;">
-                  Le confirmamos que el administrador del sistema ha actualizado su correo electr\xF3nico de acceso a:
-                </p>
-                <div style="background-color: #eff6ff; border-left: 4px solid #00346F; padding: 12px 16px; margin: 15px 0; border-radius: 4px;">
-                  <span style="font-size: 15px; font-weight: bold; color: #00346F;">${normalizedNewEmail}</span>
-                </div>
-                <p style="font-size: 13px; color: #475569; line-height: 1.5;">
-                  A partir de ahora, puede utilizar esta direcci\xF3n de correo para iniciar sesi\xF3n o para recibir sus c\xF3digos OTP en la opci\xF3n <em>"\xBFOlvid\xE9 mi contrase\xF1a?"</em> de la pantalla de inicio.
-                </p>
-                <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center;">
-                  Si usted no solicit\xF3 este cambio, por favor contacte de inmediato con la administraci\xF3n de MG Solutions.
-                </div>
+      const transporter = getMailTransporter();
+      const fromEmail = process.env.EMAIL_FROM || "MG Solutions <mgsolutionsg@gmail.com>";
+      if (transporter) {
+        transporter.sendMail({
+          from: fromEmail,
+          to: normalizedNewEmail,
+          subject: "\u2709\uFE0F Correo electr\xF3nico actualizado - MG Solutions ERP",
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+              <div style="text-align: center; margin-bottom: 20px;">
+                <h2 style="color: #00346F; margin: 0;">MG SOLUTIONS GROUP S.A.C.</h2>
+                <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Actualizaci\xF3n de Cuenta de Acceso</p>
               </div>
-            `
-          });
-        } else {
-          console.log(`[SIMULADOR EMAIL] Notificaci\xF3n de cambio de correo a: ${normalizedNewEmail} (${currentUserData.username})`);
-        }
-      } catch (mailErr) {
-        console.warn("Advertencia al enviar correo de actualizaci\xF3n:", mailErr);
+              <p style="font-size: 14px; color: #334155;">Estimado(a) <strong>${currentUserData.nombre_completo || currentUserData.username}</strong>,</p>
+              <p style="font-size: 14px; color: #334155; line-height: 1.5;">
+                Le confirmamos que el administrador del sistema ha actualizado su correo electr\xF3nico de acceso a:
+              </p>
+              <div style="background-color: #eff6ff; border-left: 4px solid #00346F; padding: 12px 16px; margin: 15px 0; border-radius: 4px;">
+                <span style="font-size: 15px; font-weight: bold; color: #00346F;">${normalizedNewEmail}</span>
+              </div>
+              <p style="font-size: 13px; color: #475569; line-height: 1.5;">
+                A partir de ahora, puede utilizar esta direcci\xF3n de correo para iniciar sesi\xF3n o para recibir sus c\xF3digos OTP en la opci\xF3n <em>"\xBFOlvid\xE9 mi contrase\xF1a?"</em> de la pantalla de inicio.
+              </p>
+              <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center;">
+                Si usted no solicit\xF3 este cambio, por favor contacte de inmediato con la administraci\xF3n de MG Solutions.
+              </div>
+            </div>
+          `
+        }).catch((mailErr) => {
+          console.warn("Advertencia al enviar correo de actualizaci\xF3n:", mailErr);
+        });
       }
     }
     res.json({ success: true, message: "Usuario actualizado con \xE9xito." });
@@ -7339,6 +7358,10 @@ if (process.argv[1]?.includes("seed-superadmin")) {
 }
 
 // server/index.ts
+try {
+  dns2.setDefaultResultOrder("ipv4first");
+} catch {
+}
 dotenv6.config();
 var app = express();
 var PORT = Number(process.env.PORT) || 4e3;

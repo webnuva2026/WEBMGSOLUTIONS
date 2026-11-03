@@ -456,14 +456,17 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
         });
 
         if (res.success) {
-          await loadUsers();
+          setIsUserModalOpen(false);
           if (res.usuario) {
             onSaveUsuario(res.usuario as any);
           }
-          setIsUserModalOpen(false);
+          loadUsers();
+          const claveInfo = (res as any).passwordTemporal
+            ? ` (Clave temporal: ${(res as any).passwordTemporal})`
+            : '';
           onShowToast(
             '¡Usuario Creado Exitosamente!',
-            `Hemos enviado las credenciales correctamente al correo del usuario (${userForm.email.trim()}).`,
+            `Credenciales enviadas a ${userForm.email.trim()}.${claveInfo}`,
             'success'
           );
         } else {

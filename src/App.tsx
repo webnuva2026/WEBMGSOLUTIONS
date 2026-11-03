@@ -272,12 +272,6 @@ export function App() {
     loadDatabaseData(selectedSedeId);
   }, [selectedSedeId]);
 
-  useEffect(() => {
-    if (activeView === 'ventas' || activeView === 'panel-almacen' || activeView === 'productos') {
-      loadDatabaseData(selectedSedeId);
-    }
-  }, [activeView]);
-
   const [ordenes, setOrdenes] = useState<OrdenServicio[]>(() => {
     const saved = localStorage.getItem('mg_ordenes_servicio');
     return saved ? JSON.parse(saved) : [];
@@ -348,6 +342,12 @@ export function App() {
   // View Navigation
   const [activeView, setActiveView] = useState<string>('ventas');
   const [serviceClientId, setServiceClientId] = useState<number | undefined>();
+
+  useEffect(() => {
+    if (activeView === 'ventas' || activeView === 'panel-almacen' || activeView === 'productos') {
+      loadDatabaseData(selectedSedeId);
+    }
+  }, [activeView]);
   const [sidebarOpenMobile, setSidebarOpenMobile] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
