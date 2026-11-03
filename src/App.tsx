@@ -306,7 +306,7 @@ export function App() {
 
   // Limpiar cachés viejos de localStorage para sincronizar estrictamente con la base de datos real
   useEffect(() => {
-    const legacyPurged = localStorage.getItem('mg_legacy_purged_v4');
+    const legacyPurged = localStorage.getItem('mg_legacy_purged_v5');
     if (!legacyPurged) {
       localStorage.removeItem('mg_productos');
       localStorage.removeItem('mg_ordenes_servicio');
@@ -316,7 +316,9 @@ export function App() {
       localStorage.removeItem('mg_proveedores');
       localStorage.removeItem('mg_clientes');
       localStorage.removeItem('mg_cajas_turnos');
-      localStorage.setItem('mg_legacy_purged_v4', 'true');
+      localStorage.removeItem('mg_movimientos_caja');
+      localStorage.removeItem('mg_movimientos_inventario');
+      localStorage.setItem('mg_legacy_purged_v5', 'true');
       setProductos([]);
       setOrdenes([]);
       setEquipos([]);
@@ -1061,7 +1063,11 @@ export function App() {
             />
           )}
 
-          {(activeView === 'config-empresa' || activeView === 'sucursales') && (
+          {(activeView === 'config-empresa' || activeView === 'sucursales') &&
+            (currentUser.rol === 'SUPERADMIN' ||
+              currentUser.rol === 'ADMIN' ||
+              currentUser.modulosPermitidos?.includes('config-empresa') ||
+              currentUser.modulosPermitidos?.includes('sucursales')) && (
             <CompanySettingsView
               empresa={empresa}
               sucursales={sucursales}
@@ -1088,7 +1094,10 @@ export function App() {
             />
           )}
 
-          {activeView === 'usuarios' && (
+          {activeView === 'usuarios' &&
+            (currentUser.rol === 'SUPERADMIN' ||
+              currentUser.rol === 'ADMIN' ||
+              currentUser.modulosPermitidos?.includes('usuarios')) && (
             <UsersManagementView
               usuarios={usuarios}
               onSaveUsuario={handleSaveUsuario}
