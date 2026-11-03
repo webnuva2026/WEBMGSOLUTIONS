@@ -14,15 +14,18 @@ try {
 // Asegurar carga inmediata de variables de entorno
 dotenv.config();
 
-// URL opcional del Puente HTTPS (Puerto 443) en Google Apps Script para saltar bloqueos de puertos SMTP en Render Free Tier
-let runtimeMailBridgeUrl: string = process.env.GOOGLE_MAIL_BRIDGE_URL || '';
+// URL del Puente HTTPS (Puerto 443) en Google Apps Script (webnuva@gmail.com) para saltar bloqueos de puertos SMTP en Render Free Tier
+const DEFAULT_GOOGLE_MAIL_BRIDGE_URL =
+  'https://script.google.com/macros/s/AKfycbyr0WYIKEvVZbA1WmlN24OIATYOxQEkSEIlMT02dDPCKnVeXlhh_6vz40fdQQt9zY-6yg/exec';
+
+let runtimeMailBridgeUrl: string = process.env.GOOGLE_MAIL_BRIDGE_URL || DEFAULT_GOOGLE_MAIL_BRIDGE_URL;
 
 export function setRuntimeMailBridgeUrl(url: string) {
   runtimeMailBridgeUrl = (url || '').trim();
 }
 
 export function getRuntimeMailBridgeUrl(): string {
-  return runtimeMailBridgeUrl || process.env.GOOGLE_MAIL_BRIDGE_URL || '';
+  return runtimeMailBridgeUrl || process.env.GOOGLE_MAIL_BRIDGE_URL || DEFAULT_GOOGLE_MAIL_BRIDGE_URL;
 }
 
 /**
@@ -103,6 +106,7 @@ export async function dispatchEmail(mailOptions: {
       const response = await fetch(bridgeUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        redirect: 'follow',
         body: JSON.stringify({
           to: mailOptions.to,
           subject: mailOptions.subject,

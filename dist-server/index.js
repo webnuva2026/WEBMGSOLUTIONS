@@ -98,7 +98,7 @@ function setRuntimeMailBridgeUrl(url) {
   runtimeMailBridgeUrl = (url || "").trim();
 }
 function getRuntimeMailBridgeUrl() {
-  return runtimeMailBridgeUrl || process.env.GOOGLE_MAIL_BRIDGE_URL || "";
+  return runtimeMailBridgeUrl || process.env.GOOGLE_MAIL_BRIDGE_URL || DEFAULT_GOOGLE_MAIL_BRIDGE_URL;
 }
 async function resolveSmtpIpv4Host(hostname) {
   try {
@@ -150,6 +150,7 @@ async function dispatchEmail(mailOptions) {
       const response = await fetch(bridgeUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        redirect: "follow",
         body: JSON.stringify({
           to: mailOptions.to,
           subject: mailOptions.subject,
@@ -1283,7 +1284,7 @@ Gracias por su compra en MG SOLUTIONS GROUP S.A.C.`,
     return { success: false, error: error.message };
   }
 }
-var runtimeMailBridgeUrl;
+var DEFAULT_GOOGLE_MAIL_BRIDGE_URL, runtimeMailBridgeUrl;
 var init_mailer = __esm({
   "server/utils/mailer.ts"() {
     try {
@@ -1291,7 +1292,8 @@ var init_mailer = __esm({
     } catch {
     }
     dotenv4.config();
-    runtimeMailBridgeUrl = process.env.GOOGLE_MAIL_BRIDGE_URL || "";
+    DEFAULT_GOOGLE_MAIL_BRIDGE_URL = "https://script.google.com/macros/s/AKfycbyr0WYIKEvVZbA1WmlN24OIATYOxQEkSEIlMT02dDPCKnVeXlhh_6vz40fdQQt9zY-6yg/exec";
+    runtimeMailBridgeUrl = process.env.GOOGLE_MAIL_BRIDGE_URL || DEFAULT_GOOGLE_MAIL_BRIDGE_URL;
   }
 });
 
