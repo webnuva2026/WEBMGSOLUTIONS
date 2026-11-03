@@ -829,10 +829,10 @@ CREATE TABLE `roles` (
 
 -- Datos de tabla `roles` (4 registros)
 INSERT INTO `roles` (`id`, `codigo`, `nombre`, `descripcion`, `modulos_predeterminados`, `es_sistema`, `estado_id`, `created_at`, `updated_at`) VALUES
-(7, 'SUPERADMIN', 'Super Administrador', 'Acceso total y configuración de roles del sistema', 'ventas,caja,compras,panel-recepcion,panel-almacen,taller,equipos,clientes,productos,categorias,marcas,usuarios,config-empresa,sucursales,movimientos', 1, 1, '2026-10-06 15:18:24', '2026-10-06 15:18:24'),
-(13, 'RECEPCION', 'Recepcion', 'Secre', 'clientes,ventas,panel-recepcion,taller', 0, 1, '2026-10-06 23:07:54', '2026-10-06 23:07:54'),
-(14, 'TECNICO', 'Tecnico', '', 'panel-almacen,taller,equipos,productos', 0, 1, '2026-10-06 23:10:06', '2026-10-06 23:10:06'),
-(15, 'LOGISTICA', 'Logística', 'Area logitica', 'clientes', 0, 1, '2026-10-07 00:26:43', '2026-10-07 00:26:43');
+(7, 'SUPERADMIN', 'Super Administrador', 'Acceso total y configuración de roles del sistema', '["ventas","caja","compras","panel-recepcion","panel-almacen","taller","equipos","clientes","productos","categorias","marcas","usuarios","config-empresa","sucursales","movimientos"]', 1, 1, '2026-10-06 15:18:24', '2026-10-06 15:18:24'),
+(13, 'RECEPCION', 'Recepcion', 'Secre', '["clientes","ventas","panel-recepcion","taller"]', 0, 1, '2026-10-06 23:07:54', '2026-10-06 23:07:54'),
+(14, 'TECNICO', 'Tecnico', '', '["panel-almacen","taller","equipos","productos"]', 0, 1, '2026-10-06 23:10:06', '2026-10-06 23:10:06'),
+(15, 'LOGISTICA', 'Logística', 'Area logitica', '["clientes"]', 0, 1, '2026-10-07 00:26:43', '2026-10-07 00:26:43');
 
 -- Estructura de tabla `sesiones_tokens`
 DROP TABLE IF EXISTS `sesiones_tokens`;
