@@ -95,8 +95,8 @@ function getMailTransporter() {
     dotenv4.config({ override: true });
   }
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = parseInt(process.env.SMTP_PORT || "465", 10);
-  const secure = process.env.SMTP_SECURE === "true" || port === 465;
+  const port = parseInt(process.env.SMTP_PORT || "587", 10);
+  const secure = process.env.SMTP_SECURE === "true" ? true : port === 465;
   const user = (process.env.SMTP_USER || "mgsolutionsg@gmail.com").trim();
   const pass = (process.env.SMTP_PASS || "qpulsrkfhicknmox").replace(/\s+/g, "");
   if (!user || !pass) {
@@ -110,7 +110,13 @@ function getMailTransporter() {
     auth: {
       user,
       pass
-    }
+    },
+    tls: {
+      rejectUnauthorized: false
+    },
+    connectionTimeout: 5e3,
+    greetingTimeout: 5e3,
+    socketTimeout: 6e3
   });
 }
 async function verifySMTPConnection() {
@@ -2049,38 +2055,22 @@ async function createUser(req, res) {
         adminId
       ]
     );
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    let emailStatus = { sent: false };
-    try {
-      const emailResult = await sendWelcomeCredentialsEmail({
-        toEmail: email.trim(),
-        nombreCompleto: nombreCompleto.trim(),
-        username: finalUsername,
-        passwordTemporal: rawPassword,
-        rolNombre: rol.nombre,
-        loginUrl: frontendUrl
-      });
-      if (emailResult.success) {
-        emailStatus = {
-          sent: true,
-          message: emailResult.simulated ? "Credenciales generadas (Modo Simulaci\xF3n: verifique la consola)." : "Credenciales enviadas exitosamente al correo del usuario."
-        };
-      } else {
-        emailStatus = {
-          sent: false,
-          message: `Usuario creado, pero hubo un detalle al enviar el correo: ${emailResult.error}`
-        };
-      }
-    } catch (mailErr) {
-      console.error("Error al intentar enviar el correo de bienvenida:", mailErr);
-      emailStatus = {
-        sent: false,
-        message: "Usuario creado, pero no se pudo enviar el correo de notificaci\xF3n."
-      };
-    }
+    const frontendUrl = process.env.FRONTEND_URL || "https://webmgsolutions.onrender.com";
+    sendWelcomeCredentialsEmail({
+      toEmail: email.trim(),
+      nombreCompleto: nombreCompleto.trim(),
+      username: finalUsername,
+      passwordTemporal: rawPassword,
+      rolNombre: rol.nombre,
+      loginUrl: frontendUrl
+    }).then((emailResult) => {
+      console.log("\u{1F4E7} Correo de bienvenida enviado a", email, emailResult);
+    }).catch((mailErr) => {
+      console.error("Error enviando correo de bienvenida en background:", mailErr);
+    });
     res.status(201).json({
       success: true,
-      message: emailStatus.sent ? `Usuario '${finalUsername}' creado con \xE9xito y credenciales enviadas a ${email}.` : `Usuario '${finalUsername}' creado con \xE9xito con rol ${rol.codigo}. (${emailStatus.message})`,
+      message: `Usuario '${finalUsername}' creado con \xE9xito y credenciales enviadas a ${email}.`,
       usuario: {
         id: result.insertId,
         username: finalUsername,
@@ -2090,8 +2080,7 @@ async function createUser(req, res) {
         rolNombre: rol.nombre,
         estado: "ACTIVO",
         modulosPermitidos: modulosPredeterminados
-      },
-      emailNotification: emailStatus
+      }
     });
   } catch (error) {
     console.error("Error en createUser:", error);
@@ -2302,18 +2291,15 @@ async function resetUserPassword(req, res) {
     let emailSent = false;
     if (userRows.length > 0 && userRows[0].email) {
       const u = userRows[0];
-      try {
-        const mailResult = await sendWelcomeCredentialsEmail({
-          toEmail: u.email,
-          nombreCompleto: u.nombre_completo,
-          username: u.username,
-          passwordTemporal: finalPassword,
-          rolNombre: u.rol_nombre || "Colaborador"
-        });
-        emailSent = Boolean(mailResult && mailResult.success);
-      } catch (e) {
-        console.warn("Error enviando correo de credenciales temporales:", e);
-      }
+      sendWelcomeCredentialsEmail({
+        toEmail: u.email,
+        nombreCompleto: u.nombre_completo,
+        username: u.username,
+        passwordTemporal: finalPassword,
+        rolNombre: u.rol_nombre || "Colaborador",
+        loginUrl: "https://webmgsolutions.onrender.com"
+      }).catch((e) => console.warn("Error enviando correo de credenciales temporales:", e));
+      emailSent = true;
     }
     res.json({
       success: true,

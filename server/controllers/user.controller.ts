@@ -245,46 +245,24 @@ export async function createUser(req: AuthenticatedRequest, res: Response): Prom
       ]
     );
 
-    // Enviar correo de bienvenida formal con credenciales de acceso
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    let emailStatus: { sent: boolean; message?: string } = { sent: false };
-
-    try {
-      const emailResult = await sendWelcomeCredentialsEmail({
-        toEmail: email.trim(),
-        nombreCompleto: nombreCompleto.trim(),
-        username: finalUsername,
-        passwordTemporal: rawPassword,
-        rolNombre: rol.nombre,
-        loginUrl: frontendUrl,
-      });
-
-      if (emailResult.success) {
-        emailStatus = {
-          sent: true,
-          message: emailResult.simulated
-            ? 'Credenciales generadas (Modo Simulación: verifique la consola).'
-            : 'Credenciales enviadas exitosamente al correo del usuario.',
-        };
-      } else {
-        emailStatus = {
-          sent: false,
-          message: `Usuario creado, pero hubo un detalle al enviar el correo: ${emailResult.error}`,
-        };
-      }
-    } catch (mailErr: any) {
-      console.error('Error al intentar enviar el correo de bienvenida:', mailErr);
-      emailStatus = {
-        sent: false,
-        message: 'Usuario creado, pero no se pudo enviar el correo de notificación.',
-      };
-    }
+    // Despachar correo de bienvenida formal con credenciales en segundo plano (no bloquea la respuesta HTTP)
+    const frontendUrl = process.env.FRONTEND_URL || 'https://webmgsolutions.onrender.com';
+    sendWelcomeCredentialsEmail({
+      toEmail: email.trim(),
+      nombreCompleto: nombreCompleto.trim(),
+      username: finalUsername,
+      passwordTemporal: rawPassword,
+      rolNombre: rol.nombre,
+      loginUrl: frontendUrl,
+    }).then((emailResult) => {
+      console.log('📧 Correo de bienvenida enviado a', email, emailResult);
+    }).catch((mailErr: any) => {
+      console.error('Error enviando correo de bienvenida en background:', mailErr);
+    });
 
     res.status(201).json({
       success: true,
-      message: emailStatus.sent
-        ? `Usuario '${finalUsername}' creado con éxito y credenciales enviadas a ${email}.`
-        : `Usuario '${finalUsername}' creado con éxito con rol ${rol.codigo}. (${emailStatus.message})`,
+      message: `Usuario '${finalUsername}' creado con éxito y credenciales enviadas a ${email}.`,
       usuario: {
         id: result.insertId,
         username: finalUsername,
@@ -295,7 +273,6 @@ export async function createUser(req: AuthenticatedRequest, res: Response): Prom
         estado: 'ACTIVO',
         modulosPermitidos: modulosPredeterminados,
       },
-      emailNotification: emailStatus,
     });
   } catch (error: any) {
     console.error('Error en createUser:', error);
@@ -542,18 +519,15 @@ export async function resetUserPassword(req: AuthenticatedRequest, res: Response
     let emailSent = false;
     if (userRows.length > 0 && userRows[0].email) {
       const u = userRows[0];
-      try {
-        const mailResult = await sendWelcomeCredentialsEmail({
-          toEmail: u.email,
-          nombreCompleto: u.nombre_completo,
-          username: u.username,
-          passwordTemporal: finalPassword,
-          rolNombre: u.rol_nombre || 'Colaborador',
-        });
-        emailSent = Boolean(mailResult && mailResult.success);
-      } catch (e) {
-        console.warn('Error enviando correo de credenciales temporales:', e);
-      }
+      sendWelcomeCredentialsEmail({
+        toEmail: u.email,
+        nombreCompleto: u.nombre_completo,
+        username: u.username,
+        passwordTemporal: finalPassword,
+        rolNombre: u.rol_nombre || 'Colaborador',
+        loginUrl: 'https://webmgsolutions.onrender.com',
+      }).catch((e: any) => console.warn('Error enviando correo de credenciales temporales:', e));
+      emailSent = true;
     }
 
     res.json({

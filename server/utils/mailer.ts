@@ -13,8 +13,9 @@ export function getMailTransporter() {
   }
 
   const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const port = parseInt(process.env.SMTP_PORT || '465', 10);
-  const secure = process.env.SMTP_SECURE === 'true' || port === 465;
+  // En servidores en la nube (Render/AWS/Linux), el puerto 587 con STARTTLS es el estándar universal más rápido y confiable
+  const port = parseInt(process.env.SMTP_PORT || '587', 10);
+  const secure = process.env.SMTP_SECURE === 'true' ? true : (port === 465);
   const user = (process.env.SMTP_USER || 'mgsolutionsg@gmail.com').trim();
   // Eliminar espacios que Google suele colocar en las contraseñas de app (ej: "abcd efgh ijkl mnop")
   const pass = (process.env.SMTP_PASS || 'qpulsrkfhicknmox').replace(/\s+/g, '');
@@ -32,6 +33,12 @@ export function getMailTransporter() {
       user,
       pass,
     },
+    tls: {
+      rejectUnauthorized: false,
+    },
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 6000,
   });
 }
 
