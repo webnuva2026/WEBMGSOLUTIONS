@@ -589,68 +589,6 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
           )}
         </div>
 
-        {/* Action icons */}
-        <div className="flex items-center gap-1">
-          {/* Notifications */}
-          <div className="relative">
-            <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors relative"
-              title="Notificaciones"
-            >
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
-            </button>
-
-            {showNotifications && (
-              <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-50 text-xs">
-                <div className="flex justify-between items-center pb-2 border-b border-slate-100 font-semibold text-slate-800">
-                  <span>Notificaciones del sistema</span>
-                  <span className="text-[10px] text-emerald-600">Al día</span>
-                </div>
-                <div className="space-y-2 mt-2">
-                  <div className="p-2 rounded bg-emerald-50 text-emerald-800 flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium">Certificado Digital Validado</p>
-                      <p className="text-[10px] text-emerald-600">Vigente hasta 31/12/2026</p>
-                    </div>
-                  </div>
-                  <div className="p-2 rounded bg-amber-50 text-amber-800 flex items-start gap-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium">Servicios pendientes de revisión</p>
-                      <p className="text-[10px] text-amber-600">Requieren atención del equipo técnico</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {canAccessEmpresa && (
-            <button
-              onClick={() => setActiveView('config-empresa')}
-              className="text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors hidden sm:block cursor-pointer"
-              title="Configuración de Empresa"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-          )}
-
-          <button
-            onClick={() => {
-              alert(
-                'Sistema ERP MG SOLUTIONS GROUP S.A.C.\n\nSoporte Técnico: soporte@mgsolutions.pe\nTeléfono: +51 974 812 390\nRUC: 20609737524\nVersión Backend: Node.js + TiDB Cloud MySQL'
-              );
-            }}
-            className="text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors hidden sm:block cursor-pointer"
-            title="Ayuda y Soporte"
-          >
-            <HelpCircle className="w-4 h-4" />
-          </button>
-        </div>
-
         {/* Selector interactivo de Estado Operativo (Disponible, Ocupado, Almuerzo, Enfermería, etc.) */}
         <div className="relative">
           <button
