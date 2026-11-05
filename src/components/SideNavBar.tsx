@@ -41,7 +41,7 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
     compras: { label: 'Compras & Proveedores', icon: <Truck className="w-5 h-5 shrink-0" /> },
     'panel-recepcion': { label: 'Panel de recepción', icon: <ClipboardList className="w-5 h-5 shrink-0" /> },
     'panel-almacen': {
-      label: currentUser.rol === 'TECNICO' ? 'Consultar inventario' : 'Almacén & Inventario',
+      label: currentUser.rol === 'TECNICO' ? 'Consultar inventario' : 'Almacén, Pedidos & Proveedores',
       icon: <Boxes className="w-5 h-5 shrink-0" />,
     },
     taller: {
@@ -51,7 +51,7 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
     equipos: { label: 'Equipos de Clientes', icon: <Laptop className="w-5 h-5 shrink-0" /> },
     clientes: { label: 'Directorio de Clientes', icon: <Users className="w-5 h-5 shrink-0" /> },
     productos: {
-      label: currentUser.rol === 'TECNICO' ? 'Consultar inventario' : 'Almacén & Inventario',
+      label: currentUser.rol === 'TECNICO' ? 'Consultar inventario' : 'Almacén, Pedidos & Proveedores',
       icon: <Boxes className="w-5 h-5 shrink-0" />,
     },
     movimientos: { label: 'Movimientos entre sedes', icon: <ArrowLeftRight className="w-5 h-5 shrink-0" /> },
@@ -122,11 +122,10 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
   const getModulesList = (): string[] => {
     let list: string[] = [];
     if (currentUser.rol === 'SUPERADMIN' || currentUser.rol === 'ADMIN') {
-      // Orden predeterminado con Catálogo Maestro unificado y Movimientos entre Sedes
+      // Orden predeterminado con Almacén, Pedidos & Proveedores unificados
       list = [
         'ventas',
         'caja',
-        'compras',
         'panel-recepcion',
         'panel-almacen',
         'taller',
@@ -143,7 +142,7 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
       const mapped = userModules.map((m) => {
         if (m === 'config-empresa') return 'sucursales';
         if (m === 'categorias' || m === 'marcas') return 'catalogo';
-        if (m === 'productos') return 'panel-almacen';
+        if (m === 'productos' || m === 'compras') return 'panel-almacen';
         return m;
       });
       list = Array.from<string>(new Set(mapped));

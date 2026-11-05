@@ -674,6 +674,7 @@ export function App() {
       proveedorId: newCompra.proveedorId,
       sucursalDestino: newCompra.sucursalDestino,
       compradorId: newCompra.compradorId,
+      modoIngreso: newCompra.estado === 'SOLICITADO' ? 'SOLICITADO' : 'RECEPCION_DIRECTA',
       items: newCompra.items.map((it) => ({
         productoId: it.productoId,
         cantidad: it.cantidad,
@@ -686,10 +687,14 @@ export function App() {
     setActionLoading(false);
 
     if (res.success) {
-      showToast('Compra registrada', res.message || 'Inventario reabastecido correctamente.', 'success');
+      showToast(
+        newCompra.estado === 'SOLICITADO' ? 'Orden de Pedido Emitida' : 'Recepción Registrada',
+        res.message || 'Operación logística guardada correctamente.',
+        'success'
+      );
       loadDatabaseData();
     } else {
-      showToast('Error', res.message || 'No se pudo guardar la compra en el servidor.', 'error');
+      showToast('Error', res.message || 'No se pudo guardar el pedido en el servidor.', 'error');
     }
   };
 
@@ -699,28 +704,42 @@ export function App() {
     setActionLoading(false);
 
     if (res.success) {
-      showToast('Compra anulada', res.message || 'Stock revertido correctamente.', 'info');
+      showToast('Operación anulada', res.message || 'Registro actualizado correctamente.', 'info');
       loadDatabaseData();
     } else {
-      showToast('Error', res.message || 'No se pudo anular la compra.', 'error');
+      showToast('Error', res.message || 'No se pudo anular el registro.', 'error');
     }
   };
 
   // Suppliers Actions
   const handleSaveProveedor = async (prov: Proveedor) => {
     setActionLoading(true);
-    const res = await purchaseService.createProveedor({
-      ruc: prov.ruc,
-      razonSocial: prov.razonSocial,
-      contacto: prov.contacto,
-      telefono: prov.telefono,
-      email: prov.email,
-      direccion: prov.direccion,
-    });
+    const isExisting = proveedores.some((p) => p.id === prov.id);
+    const res = isExisting
+      ? await purchaseService.updateProveedor(prov.id, {
+          ruc: prov.ruc,
+          razonSocial: prov.razonSocial,
+          contacto: prov.contacto,
+          telefono: prov.telefono,
+          email: prov.email,
+          direccion: prov.direccion,
+        })
+      : await purchaseService.createProveedor({
+          ruc: prov.ruc,
+          razonSocial: prov.razonSocial,
+          contacto: prov.contacto,
+          telefono: prov.telefono,
+          email: prov.email,
+          direccion: prov.direccion,
+        });
     setActionLoading(false);
 
     if (res.success) {
-      showToast('Proveedor registrado', res.message || 'Proveedor guardado correctamente.', 'success');
+      showToast(
+        isExisting ? 'Proveedor actualizado' : 'Proveedor registrado',
+        res.message || 'Proveedor guardado correctamente.',
+        'success'
+      );
       loadDatabaseData();
     } else {
       showToast('Error', res.message || 'No se pudo guardar el proveedor.', 'error');
@@ -1011,12 +1030,19 @@ export function App() {
             />
           )}
 
-          {(activeView === 'panel-almacen' || activeView === 'productos') && (
+          {(activeView === 'panel-almacen' || activeView === 'productos' || activeView === 'compras') && (
             <WarehouseDashboardView
               currentUser={currentUser}
               productos={productos}
               movimientos={movimientos}
               sucursales={sucursalesActivas}
+              compras={compras}
+              proveedores={proveedores}
+              onSaveCompra={handleSaveCompra}
+              onAnularCompra={handleAnularCompra}
+              onSaveProveedor={handleSaveProveedor}
+              onToggleProveedorEstado={handleToggleProveedorEstado}
+              initialSection={activeView === 'compras' ? 'pedidos' : 'inventario'}
               setActiveView={setActiveView}
               onShowToast={showToast}
               onProductCreated={() => loadDatabaseData(selectedSedeId)}
@@ -1136,22 +1162,6 @@ export function App() {
               onShowToast={showToast}
               onGoToServices={handleOpenServices}
               onClientUpdated={() => loadDatabaseData(selectedSedeId)}
-            />
-          )}
-
-          {activeView === 'compras' && (
-            <PurchasesView
-              currentUser={currentUser}
-              compras={compras}
-              proveedores={proveedores}
-              productos={productos}
-              sucursales={sucursalesActivas}
-              onSaveCompra={handleSaveCompra}
-              onAnularCompra={handleAnularCompra}
-              onSaveProveedor={handleSaveProveedor}
-              onToggleProveedorEstado={handleToggleProveedorEstado}
-              onShowToast={showToast}
-              readOnly={currentUser.rol === 'TECNICO' || currentUser.rol === 'SECRETARIA'}
             />
           )}
 

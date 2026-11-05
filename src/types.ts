@@ -358,11 +358,13 @@ export interface ItemCompra {
 
 export interface Compra {
   id: number;
-  codigoComprobante: string; // Ej: FC01-00124 o GUIA-0089
-  tipoComprobante: 'FACTURA' | 'BOLETA' | 'GUIA_REMISION';
+  codigoComprobante: string; // Ej: OC-000105, FC01-00124 o GUIA-0089
+  tipoComprobante: 'ORDEN_COMPRA' | 'FACTURA' | 'BOLETA' | 'GUIA_REMISION';
   proveedorId: number;
   proveedorRuc: string;
   proveedorRazonSocial: string;
+  proveedorEmail?: string;
+  proveedorTelefono?: string;
   sucursalDestino: string;
   compradorId: number;
   compradorNombre: string;
@@ -371,7 +373,8 @@ export interface Compra {
   subtotal: number;
   igv: number;
   total: number;
-  estado: 'REGISTRADA' | 'ANULADA';
+  estado: 'SOLICITADO' | 'REGISTRADA' | 'ANULADA';
+  destinoPedido?: 'VENTA' | 'SERVICIO_TALLER' | 'MIXTO';
   observaciones?: string;
 }
 

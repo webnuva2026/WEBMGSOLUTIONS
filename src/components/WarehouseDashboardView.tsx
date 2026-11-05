@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AlertTriangle,
   ArrowLeftRight,
@@ -12,15 +12,25 @@ import {
   Truck,
   Boxes,
   BarChart3,
+  Building2,
+  FileText,
 } from 'lucide-react';
-import { MovimientoInventario, Producto, Sucursal, Usuario } from '../types';
+import { Compra, MovimientoInventario, Producto, Proveedor, Sucursal, Usuario } from '../types';
 import { WarehouseInventoryView } from './WarehouseInventoryView';
+import { PurchasesView } from './PurchasesView';
 
 interface WarehouseDashboardViewProps {
   currentUser: Usuario;
   productos: Producto[];
   movimientos: MovimientoInventario[];
   sucursales: Sucursal[];
+  compras?: Compra[];
+  proveedores?: Proveedor[];
+  onSaveCompra?: (compra: Compra) => void;
+  onAnularCompra?: (compraId: number) => void;
+  onSaveProveedor?: (proveedor: Proveedor) => void;
+  onToggleProveedorEstado?: (id: number) => void;
+  initialSection?: 'inventario' | 'pedidos' | 'proveedores' | 'resumen';
   setActiveView: (view: string) => void;
   readOnly?: boolean;
   onShowToast?: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
@@ -48,12 +58,32 @@ export const WarehouseDashboardView: React.FC<WarehouseDashboardViewProps> = ({
   productos,
   movimientos,
   sucursales,
+  compras = [],
+  proveedores = [],
+  onSaveCompra,
+  onAnularCompra,
+  onSaveProveedor,
+  onToggleProveedorEstado,
+  initialSection = 'inventario',
   setActiveView,
   readOnly = false,
   onShowToast,
   onProductCreated,
 }) => {
-  const [activeTab, setActiveTab] = useState<'inventario' | 'resumen'>('inventario');
+  const [activeTab, setActiveTab] = useState<'inventario' | 'pedidos' | 'proveedores' | 'resumen'>(initialSection);
+  const [purchasesSubTab, setPurchasesSubTab] = useState<'nueva' | 'historial' | 'proveedores'>('nueva');
+  const [orderProductId, setOrderProductId] = useState<number | null>(null);
+
+  useEffect(() => {
+    setActiveTab(initialSection);
+    if (initialSection === 'proveedores') {
+      setPurchasesSubTab('proveedores');
+    } else if (initialSection === 'pedidos') {
+      setPurchasesSubTab('nueva');
+    }
+  }, [initialSection]);
+
+  const pedidosEnTransito = compras.filter((c) => c.estado === 'SOLICITADO').length;
 
   // --- Computed data ---
   const productosActivos = productos.filter((p) => p.estado === 'ACTIVO');
@@ -67,15 +97,21 @@ export const WarehouseDashboardView: React.FC<WarehouseDashboardViewProps> = ({
   const sedesActivas = sucursales.filter((s) => s.estado === 'ACTIVO').length;
   const movimientosRecientes = [...movimientos].slice(0, 5);
 
+  const handleRequestOrderFromInventory = (prodId: number) => {
+    setOrderProductId(prodId);
+    setPurchasesSubTab('nueva');
+    setActiveTab('pedidos');
+  };
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#F8F9FF]">
-      {/* Barra de Pestañas Superiores */}
+      {/* Barra de Pestañas Superiores Unificadas: Almacén + Pedidos a Proveedor + Proveedores */}
       <div className="border-b border-slate-200 bg-white px-6 pt-3">
-        <div className="mx-auto flex max-w-7xl items-center gap-2">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setActiveTab('inventario')}
-            className={`flex items-center gap-2 border-b-2 px-5 py-3 text-xs font-bold transition ${
+            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${
               activeTab === 'inventario'
                 ? 'border-[#00346F] text-[#00346F] bg-slate-50/80 rounded-t-xl'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -84,17 +120,59 @@ export const WarehouseDashboardView: React.FC<WarehouseDashboardViewProps> = ({
             <Boxes className="h-4 w-4" />
             Control de Inventario & Números de Serie
           </button>
+
+          {!readOnly && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setPurchasesSubTab('nueva');
+                  setActiveTab('pedidos');
+                }}
+                className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${
+                  activeTab === 'pedidos'
+                    ? 'border-emerald-600 text-emerald-700 bg-emerald-50/60 rounded-t-xl'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <Truck className="h-4 w-4" />
+                Realizar Pedido & Recepción de Proveedores
+                {pedidosEnTransito > 0 && (
+                  <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-black text-white">
+                    {pedidosEnTransito} en tránsito
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPurchasesSubTab('proveedores');
+                  setActiveTab('proveedores');
+                }}
+                className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${
+                  activeTab === 'proveedores'
+                    ? 'border-[#00346F] text-[#00346F] bg-slate-50/80 rounded-t-xl'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <Building2 className="h-4 w-4" />
+                Directorio de Proveedores ({proveedores.length})
+              </button>
+            </>
+          )}
+
           <button
             type="button"
             onClick={() => setActiveTab('resumen')}
-            className={`flex items-center gap-2 border-b-2 px-5 py-3 text-xs font-bold transition ${
+            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${
               activeTab === 'resumen'
                 ? 'border-[#00346F] text-[#00346F] bg-slate-50/80 rounded-t-xl'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
             <BarChart3 className="h-4 w-4" />
-            Métricas & Transferencias de Almacén
+            Métricas & Transferencias entre Sedes
           </button>
         </div>
       </div>
@@ -106,6 +184,30 @@ export const WarehouseDashboardView: React.FC<WarehouseDashboardViewProps> = ({
           onShowToast={onShowToast || (() => {})}
           readOnly={readOnly}
           onProductCreated={onProductCreated}
+          onRequestOrderProduct={handleRequestOrderFromInventory}
+          onOpenPedidosTab={() => {
+            setPurchasesSubTab('nueva');
+            setActiveTab('pedidos');
+          }}
+        />
+      ) : activeTab === 'pedidos' || activeTab === 'proveedores' ? (
+        <PurchasesView
+          currentUser={currentUser}
+          compras={compras}
+          proveedores={proveedores}
+          productos={productos}
+          sucursales={sucursales}
+          onSaveCompra={onSaveCompra || (() => {})}
+          onAnularCompra={onAnularCompra || (() => {})}
+          onSaveProveedor={onSaveProveedor || (() => {})}
+          onToggleProveedorEstado={onToggleProveedorEstado || (() => {})}
+          onShowToast={onShowToast || (() => {})}
+          readOnly={readOnly}
+          initialTab={activeTab === 'proveedores' ? 'proveedores' : purchasesSubTab}
+          preselectedProductId={orderProductId}
+          onClearPreselectedProduct={() => setOrderProductId(null)}
+          onRefreshData={onProductCreated}
+          embeddedInWarehouse
         />
       ) : (
         <div className="flex-1 overflow-y-auto p-6 md:p-8">

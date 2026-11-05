@@ -45,6 +45,30 @@ export const purchaseService = {
     }
   },
 
+  async updateProveedor(
+    id: number,
+    data: {
+      ruc: string;
+      razonSocial: string;
+      contacto?: string;
+      telefono?: string;
+      email?: string;
+      direccion?: string;
+    }
+  ): Promise<{ success: boolean; proveedor?: Proveedor; message?: string }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/proveedores/${id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      });
+      return await res.json();
+    } catch (error: any) {
+      console.error('Error al actualizar proveedor:', error);
+      return { success: false, message: 'Error al actualizar proveedor.' };
+    }
+  },
+
   async toggleProveedorEstado(id: number): Promise<{ success: boolean; nuevoEstado?: string; message?: string }> {
     try {
       const res = await fetch(`${API_BASE_URL}/proveedores/${id}/estado`, {
@@ -76,6 +100,7 @@ export const purchaseService = {
     proveedorId: number;
     sucursalDestino: string | number;
     compradorId?: number;
+    modoIngreso?: 'SOLICITADO' | 'RECEPCION_DIRECTA';
     items: Array<{
       productoId: number;
       cantidad: number;
@@ -84,7 +109,13 @@ export const purchaseService = {
     }>;
     total?: number;
     observaciones?: string;
-  }): Promise<{ success: boolean; compraId?: number; codigoComprobante?: string; message?: string }> {
+  }): Promise<{
+    success: boolean;
+    compraId?: number;
+    codigoComprobante?: string;
+    estado?: 'SOLICITADO' | 'REGISTRADA';
+    message?: string;
+  }> {
     try {
       const res = await fetch(`${API_BASE_URL}/compras`, {
         method: 'POST',
@@ -95,6 +126,40 @@ export const purchaseService = {
     } catch (error: any) {
       console.error('Error al registrar compra:', error);
       return { success: false, message: 'Error al procesar la compra.' };
+    }
+  },
+
+  async recepcionarCompra(
+    id: number,
+    payload: {
+      codigoComprobante: string;
+      observacionesRecepcion?: string;
+      seriesPorProducto?: Record<number, string[]>;
+    }
+  ): Promise<{ success: boolean; codigoComprobante?: string; estado?: string; message?: string }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/compras/${id}/recepcionar`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return await res.json();
+    } catch (error: any) {
+      console.error('Error al recepcionar pedido en almacén:', error);
+      return { success: false, message: 'Error al recepcionar el pedido en almacén.' };
+    }
+  },
+
+  async enviarOrdenCompraEmail(id: number): Promise<{ success: boolean; message?: string }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/compras/${id}/enviar-email`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      return await res.json();
+    } catch (error: any) {
+      console.error('Error al enviar orden de compra por correo:', error);
+      return { success: false, message: 'Error al enviar correo al proveedor.' };
     }
   },
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Truck,
   Plus,
@@ -30,6 +30,12 @@ import {
   Barcode,
   QrCode,
   Boxes,
+  Lock,
+  Send,
+  Clock,
+  Loader2,
+  Wrench,
+  ShoppingCart,
 } from 'lucide-react';
 import {
   Compra,
@@ -40,6 +46,8 @@ import {
   Usuario,
   EstadoRegistro,
 } from '../types';
+import { purchaseService } from '../services/purchase.service';
+import { consultaService } from '../services/consulta.service';
 
 interface PurchasesViewProps {
   currentUser: Usuario;
@@ -53,6 +61,11 @@ interface PurchasesViewProps {
   onToggleProveedorEstado: (id: number) => void;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   readOnly?: boolean;
+  initialTab?: 'nueva' | 'historial' | 'proveedores';
+  preselectedProductId?: number | null;
+  onClearPreselectedProduct?: () => void;
+  onRefreshData?: () => void;
+  embeddedInWarehouse?: boolean;
 }
 
 export const PurchasesView: React.FC<PurchasesViewProps> = ({
@@ -67,8 +80,30 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
   onToggleProveedorEstado,
   onShowToast,
   readOnly = false,
+  initialTab = 'nueva',
+  preselectedProductId = null,
+  onClearPreselectedProduct,
+  onRefreshData,
+  embeddedInWarehouse = false,
 }) => {
-  const [activeTab, setActiveTab] = useState<'nueva' | 'historial' | 'proveedores'>('nueva');
+  const [activeTab, setActiveTab] = useState<'nueva' | 'historial' | 'proveedores'>(initialTab);
+  const [modoOperacion, setModoOperacion] = useState<'SOLICITADO' | 'RECEPCION_DIRECTA'>('SOLICITADO');
+  const [enviarCorreoAlEmitir, setEnviarCorreoAlEmitir] = useState<boolean>(true);
+  const [filterEstadoPedido, setFilterEstadoPedido] = useState<'ALL' | 'SOLICITADO' | 'REGISTRADA' | 'ANULADA'>('ALL');
+
+  // --- MODAL DE RECEPCIÓN FÍSICA EN ALMACÉN ---
+  const [receivingCompra, setReceivingCompra] = useState<Compra | null>(null);
+  const [recepcionComprobante, setRecepcionComprobante] = useState('');
+  const [recepcionObs, setRecepcionObs] = useState('');
+  const [recepcionSeriesMap, setRecepcionSeriesMap] = useState<Record<number, string[]>>({});
+  const [recepcionBulkTextMap, setRecepcionBulkTextMap] = useState<Record<number, string>>({});
+  const [isSubmittingRecepcion, setIsSubmittingRecepcion] = useState(false);
+  const [sendingOrderEmailId, setSendingOrderEmailId] = useState<number | null>(null);
+  const [isQueryingRuc, setIsQueryingRuc] = useState(false);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   // --- NUEVA COMPRA STATE ---
   const [selectedProveedorId, setSelectedProveedorId] = useState<number | ''>(proveedores[0]?.id || '');
@@ -133,6 +168,22 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
       setItemPrecioCosto(found.precioCosto || Math.round(found.precioUnitario * 0.75));
     }
   };
+
+  // Pre-select product when clicked from Warehouse Inventory ("Pedir a Proveedor")
+  useEffect(() => {
+    if (preselectedProductId) {
+      setActiveTab('nueva');
+      handleSelectProduct(preselectedProductId);
+      const found = productos.find((p) => p.id === preselectedProductId);
+      if (found) {
+        setSearchProductQuery(found.codigo || found.nombre);
+        setItemCantidad(found.stock <= 3 ? 5 : 2);
+      }
+      if (onClearPreselectedProduct) {
+        onClearPreselectedProduct();
+      }
+    }
+  }, [preselectedProductId, productos]);
 
   const handleAddItemToCart = () => {
     if (!selectedProductObj) {
@@ -274,39 +325,50 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
   const igvCalculado = tipoComprobante === 'FACTURA' ? Number((totalBruto - subtotalBase).toFixed(2)) : 0;
   const totalFinal = totalBruto;
 
-  const handleRegisterPurchase = () => {
+  const handleRegisterPurchase = async () => {
     if (!selectedProveedorObj) {
-      onShowToast('Falta proveedor', 'Selecciona el proveedor que emitió el comprobante.', 'error');
+      onShowToast('Falta proveedor', 'Selecciona el proveedor para emitir el pedido.', 'error');
       return;
     }
-    if (!serieNumero.trim()) {
-      onShowToast('Falta número', 'Ingresa el número de serie y correlativo del comprobante (ej: F001-002849).', 'error');
+    if (modoOperacion === 'RECEPCION_DIRECTA' && !serieNumero.trim()) {
+      onShowToast('Falta comprobante', 'Para Recepción Directa debes ingresar el N° de Factura o Guía del proveedor (ej: F001-002849).', 'error');
       return;
     }
     if (cartItems.length === 0) {
-      onShowToast('Orden vacía', 'Agrega al menos un producto a la compra para ingresar a stock.', 'error');
+      onShowToast('Orden vacía', 'Agrega al menos un producto o repuesto al pedido.', 'error');
       return;
     }
 
-    // Validar que los productos seriados tengan sus series completas
-    for (const item of cartItems) {
-      if (item.requiereSerie && (item.series?.length || 0) < item.cantidad) {
-        onShowToast(
-          'Faltan series físicas',
-          `El producto '${item.nombre}' requiere ${item.cantidad} series físicas (${item.series?.length || 0} registradas). Haga clic en 'Asignar series'.`,
-          'warning'
-        );
-        return;
+    // Validar que los productos seriados tengan sus series completas SOLO cuando es Recepción Directa
+    if (modoOperacion === 'RECEPCION_DIRECTA') {
+      for (const item of cartItems) {
+        if (item.requiereSerie && (item.series?.length || 0) < item.cantidad) {
+          onShowToast(
+            'Faltan series físicas',
+            `Para recepcionar en almacén, el producto '${item.nombre}' requiere ${item.cantidad} series físicas (${item.series?.length || 0} registradas).`,
+            'warning'
+          );
+          return;
+        }
       }
     }
 
+    const generatedCode =
+      modoOperacion === 'SOLICITADO'
+        ? serieNumero.trim()
+          ? serieNumero.toUpperCase().trim()
+          : `OC-${String(compras.length + 101).padStart(5, '0')}`
+        : serieNumero.toUpperCase().trim();
+
     const newCompra: Compra = {
       id: Date.now(),
-      codigoComprobante: serieNumero.toUpperCase().trim(),
-      tipoComprobante,
+      codigoComprobante: generatedCode,
+      tipoComprobante: modoOperacion === 'SOLICITADO' ? 'ORDEN_COMPRA' : tipoComprobante,
       proveedorId: selectedProveedorObj.id,
       proveedorRuc: selectedProveedorObj.ruc,
       proveedorRazonSocial: selectedProveedorObj.razonSocial,
+      proveedorEmail: selectedProveedorObj.email,
+      proveedorTelefono: selectedProveedorObj.telefono,
       sucursalDestino,
       compradorId: currentUser.id,
       compradorNombre: currentUser.nombreCompleto,
@@ -315,16 +377,11 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
       subtotal: subtotalBase,
       igv: igvCalculado,
       total: totalFinal,
-      estado: 'REGISTRADA',
+      estado: modoOperacion === 'SOLICITADO' ? 'SOLICITADO' : 'REGISTRADA',
       observaciones: observaciones.trim() || undefined,
     };
 
     onSaveCompra(newCompra);
-    onShowToast(
-      'Compra Registrada',
-      `Factura ${newCompra.codigoComprobante} guardada. El stock en ${sucursalDestino} fue incrementado.`,
-      'success'
-    );
 
     // Open detail modal to review / print
     setSelectedCompraDetail(newCompra);
@@ -334,6 +391,118 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
     setCartItems([]);
     setSerieNumero('');
     setObservaciones('');
+  };
+
+  // --- RECEPCIÓN FÍSICA EN ALMACÉN DE UN PEDIDO EN TRÁNSITO ---
+  const handleOpenReceptionModal = (compra: Compra) => {
+    setReceivingCompra(compra);
+    setRecepcionComprobante(`F001-${String(compra.id).slice(-5).padStart(6, '0')}`);
+    setRecepcionObs('Mercadería verificada conforme en almacén.');
+    const initialSeries: Record<number, string[]> = {};
+    const initialBulk: Record<number, string> = {};
+    compra.items.forEach((it) => {
+      if (it.requiereSerie) {
+        initialSeries[it.productoId] = [];
+        initialBulk[it.productoId] = '';
+      }
+    });
+    setRecepcionSeriesMap(initialSeries);
+    setRecepcionBulkTextMap(initialBulk);
+  };
+
+  const handleAutoGenReceptionSeries = (item: ItemCompra) => {
+    const prefix = `SN-${(item.marca || 'MGS').slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+    const list: string[] = [];
+    for (let i = 1; i <= item.cantidad; i++) {
+      list.push(`${prefix}-${String(i).padStart(3, '0')}`);
+    }
+    setRecepcionSeriesMap((prev) => ({ ...prev, [item.productoId]: list }));
+    setRecepcionBulkTextMap((prev) => ({ ...prev, [item.productoId]: list.join('\n') }));
+  };
+
+  const handleConfirmReception = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!receivingCompra) return;
+    if (!recepcionComprobante.trim()) {
+      onShowToast('Falta comprobante', 'Ingresa el N° de Factura o Guía de Remisión con que llegó el pedido.', 'warning');
+      return;
+    }
+
+    // Validar series requeridas
+    for (const it of receivingCompra.items) {
+      if (it.requiereSerie) {
+        const list = recepcionSeriesMap[it.productoId] || [];
+        if (list.length < it.cantidad) {
+          onShowToast(
+            'Series requeridas para Almacén',
+            `El equipo "${it.nombre}" requiere registrar sus ${it.cantidad} números de serie antes de ingresar al stock.`,
+            'warning'
+          );
+          return;
+        }
+      }
+    }
+
+    setIsSubmittingRecepcion(true);
+    try {
+      const res = await purchaseService.recepcionarCompra(receivingCompra.id, {
+        codigoComprobante: recepcionComprobante.trim().toUpperCase(),
+        observacionesRecepcion: recepcionObs.trim(),
+        seriesPorProducto: recepcionSeriesMap,
+      });
+
+      if (res.success) {
+        onShowToast(
+          'Recepción en Almacén Confirmada',
+          res.message || `Stock incrementado exitosamente en ${receivingCompra.sucursalDestino}.`,
+          'success'
+        );
+        setReceivingCompra(null);
+        if (onRefreshData) onRefreshData();
+      } else {
+        onShowToast('Error en Recepción', res.message || 'No se pudo recepcionar el pedido.', 'error');
+      }
+    } finally {
+      setIsSubmittingRecepcion(false);
+    }
+  };
+
+  const handleSendOrderEmail = async (compra: Compra) => {
+    setSendingOrderEmailId(compra.id);
+    try {
+      const res = await purchaseService.enviarOrdenCompraEmail(compra.id);
+      if (res.success) {
+        onShowToast('Orden Enviada al Proveedor', res.message || 'Correo enviado al proveedor.', 'success');
+      } else {
+        onShowToast('Atención', res.message || 'No se pudo enviar el correo al proveedor.', 'warning');
+      }
+    } finally {
+      setSendingOrderEmailId(null);
+    }
+  };
+
+  const handleConsultarRucProveedor = async () => {
+    const ruc = (proveedorForm.ruc || '').trim();
+    if (ruc.length !== 11) {
+      onShowToast('RUC inválido', 'Ingrese un RUC de 11 dígitos para consultar en SUNAT.', 'warning');
+      return;
+    }
+    setIsQueryingRuc(true);
+    try {
+      const res = await consultaService.consultarRuc(ruc);
+      if (res.success && res.data) {
+        setProveedorForm((prev) => ({
+          ...prev,
+          razonSocial: res.data!.razonSocial || prev.razonSocial,
+          direccion: res.data!.direccion || prev.direccion,
+        }));
+        onShowToast('SUNAT: RUC Verificado', res.data.razonSocial, 'success');
+      } else {
+        onShowToast('SUNAT', res.message || 'No se encontraron datos para este RUC.', 'warning');
+      }
+    } finally {
+      setIsQueryingRuc(false);
+    }
   };
 
   // --- PROVEEDOR FORM HANDLERS ---
@@ -400,12 +569,14 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
 
       const matchSede = filterSede === 'ALL' || c.sucursalDestino === filterSede;
       const matchProv = filterProveedor === 'ALL' || String(c.proveedorId) === filterProveedor;
+      const matchEstado = filterEstadoPedido === 'ALL' || c.estado === filterEstadoPedido;
 
-      return matchSearch && matchSede && matchProv;
+      return matchSearch && matchSede && matchProv && matchEstado;
     });
-  }, [compras, historialSearch, filterSede, filterProveedor]);
+  }, [compras, historialSearch, filterSede, filterProveedor, filterEstadoPedido]);
 
   // Metric stats
+  const pedidosEnTransito = compras.filter((c) => c.estado === 'SOLICITADO').length;
   const totalInvertido = compras
     .filter((c) => c.estado === 'REGISTRADA')
     .reduce((sum, c) => sum + c.total, 0);
@@ -449,25 +620,35 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
         {/* Header */}
         <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-[#00346F]">
                 <Truck className="h-3.5 w-3.5" />
-                Módulo de Abastecimiento (RF-09)
+                Logística Integrada: Almacén • Proveedores • Taller & Ventas
               </span>
-              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800">
-                Sedes Chiclayo
-              </span>
+              {pedidosEnTransito > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterEstadoPedido('SOLICITADO');
+                    setActiveTab('historial');
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 border border-amber-300 px-3 py-1 text-xs font-bold text-amber-800 hover:bg-amber-200 transition"
+                >
+                  <Clock className="h-3.5 w-3.5" />
+                  {pedidosEnTransito} Pedido(s) en Tránsito por Recepcionar en Almacén
+                </button>
+              )}
             </div>
             <h1 className="mt-2 text-2xl font-black tracking-tight text-[#0B1C30] md:text-3xl">
-              Compras, Ingreso de Mercadería & Proveedores
+              Pedidos a Proveedores, Recepción en Almacén & Abastecimiento
             </h1>
             <p className="mt-1 text-xs text-slate-500">
-              Registra facturas de proveedores, abastece almacén y actualiza costos y existencias por sede.
+              Ciclo trazable en 2 etapas: 1° Emisión de Orden de Pedido al Proveedor (En Tránsito) → 2° Recepción Física y Alta de Series en Almacén para Ventas POS y Taller Técnico.
             </p>
           </div>
 
           {/* Tab Navigation buttons */}
-          <div className="flex items-center gap-2 rounded-xl bg-slate-200/70 p-1">
+          <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-200/70 p-1">
             <button
               onClick={() => setActiveTab('nueva')}
               className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all ${
@@ -477,7 +658,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
               }`}
             >
               <Plus className="h-4 w-4" />
-              Nueva Compra
+              Realizar Pedido a Proveedor
             </button>
             <button
               onClick={() => setActiveTab('historial')}
@@ -488,7 +669,12 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
               }`}
             >
               <FileText className="h-4 w-4" />
-              Historial ({compras.length})
+              Órdenes & Recepción ({compras.length})
+              {pedidosEnTransito > 0 && (
+                <span className="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-black text-white">
+                  {pedidosEnTransito}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setActiveTab('proveedores')}
@@ -504,11 +690,55 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
           </div>
         </div>
 
-        {/* --- TAB 1: REGISTRAR NUEVA COMPRA --- */}
+        {/* --- TAB 1: EMITIR PEDIDO A PROVEEDOR / RECEPCIÓN --- */}
         {activeTab === 'nueva' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
             {/* Left side: Invoice & Items Picker */}
             <div className="space-y-6">
+              {/* Selector de Etapa / Modalidad Logística */}
+              <div className="rounded-2xl border-2 border-blue-200 bg-gradient-to-r from-[#EFF4FF] to-indigo-50/60 p-4 shadow-xs">
+                <p className="text-[11px] font-black uppercase tracking-wider text-[#00346F] mb-2">
+                  Etapa del Proceso de Abastecimiento (Integridad de Almacén)
+                </p>
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setModoOperacion('SOLICITADO')}
+                    className={`flex flex-col items-start rounded-xl border p-3 text-left transition-all ${
+                      modoOperacion === 'SOLICITADO'
+                        ? 'border-[#00346F] bg-[#00346F] text-white shadow-md'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 font-black text-xs">
+                      <Clock className="h-4 w-4 shrink-0" />
+                      <span>1. Emitir Orden de Pedido (En Tránsito)</span>
+                    </div>
+                    <p className={`mt-1 text-[10px] leading-snug ${modoOperacion === 'SOLICITADO' ? 'text-blue-100' : 'text-slate-500'}`}>
+                      Genera el pedido oficial al proveedor. <strong>No altera el stock real</strong> hasta que Almacén confirme su llegada física.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setModoOperacion('RECEPCION_DIRECTA')}
+                    className={`flex flex-col items-start rounded-xl border p-3 text-left transition-all ${
+                      modoOperacion === 'RECEPCION_DIRECTA'
+                        ? 'border-emerald-700 bg-emerald-600 text-white shadow-md'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 font-black text-xs">
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      <span>2. Recepción Directa con Factura</span>
+                    </div>
+                    <p className={`mt-1 text-[10px] leading-snug ${modoOperacion === 'RECEPCION_DIRECTA' ? 'text-emerald-50' : 'text-slate-500'}`}>
+                      Cuando la mercadería ya llegó físicamente con Factura/Guía y series listas para entrar a stock.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
               {/* Document Header Form */}
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
                 <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
@@ -517,8 +747,14 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                       <FileText className="h-4 w-4" />
                     </div>
                     <div>
-                      <h2 className="text-sm font-bold text-[#0B1C30]">Datos del Comprobante</h2>
-                      <p className="text-[11px] text-slate-500">Información del proveedor y factura de compra</p>
+                      <h2 className="text-sm font-bold text-[#0B1C30]">
+                        {modoOperacion === 'SOLICITADO' ? 'Datos de la Orden de Pedido al Proveedor' : 'Datos del Comprobante Recepcionado'}
+                      </h2>
+                      <p className="text-[11px] text-slate-500">
+                        {modoOperacion === 'SOLICITADO'
+                          ? 'Selecciona el proveedor mayorista y la sede que solicita el reabastecimiento'
+                          : 'Información del proveedor y factura/guía recibida en almacén'}
+                      </p>
                     </div>
                   </div>
                   <button
@@ -534,22 +770,40 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {/* Proveedor */}
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold text-slate-700">Proveedor</label>
+                    <label className="block text-xs font-bold text-slate-700">Proveedor Homologado</label>
                     <select
                       value={selectedProveedorId}
                       onChange={(e) => setSelectedProveedorId(Number(e.target.value))}
                       className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-medium text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
                     >
-                      {proveedores.map((prov) => (
+                      {proveedores.filter((p) => p.estado === 'ACTIVO').map((prov) => (
                         <option key={prov.id} value={prov.id}>
                           {prov.ruc} - {prov.razonSocial}
                         </option>
                       ))}
                     </select>
                     {selectedProveedorObj && (
-                      <div className="mt-1.5 flex items-center gap-3 text-[11px] text-slate-500">
-                        <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {selectedProveedorObj.telefono}</span>
-                        <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {selectedProveedorObj.direccion}</span>
+                      <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-[11px] text-slate-600 space-y-1.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="flex items-center gap-1 font-semibold text-slate-700">
+                            <Phone className="h-3 w-3 text-[#00346F]" /> {selectedProveedorObj.telefono || 'Sin teléfono'}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3 text-[#00346F]" /> {selectedProveedorObj.direccion || 'Sin dirección'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 border-t border-slate-200/80 pt-1.5">
+                          <div className="flex items-center gap-1.5 text-slate-700">
+                            <Lock className="h-3 w-3 text-slate-500" />
+                            <span className="font-bold">Correo Oficial del Proveedor:</span>
+                            <span className="font-mono text-[#00346F] font-semibold">
+                              {selectedProveedorObj.email || 'Sin correo en ficha'}
+                            </span>
+                          </div>
+                          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[9px] font-bold text-slate-700">
+                            🔒 Bloqueado por Integridad
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -557,25 +811,37 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                   {/* Tipo de Comprobante */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700">Tipo de Documento</label>
-                    <select
-                      value={tipoComprobante}
-                      onChange={(e) => setTipoComprobante(e.target.value as any)}
-                      className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
-                    >
-                      <option value="FACTURA">FACTURA ELECTRÓNICA (con IGV)</option>
-                      <option value="BOLETA">BOLETA DE VENTA</option>
-                      <option value="GUIA_REMISION">GUÍA DE REMISIÓN</option>
-                    </select>
+                    {modoOperacion === 'SOLICITADO' ? (
+                      <input
+                        type="text"
+                        value="ORDEN DE PEDIDO / COMPRA (OC)"
+                        readOnly
+                        disabled
+                        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-bold text-[#00346F] cursor-not-allowed"
+                      />
+                    ) : (
+                      <select
+                        value={tipoComprobante}
+                        onChange={(e) => setTipoComprobante(e.target.value as any)}
+                        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
+                      >
+                        <option value="FACTURA">FACTURA ELECTRÓNICA (con IGV)</option>
+                        <option value="BOLETA">BOLETA DE VENTA</option>
+                        <option value="GUIA_REMISION">GUÍA DE REMISIÓN</option>
+                      </select>
+                    )}
                   </div>
 
                   {/* Serie y Número */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700">N° Comprobante / Factura</label>
+                    <label className="block text-xs font-bold text-slate-700">
+                      {modoOperacion === 'SOLICITADO' ? 'Código de Orden (Autogenerado si vacío)' : 'N° Comprobante / Factura del Proveedor *'}
+                    </label>
                     <input
                       type="text"
                       value={serieNumero}
                       onChange={(e) => setSerieNumero(e.target.value)}
-                      placeholder="Ej. F001-004819"
+                      placeholder={modoOperacion === 'SOLICITADO' ? `Ej. OC-00${compras.length + 101} (Automático)` : 'Ej. F001-004819'}
                       className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold uppercase text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
                     />
                   </div>
@@ -836,10 +1102,23 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                 type="button"
                 onClick={handleRegisterPurchase}
                 disabled={cartItems.length === 0}
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-emerald-600/20 transition-all hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-black uppercase tracking-wider text-white shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                  modoOperacion === 'SOLICITADO'
+                    ? 'bg-[#00346F] hover:bg-[#004A99] shadow-blue-900/20'
+                    : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                }`}
               >
-                <Check className="h-4 w-4" />
-                Registrar Compra e Incrementar Stock
+                {modoOperacion === 'SOLICITADO' ? (
+                  <>
+                    <Truck className="h-4 w-4" />
+                    Emitir Orden de Pedido al Proveedor (En Tránsito)
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4" />
+                    Registrar Recepción Directa e Incrementar Stock
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -850,25 +1129,25 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
           <div className="space-y-6">
             {/* KPI Cards */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5 shadow-xs">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-amber-800">Pedidos en Tránsito (Solicitados)</p>
+                <p className="mt-2 text-2xl font-black text-amber-700">{pedidosEnTransito}</p>
+                <p className="mt-1 text-xs text-amber-700">Pendientes de recepción física en almacén</p>
+              </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Inversión Total Registrada</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Inversión Recepcionada</p>
                 <p className="mt-2 text-2xl font-black text-[#00346F]">S/ {totalInvertido.toFixed(2)}</p>
-                <p className="mt-1 text-xs text-slate-500">En repuestos y productos</p>
+                <p className="mt-1 text-xs text-slate-500">En equipos, repuestos y productos</p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Unidades Abastecidas</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Unidades Ingresadas a Stock</p>
                 <p className="mt-2 text-2xl font-black text-emerald-600">{totalItemsComprados} un.</p>
-                <p className="mt-1 text-xs text-slate-500">Ingresadas a inventario</p>
+                <p className="mt-1 text-xs text-slate-500">Abastecidas para Ventas POS y Taller</p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Comprobantes Registrados</p>
-                <p className="mt-2 text-2xl font-black text-slate-800">{compras.length}</p>
-                <p className="mt-1 text-xs text-slate-500">Facturas, boletas y guías</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Proveedores Activos</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Proveedores Homologados</p>
                 <p className="mt-2 text-2xl font-black text-indigo-600">{proveedores.filter(p => p.estado === 'ACTIVO').length}</p>
-                <p className="mt-1 text-xs text-slate-500">Distribuidores mayoristas</p>
+                <p className="mt-1 text-xs text-slate-500">Distribuidores mayoristas activos</p>
               </div>
             </div>
 
@@ -880,12 +1159,23 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                   type="text"
                   value={historialSearch}
                   onChange={(e) => setHistorialSearch(e.target.value)}
-                  placeholder="Buscar por N° factura, RUC o razón social del proveedor..."
+                  placeholder="Buscar por código OC, N° factura, RUC o razón social del proveedor..."
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-xs text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
                 />
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={filterEstadoPedido}
+                  onChange={(e) => setFilterEstadoPedido(e.target.value as any)}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-[#00346F] outline-none"
+                >
+                  <option value="ALL">⚡ Todos los Estados</option>
+                  <option value="SOLICITADO">⏳ Pedidos Solicitados (En Tránsito)</option>
+                  <option value="REGISTRADA">✅ Recibidos en Almacén (Stock OK)</option>
+                  <option value="ANULADA">❌ Anulados</option>
+                </select>
+
                 <select
                   value={filterSede}
                   onChange={(e) => setFilterSede(e.target.value)}
@@ -924,30 +1214,31 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                 <table className="w-full text-left text-xs">
                   <thead className="border-b border-slate-200 bg-slate-50 font-bold uppercase tracking-wider text-slate-600">
                     <tr>
-                      <th className="px-5 py-3.5">Comprobante</th>
-                      <th className="px-5 py-3.5">Proveedor</th>
+                      <th className="px-5 py-3.5">Orden / Comprobante</th>
+                      <th className="px-5 py-3.5">Proveedor Mayorista</th>
                       <th className="px-5 py-3.5">Fecha</th>
                       <th className="px-5 py-3.5">Sede Destino</th>
                       <th className="px-5 py-3.5">Ítems</th>
                       <th className="px-5 py-3.5 text-right">Total (S/)</th>
-                      <th className="px-5 py-3.5 text-center">Estado</th>
-                      <th className="px-5 py-3.5 text-right">Acciones</th>
+                      <th className="px-5 py-3.5 text-center">Estado Logístico</th>
+                      <th className="px-5 py-3.5 text-right">Acciones de Almacén</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
                     {filteredCompras.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="py-10 text-center text-slate-400">
-                          No se encontraron compras con los filtros seleccionados.
+                          No se encontraron órdenes de pedido o compras con los filtros seleccionados.
                         </td>
                       </tr>
                     ) : (
                       filteredCompras.map((compra) => {
                         const isAnulada = compra.estado === 'ANULADA';
+                        const isSolicitado = compra.estado === 'SOLICITADO';
                         return (
-                          <tr key={compra.id} className="hover:bg-slate-50/70 transition-colors">
+                          <tr key={compra.id} className={`transition-colors ${isSolicitado ? 'bg-amber-50/30 hover:bg-amber-50/60' : 'hover:bg-slate-50/70'}`}>
                             <td className="px-5 py-3.5">
-                              <span className="font-bold text-[#00346F]">{compra.codigoComprobante}</span>
+                              <span className="font-mono font-bold text-[#00346F]">{compra.codigoComprobante}</span>
                               <span className="block text-[10px] text-slate-400">{compra.tipoComprobante}</span>
                             </td>
                             <td className="px-5 py-3.5">
@@ -969,17 +1260,50 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                             </td>
                             <td className="px-5 py-3.5 text-center">
                               <span
-                                className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold ${
                                   isAnulada
                                     ? 'bg-rose-100 text-rose-700'
+                                    : isSolicitado
+                                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
                                     : 'bg-emerald-100 text-emerald-700'
                                 }`}
                               >
-                                {compra.estado}
+                                {isAnulada
+                                  ? 'ANULADO'
+                                  : isSolicitado
+                                  ? '⏳ PEDIDO SOLICITADO (En Tránsito)'
+                                  : '✅ RECIBIDO EN ALMACÉN'}
                               </span>
                             </td>
                             <td className="px-5 py-3.5 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
+                              <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                {isSolicitado && !readOnly && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenReceptionModal(compra)}
+                                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-bold text-white shadow-xs hover:bg-emerald-700 transition"
+                                    title="Confirmar llegada física de mercadería al almacén e incrementar stock"
+                                  >
+                                    <Truck className="h-3.5 w-3.5" />
+                                    Recepcionar en Almacén
+                                  </button>
+                                )}
+                                {!isAnulada && (
+                                  <button
+                                    type="button"
+                                    disabled={sendingOrderEmailId === compra.id}
+                                    onClick={() => handleSendOrderEmail(compra)}
+                                    className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1.5 text-[11px] font-bold text-[#00346F] hover:bg-blue-100 disabled:opacity-50"
+                                    title="Enviar Orden de Pedido al Correo Oficial del Proveedor"
+                                  >
+                                    {sendingOrderEmailId === compra.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <Mail className="h-3.5 w-3.5" />
+                                    )}
+                                    Enviar Orden
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => {
                                     setSelectedCompraDetail(compra);
@@ -993,13 +1317,15 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                                 {!isAnulada && !readOnly && (
                                   <button
                                     onClick={() => {
-                                      if (confirm(`¿Estás seguro de anular la compra ${compra.codigoComprobante}? Se revertirá el stock ingresado a ${compra.sucursalDestino}.`)) {
+                                      const msg = isSolicitado
+                                        ? `¿Estás seguro de cancelar el pedido en tránsito ${compra.codigoComprobante}?`
+                                        : `¿Estás seguro de anular la recepción ${compra.codigoComprobante}? Se revertirá el stock ingresado a ${compra.sucursalDestino}.`;
+                                      if (confirm(msg)) {
                                         onAnularCompra(compra.id);
-                                        onShowToast('Compra Anulada', `La compra ${compra.codigoComprobante} fue anulada y el stock revertido.`, 'warning');
                                       }
                                     }}
                                     className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-rose-50 hover:text-rose-600"
-                                    title="Anular compra"
+                                    title={isSolicitado ? 'Cancelar pedido' : 'Anular compra y revertir stock'}
                                   >
                                     <RotateCcw className="h-4 w-4" />
                                   </button>
@@ -1232,15 +1558,26 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-bold text-slate-700">RUC (11 dígitos)</label>
-                  <input
-                    type="text"
-                    maxLength={11}
-                    value={proveedorForm.ruc}
-                    onChange={(e) => setProveedorForm({ ...proveedorForm, ruc: e.target.value.replace(/\D/g, '') })}
-                    placeholder="Ej. 20100154308"
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
-                    required
-                  />
+                  <div className="mt-1 flex gap-1.5">
+                    <input
+                      type="text"
+                      maxLength={11}
+                      value={proveedorForm.ruc}
+                      onChange={(e) => setProveedorForm({ ...proveedorForm, ruc: e.target.value.replace(/\D/g, '') })}
+                      placeholder="Ej. 20100154308"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
+                      required
+                    />
+                    <button
+                      type="button"
+                      disabled={isQueryingRuc}
+                      onClick={handleConsultarRucProveedor}
+                      className="shrink-0 rounded-xl bg-[#00346F] px-3 py-2 text-[11px] font-bold text-white hover:bg-[#004A99] disabled:opacity-50"
+                      title="Consultar RUC en SUNAT"
+                    >
+                      {isQueryingRuc ? '...' : 'SUNAT'}
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700">Teléfono / WhatsApp</label>
@@ -1489,6 +1826,161 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                 Listo / Confirmar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL DE RECEPCIÓN FÍSICA Y CONTROL DE CALIDAD EN ALMACÉN --- */}
+      {receivingCompra && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="bg-emerald-700 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
+                  <Truck className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-200">
+                    Paso 2: Verificación Física y Alta en Kardex
+                  </span>
+                  <h3 className="font-black text-base">
+                    Recepcionar Pedido en Almacén ({receivingCompra.codigoComprobante})
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReceivingCompra(null)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmReception} className="p-5 overflow-y-auto space-y-4 text-xs flex-1">
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3.5 text-emerald-900">
+                <p className="font-bold">
+                  Proveedor: {receivingCompra.proveedorRazonSocial} (RUC: {receivingCompra.proveedorRuc})
+                </p>
+                <p className="mt-0.5 text-[11px] text-emerald-700">
+                  Sede receptora de stock: <strong>{receivingCompra.sucursalDestino}</strong> • Al confirmar esta recepción se incrementará el stock real para <strong>Ventas POS</strong> y <strong>Taller Técnico</strong>.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    N° Factura / Guía de Remisión del Proveedor *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={recepcionComprobante}
+                    onChange={(e) => setRecepcionComprobante(e.target.value.toUpperCase())}
+                    placeholder="Ej. F001-004825"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-mono font-bold uppercase text-slate-800 focus:border-emerald-600 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Conformidad / Observación de Almacén
+                  </label>
+                  <input
+                    type="text"
+                    value={recepcionObs}
+                    onChange={(e) => setRecepcionObs(e.target.value)}
+                    placeholder="Mercadería verificada conforme..."
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-emerald-600 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <p className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
+                  Productos y Series Físicas por Ingresar al Almacén:
+                </p>
+                {receivingCompra.items.map((it) => {
+                  const seriesList = recepcionSeriesMap[it.productoId] || [];
+                  return (
+                    <div key={it.productoId} className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-mono text-[10px] text-slate-400">{it.codigo}</span>
+                          <p className="font-bold text-slate-900 text-xs">{it.nombre}</p>
+                        </div>
+                        <span className="rounded-lg bg-[#00346F] px-2.5 py-1 text-xs font-black text-white">
+                          +{it.cantidad} un.
+                        </span>
+                      </div>
+
+                      {it.requiereSerie && (
+                        <div className="rounded-lg border border-blue-200 bg-white p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-[#00346F] flex items-center gap-1">
+                              <Barcode className="w-3.5 h-3.5" />
+                              Series requeridas ({seriesList.length}/{it.cantidad}):
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleAutoGenReceptionSeries(it)}
+                              className="text-[11px] font-bold text-indigo-600 hover:underline"
+                            >
+                              ⚡ Autogenerar {it.cantidad} series
+                            </button>
+                          </div>
+                          <textarea
+                            rows={2}
+                            value={recepcionBulkTextMap[it.productoId] || ''}
+                            onChange={(e) => {
+                              const raw = e.target.value.toUpperCase();
+                              setRecepcionBulkTextMap((prev) => ({ ...prev, [it.productoId]: raw }));
+                              const parsed = Array.from(
+                                new Set(
+                                  raw
+                                    .split(/[\n,;]+/)
+                                    .map((s) => s.trim())
+                                    .filter(Boolean)
+                                )
+                              ).slice(0, it.cantidad);
+                              setRecepcionSeriesMap((prev) => ({ ...prev, [it.productoId]: parsed }));
+                            }}
+                            placeholder={`Escanee o escriba las ${it.cantidad} series separadas por salto de línea o coma...`}
+                            className="w-full rounded-lg border border-slate-300 p-2 font-mono text-xs text-slate-800"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 border-t border-slate-200 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setReceivingCompra(null)}
+                  className="rounded-xl border border-slate-300 px-4 py-2.5 font-bold text-slate-600 hover:bg-slate-100"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingRecepcion}
+                  className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 font-black text-white shadow-md hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {isSubmittingRecepcion ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Ingresando a Stock...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      Confirmar Recepción e Incrementar Stock
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -30,6 +30,7 @@ import {
   AlertCircle,
   Tag,
   Info,
+  Truck,
 } from 'lucide-react';
 import {
   warehouseService,
@@ -48,6 +49,8 @@ interface WarehouseInventoryViewProps {
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   readOnly?: boolean;
   onProductCreated?: () => void;
+  onRequestOrderProduct?: (productoId: number) => void;
+  onOpenPedidosTab?: () => void;
 }
 
 export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
@@ -55,6 +58,8 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
   onShowToast,
   readOnly = false,
   onProductCreated,
+  onRequestOrderProduct,
+  onOpenPedidosTab,
 }) => {
   // ─── ESTADOS PRINCIPALES ───
   const [inventario, setInventario] = useState<ItemInventarioAlmacen[]>([]);
@@ -492,6 +497,17 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
               Sincronizar
             </button>
 
+            {!readOnly && onOpenPedidosTab && (
+              <button
+                type="button"
+                onClick={onOpenPedidosTab}
+                className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-emerald-700 active:scale-95"
+              >
+                <Truck className="h-4 w-4" />
+                Realizar Pedido a Proveedor
+              </button>
+            )}
+
             {!readOnly && (
               <button
                 type="button"
@@ -911,8 +927,23 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
                         )}
                       </div>
 
-                      {/* Botones de Acción para Series */}
-                      <div className="flex flex-wrap items-center gap-2">
+                      {/* Botones de Acción para Series y Pedidos a Proveedor */}
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {!readOnly && onRequestOrderProduct && (
+                          <button
+                            type="button"
+                            onClick={() => onRequestOrderProduct(item.id)}
+                            className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold shadow-sm transition active:scale-95 ${
+                              item.stockTotal <= item.stockMinimo
+                                ? 'bg-amber-600 text-white hover:bg-amber-700 ring-2 ring-amber-200'
+                                : 'border border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                            }`}
+                            title="Generar Orden de Pedido a Proveedor para abastecer este producto en Ventas POS o Taller Técnico"
+                          >
+                            <Truck className="h-3.5 w-3.5" />
+                            {item.stockTotal <= item.stockMinimo ? '⚠️ Reabastecer (Pedir)' : 'Pedir a Proveedor'}
+                          </button>
+                        )}
                         {item.requiereSerie ? (
                           <>
                             <button
