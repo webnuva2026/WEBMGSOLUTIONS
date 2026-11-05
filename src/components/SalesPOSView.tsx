@@ -977,7 +977,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
     selectedCategory === 'DEPARTAMENTOS' && !searchProductQuery.trim();
 
   return (
-    <div className="flex-1 flex flex-col bg-[#F8F9FF] h-[calc(100vh-4.2rem)] max-h-[calc(100vh-4.2rem)] overflow-hidden">
+    <div className="flex-1 min-w-0 flex flex-col bg-[#F8F9FF] h-[calc(100vh-4.2rem)] max-h-[calc(100vh-4.2rem)] overflow-hidden">
       {/* Top POS Header Bar */}
       <header className="bg-white border-b border-slate-200 px-6 py-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-xs flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -1041,9 +1041,9 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
 
       {/* TAB 1: TERMINAL POS */}
       {activeTab === 'pos' && (
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
+        <div className="flex-1 min-w-0 flex flex-col lg:flex-row overflow-hidden min-h-0">
           {/* LEFT SIDE: PRODUCT CATALOG */}
-          <div className="flex-1 flex flex-col p-3 md:p-4 overflow-y-auto space-y-3 min-h-0">
+          <div className="flex-1 min-w-0 flex flex-col p-3 md:p-4 overflow-y-auto overflow-x-hidden space-y-3 min-h-0">
             {/* Search and Filters Bar */}
             <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs space-y-2.5">
               <div className="flex flex-col sm:flex-row gap-2.5">
@@ -1149,7 +1149,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3.5">
                   {departmentsSummary.map((dept) => {
                     const meta = getDepartmentMeta(dept.name);
                     return (
@@ -1242,7 +1242,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-2.5">
                       {relatedProductsInfo.items.map(({ product: relProd, badge }) => (
                         <div
                           key={relProd.id}
@@ -1335,7 +1335,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
 
                 {/* Grid de Productos de la Categoría */}
                 {filteredProducts.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3.5">
                     {filteredProducts.map((prod) => {
                       const isInCart = cart.find((i) => i.productoId === prod.id);
                       const isOutOfStock = prod.stock <= 0;
@@ -1455,7 +1455,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3">
                       {relatedProductsInfo.items.map(({ product: relProd, badge }) => {
                         const isRelInCart = cart.find((i) => i.productoId === relProd.id);
                         return (
@@ -1519,7 +1519,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
           </div>
 
           {/* RIGHT SIDE: CART & CHECKOUT TERMINAL */}
-          <div className="w-full lg:w-[410px] xl:w-[430px] bg-white border-l border-slate-200 flex flex-col h-full overflow-hidden shadow-lg flex-shrink-0">
+          <div className="w-full lg:w-[340px] xl:w-[400px] 2xl:w-[430px] bg-white border-l border-slate-200 flex flex-col h-full overflow-hidden shadow-lg flex-shrink-0">
             {/* Cart Header */}
             <div className="px-3.5 py-2.5 border-b border-slate-200 bg-[#EFF4FF] flex justify-between items-center flex-shrink-0">
               <div className="flex items-center gap-2">

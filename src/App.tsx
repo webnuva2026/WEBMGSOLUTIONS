@@ -990,7 +990,7 @@ export function App() {
         />
 
         {/* View Switcher Container */}
-        <main className="flex-1 flex flex-col md:pl-[285px] transition-all min-h-[calc(100vh-4rem)]">
+        <main className="flex-1 min-w-0 flex flex-col md:pl-[285px] transition-all min-h-[calc(100vh-4rem)]">
           {activeView === 'ventas' && (
             <SalesPOSView
               currentUser={currentUser}
