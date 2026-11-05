@@ -1101,6 +1101,7 @@ export function App() {
               initialTab={activeView === 'marcas' ? 'marcas' : 'categorias'}
               onShowToast={showToast}
               readOnly={currentUser.rol !== 'ADMIN' && currentUser.rol !== 'SUPERADMIN' && currentUser.rol !== 'ALMACEN'}
+              setActiveView={setActiveView}
             />
           )}
 

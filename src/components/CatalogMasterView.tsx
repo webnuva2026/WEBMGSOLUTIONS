@@ -26,6 +26,7 @@ import {
   Trash2,
   ArrowLeft,
   ChevronRight,
+  ShoppingCart,
 } from 'lucide-react';
 import { Categoria, Marca, Modelo, EstadoRegistro } from '../types';
 import { categoryService, CreateCategoriaData } from '../services/category.service';
@@ -35,6 +36,7 @@ interface CatalogMasterViewProps {
   initialTab?: 'categorias' | 'marcas' | 'modelos';
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   readOnly?: boolean;
+  setActiveView?: (view: string) => void;
 }
 
 const PRESET_ATTRIBUTES = [
@@ -52,6 +54,7 @@ export const CatalogMasterView: React.FC<CatalogMasterViewProps> = ({
   initialTab = 'categorias',
   onShowToast,
   readOnly = false,
+  setActiveView,
 }) => {
   const [activeTab, setActiveTab] = useState<'categorias' | 'marcas' | 'modelos'>(initialTab);
 
@@ -1331,13 +1334,28 @@ export const CatalogMasterView: React.FC<CatalogMasterViewProps> = ({
                                 </div>
 
                                 {!readOnly && (
-                                  <button
-                                    onClick={() => handleOpenEditModelo(mod)}
-                                    className="px-2.5 py-1.5 bg-white border border-slate-200 hover:border-blue-300 hover:text-[#00346F] text-slate-600 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer self-end md:self-start shadow-2xs"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                    <span>Editar</span>
-                                  </button>
+                                  <div className="flex items-center gap-1.5 self-end md:self-start">
+                                    {setActiveView && (
+                                      <button
+                                        onClick={() => {
+                                          setActiveView('panel-almacen');
+                                          onShowToast('Realizar Pedido', `Abriendo módulo de pedidos para ${mod.nombre}.`, 'info');
+                                        }}
+                                        className="px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer shadow-2xs"
+                                        title="Crear o agregar a una orden de compra en Almacén"
+                                      >
+                                        <ShoppingCart className="w-3.5 h-3.5" />
+                                        <span>Pedir</span>
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => handleOpenEditModelo(mod)}
+                                      className="px-2.5 py-1.5 bg-white border border-slate-200 hover:border-blue-300 hover:text-[#00346F] text-slate-600 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shadow-2xs"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                      <span>Editar</span>
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             ))}

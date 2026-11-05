@@ -1378,21 +1378,25 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-bold text-slate-700">3. Modelo Específico</label>
+                    <div className="mb-1 flex items-center justify-between">
+                      <label className="block text-xs font-bold text-slate-700">3. Modelo del Catálogo Maestro</label>
+                      <span className="text-[10px] text-blue-600 font-semibold">Catálogo ➔ Almacén</span>
+                    </div>
                     <select
                       value={newProdData.modeloId || ''}
                       onChange={(e) => {
                         const modId = e.target.value ? Number(e.target.value) : null;
                         const mod = modelos.find((m) => m.id === modId);
+                        const marca = marcasActivas.find((m) => m.id === newProdData.marcaId);
                         setNewProdData((prev) => ({
                           ...prev,
                           modeloId: modId,
-                          nombre: mod ? `${mod.nombre}` : prev.nombre,
+                          nombre: mod ? `${marca?.nombre || ''} ${mod.nombre}`.trim() : prev.nombre,
                         }));
                       }}
-                      className="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-semibold"
+                      className="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-semibold focus:border-[#00346F]"
                     >
-                      <option value="">(Sin modelo específico)</option>
+                      <option value="">(Sin modelo específico / Repuesto o insumo genérico)</option>
                       {modelosFiltradosParaCrear.map((m) => (
                         <option key={m.id} value={m.id}>
                           {m.nombre}

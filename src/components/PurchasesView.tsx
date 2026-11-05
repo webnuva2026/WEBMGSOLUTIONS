@@ -48,6 +48,10 @@ import {
 } from '../types';
 import { purchaseService } from '../services/purchase.service';
 import { consultaService } from '../services/consulta.service';
+import { categoryService } from '../services/category.service';
+import { brandModelService } from '../services/brandModel.service';
+import { warehouseService } from '../services/warehouse.service';
+import { Categoria, Marca, Modelo } from '../types';
 
 interface PurchasesViewProps {
   currentUser: Usuario;
@@ -122,6 +126,138 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
   const [itemCantidad, setItemCantidad] = useState<number>(1);
   const [itemPrecioCosto, setItemPrecioCosto] = useState<number | string>(0);
 
+  // --- CATÁLOGO MAESTRO (Categoría → Marca → Modelo) ---
+  const [catCategorias, setCatCategorias] = useState<Categoria[]>([]);
+  const [catMarcas, setCatMarcas] = useState<Marca[]>([]);
+  const [catModelos, setCatModelos] = useState<Modelo[]>([]);
+  const [catFiltroCategoria, setCatFiltroCategoria] = useState<number | ''>('');
+  const [catFiltroMarca, setCatFiltroMarca] = useState<number | ''>('');
+  const [catModeloSel, setCatModeloSel] = useState<Modelo | null>(null);
+  const [catPrecioVenta, setCatPrecioVenta] = useState<string>('');
+  const [catDestino, setCatDestino] = useState<'VENTA' | 'SERVICIO_TALLER' | 'MIXTO'>('VENTA');
+  const [catRequiereSerie, setCatRequiereSerie] = useState<boolean>(true);
+  const [isCreatingFromCatalog, setIsCreatingFromCatalog] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const [rc, rm, rmo] = await Promise.all([
+          categoryService.getCategorias(),
+          brandModelService.getMarcas(),
+          brandModelService.getModelos(),
+        ]);
+        if (!active) return;
+        if (rc.success && rc.categorias) setCatCategorias(rc.categorias.filter((c) => c.estado === 'ACTIVO'));
+        if (rm.success && rm.marcas) setCatMarcas(rm.marcas.filter((m) => m.estado === 'ACTIVO'));
+        if (rmo.success && rmo.modelos) setCatModelos(rmo.modelos.filter((m) => m.estado === 'ACTIVO'));
+      } catch (err) {
+        console.warn('No se pudo cargar el Catálogo Maestro:', err);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const catMarcasFiltradas = useMemo(
+    () => catMarcas.filter((m) => !catFiltroCategoria || m.categoriaId === catFiltroCategoria),
+    [catMarcas, catFiltroCategoria]
+  );
+
+  const catModelosFiltrados = useMemo(() => {
+    const idsMarcas = new Set(catMarcasFiltradas.map((m) => m.id));
+    return catModelos.filter(
+      (mo) => idsMarcas.has(mo.marcaId) && (!catFiltroMarca || mo.marcaId === catFiltroMarca)
+    );
+  }, [catModelos, catMarcasFiltradas, catFiltroMarca]);
+
+  const getProductoDeModelo = (modeloId: number) => productos.find((p) => p.modeloId === modeloId);
+
+  const handleSelectModeloCatalogo = (modelo: Modelo) => {
+    const existente = getProductoDeModelo(modelo.id);
+    if (existente) {
+      setCatModeloSel(null);
+      handleSelectProduct(existente.id);
+      setSearchProductQuery(existente.codigo || existente.nombre);
+      return;
+    }
+    // Modelo sin producto: se creará automáticamente al agregarlo a la orden
+    setSelectedProductId('');
+    setCatModeloSel(modelo);
+    const marca = catMarcas.find((m) => m.id === modelo.marcaId);
+    const cat = catCategorias.find((c) => c.id === marca?.categoriaId);
+    const nombreCat = (cat?.nombre || '').toUpperCase();
+    setCatRequiereSerie(!(nombreCat.includes('REPUESTO') || nombreCat.includes('SUMINISTRO') || nombreCat.includes('PERIF') || nombreCat.includes('COMPONENTE')));
+    setCatDestino(nombreCat.includes('REPUESTO') ? 'MIXTO' : 'VENTA');
+    setCatPrecioVenta('');
+    setItemPrecioCosto(0);
+    setItemCantidad(1);
+  };
+
+  const handleCrearProductoDesdeCatalogo = async () => {
+    if (!catModeloSel) return;
+    const marca = catMarcas.find((m) => m.id === catModeloSel.marcaId);
+    if (!marca || !marca.categoriaId) {
+      onShowToast('Marca sin categoría', 'La marca del modelo no tiene categoría asignada en el Catálogo Maestro.', 'warning');
+      return;
+    }
+    const costo = Number(itemPrecioCosto) || 0;
+    const venta = Number(catPrecioVenta) || 0;
+    if (costo <= 0 || venta <= 0) {
+      onShowToast('Precios requeridos', 'Ingrese el costo de compra y el precio de venta del producto nuevo.', 'warning');
+      return;
+    }
+    if (itemCantidad <= 0) {
+      onShowToast('Cantidad inválida', 'La cantidad debe ser mayor a 0.', 'warning');
+      return;
+    }
+    setIsCreatingFromCatalog(true);
+    try {
+      const nombre = `${marca.nombre} ${catModeloSel.nombre}`.trim();
+      const res = await warehouseService.createProducto({
+        nombre,
+        descripcion: catModeloSel.descripcion || '',
+        categoriaId: marca.categoriaId,
+        marcaId: marca.id,
+        modeloId: catModeloSel.id,
+        precioVenta: venta,
+        precioCosto: costo,
+        requiereSerie: catRequiereSerie,
+        tipoDestino: catDestino,
+        disponibleVenta: catDestino !== 'SERVICIO_TALLER',
+        stockInicial: 0,
+      });
+      if (!res.success || !res.productoId) {
+        onShowToast('No se pudo crear el producto', res.message || 'Error al registrar el producto del catálogo.', 'error');
+        return;
+      }
+      const cat = catCategorias.find((c) => c.id === marca.categoriaId);
+      const newItem: ItemCompra = {
+        productoId: res.productoId,
+        codigo: '',
+        nombre,
+        categoria: cat?.nombre || '',
+        marca: marca.nombre,
+        cantidad: itemCantidad,
+        precioCostoUnitario: costo,
+        subtotal: itemCantidad * costo,
+        requiereSerie: catRequiereSerie,
+        series: [],
+      };
+      setCartItems((prev) => [...prev, newItem]);
+      onShowToast('Producto creado y agregado', `${nombre} se registró desde el Catálogo Maestro y se añadió al pedido.`, 'success');
+      setCatModeloSel(null);
+      setItemPrecioCosto(0);
+      setItemCantidad(1);
+      setCatPrecioVenta('');
+      if (onRefreshData) onRefreshData();
+    } catch (err: any) {
+      onShowToast('Error', err?.message || 'No se pudo crear el producto.', 'error');
+    } finally {
+      setIsCreatingFromCatalog(false);
+    }
+  };
 
   // Modal Compra Detalle / Imprimir
   const [selectedCompraDetail, setSelectedCompraDetail] = useState<Compra | null>(null);
@@ -890,6 +1026,154 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                 </div>
 
                 <div className="space-y-3">
+                  {/* Catálogo Maestro: Categoría → Marca → Modelo */}
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-3 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-extrabold text-indigo-900 flex items-center gap-1.5">
+                        <Layers className="h-3.5 w-3.5" />
+                        Pedir desde el Catálogo Maestro
+                      </p>
+                      <span className="text-[10px] text-indigo-700">Categoría ➔ Marca ➔ Modelo</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <select
+                        value={catFiltroCategoria}
+                        onChange={(e) => {
+                          setCatFiltroCategoria(e.target.value ? Number(e.target.value) : '');
+                          setCatFiltroMarca('');
+                          setCatModeloSel(null);
+                        }}
+                        className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700"
+                      >
+                        <option value="">Todas las categorías</option>
+                        {catCategorias.map((c) => (
+                          <option key={c.id} value={c.id}>{c.nombre}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={catFiltroMarca}
+                        onChange={(e) => {
+                          setCatFiltroMarca(e.target.value ? Number(e.target.value) : '');
+                          setCatModeloSel(null);
+                        }}
+                        className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700"
+                      >
+                        <option value="">Todas las marcas</option>
+                        {catMarcasFiltradas.map((m) => (
+                          <option key={m.id} value={m.id}>{m.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 space-y-1">
+                      {catModelosFiltrados.length === 0 ? (
+                        <p className="p-2 text-center text-[11px] text-slate-400">No hay modelos para este filtro.</p>
+                      ) : (
+                        catModelosFiltrados.map((mo) => {
+                          const prod = getProductoDeModelo(mo.id);
+                          const activo = catModeloSel?.id === mo.id || (prod && selectedProductId === prod.id);
+                          return (
+                            <div
+                              key={mo.id}
+                              onClick={() => handleSelectModeloCatalogo(mo)}
+                              className={`flex cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-all ${
+                                activo ? 'bg-indigo-600 text-white' : 'hover:bg-indigo-50 text-slate-800'
+                              }`}
+                            >
+                              <span className="font-bold">
+                                {mo.marcaNombre || catMarcas.find((m) => m.id === mo.marcaId)?.nombre} {mo.nombre}
+                              </span>
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                  prod
+                                    ? activo ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                                    : activo ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                {prod ? `✔ En almacén • Stock ${prod.stock}` : '🆕 Se creará al pedir'}
+                              </span>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {catModeloSel && (
+                      <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2.5">
+                        <p className="text-xs font-bold text-amber-900">
+                          Modelo nuevo en almacén: {catModeloSel.nombre}. Complete los datos y se creará el producto automáticamente.
+                        </p>
+                        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600">Cantidad</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={itemCantidad}
+                              onChange={(e) => setItemCantidad(Math.max(1, parseInt(e.target.value) || 1))}
+                              className="mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-black"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600">Costo compra (S/)</label>
+                            <input
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={itemPrecioCosto === 0 ? '' : itemPrecioCosto}
+                              onChange={(e) => setItemPrecioCosto(e.target.value)}
+                              placeholder="0.00"
+                              className="mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-black"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600">Precio venta (S/)</label>
+                            <input
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={catPrecioVenta}
+                              onChange={(e) => setCatPrecioVenta(e.target.value)}
+                              placeholder="0.00"
+                              className="mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-black"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600">Destino</label>
+                            <select
+                              value={catDestino}
+                              onChange={(e) => setCatDestino(e.target.value as any)}
+                              className="mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold"
+                            >
+                              <option value="VENTA">Venta</option>
+                              <option value="SERVICIO_TALLER">Taller</option>
+                              <option value="MIXTO">Mixto</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={catRequiereSerie}
+                              onChange={(e) => setCatRequiereSerie(e.target.checked)}
+                              className="h-3.5 w-3.5"
+                            />
+                            Requiere número de serie por unidad
+                          </label>
+                          <button
+                            type="button"
+                            disabled={isCreatingFromCatalog}
+                            onClick={handleCrearProductoDesdeCatalogo}
+                            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
+                          >
+                            {isCreatingFromCatalog ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                            Crear producto y agregar a la orden
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Search product */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700">Buscar en Catálogo de MG Solutions</label>
