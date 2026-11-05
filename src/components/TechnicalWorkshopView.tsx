@@ -42,6 +42,7 @@ import {
   Building2,
   Mail,
   Loader2,
+  Lock,
 } from 'lucide-react';
 
 import {
@@ -3946,19 +3947,25 @@ _Por favor responda a este mensaje con SÍ para comenzar o indíquenos si tiene 
                     
                     <div className="space-y-2">
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase">
-                          Correo del Cliente:
-                        </label>
-                        <input
-                          type="email"
-                          value={ticketEmailInput}
-                          onChange={(e) => {
-                            setTicketEmailInput(e.target.value);
-                            setTicketEmailSent(false);
-                          }}
-                          placeholder="cliente@ejemplo.com"
-                          className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-                        />
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase">
+                            Correo del Cliente:
+                          </label>
+                          <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-600 bg-slate-200/80 px-1.5 py-0.5 rounded-full">
+                            <Lock className="w-2.5 h-2.5" /> Fijo del Cliente
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            type="email"
+                            value={ticketEmailInput || 'Sin correo registrado en ficha del cliente'}
+                            readOnly
+                            disabled
+                            title="Por integridad de datos, el correo del cliente no se puede modificar desde el envío de ticket."
+                            className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-100 border border-slate-300 rounded-lg text-slate-600 font-semibold cursor-not-allowed select-none"
+                          />
+                        </div>
                       </div>
 
                       <button
