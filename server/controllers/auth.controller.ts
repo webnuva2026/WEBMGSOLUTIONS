@@ -163,7 +163,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     // Registrar sesión en tabla de auditoría
     const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
     const userAgent = req.headers['user-agent'] || '';
-    const expiraEn = new Date(Date.now() + 8 * 60 * 60 * 1000); // 8 horas
+    const expiraEn = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 horas
 
     await pool.query<ResultSetHeader>(
       `INSERT INTO sesiones_tokens (usuario_id, token_hash, ip_origen, user_agent, expira_en)

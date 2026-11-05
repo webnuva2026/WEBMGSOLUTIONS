@@ -1346,7 +1346,7 @@ import jwt from "jsonwebtoken";
 import dotenv3 from "dotenv";
 dotenv3.config();
 var JWT_SECRET = process.env.JWT_SECRET || "mg_solutions_default_dev_secret_key_2024";
-var JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "8h";
+var JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "2h";
 function generateToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 }
@@ -1477,7 +1477,7 @@ async function login(req, res) {
     const token = generateToken(tokenPayload);
     const ip = req.ip || req.socket.remoteAddress || "127.0.0.1";
     const userAgent = req.headers["user-agent"] || "";
-    const expiraEn = new Date(Date.now() + 8 * 60 * 60 * 1e3);
+    const expiraEn = new Date(Date.now() + 2 * 60 * 60 * 1e3);
     await pool.query(
       `INSERT INTO sesiones_tokens (usuario_id, token_hash, ip_origen, user_agent, expira_en)
        VALUES (?, ?, ?, ?, ?)`,

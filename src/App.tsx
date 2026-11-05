@@ -47,6 +47,7 @@ import { CategoriesView } from './components/CategoriesView';
 import { BrandsView } from './components/BrandsView';
 import { CatalogMasterView } from './components/CatalogMasterView';
 import { ToastContainer, ToastMessage } from './components/Toast';
+import { SessionTimeoutGuard } from './components/SessionTimeoutGuard';
 import { ServiceTrackingView } from './components/ServiceTrackingView';
 import { TechnicalWorkshopView } from './components/TechnicalWorkshopView';
 import { InventoryTransfersView } from './components/InventoryTransfersView';
@@ -430,9 +431,9 @@ export function App() {
 
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem('mg_current_user', JSON.stringify(currentUser));
+      sessionStorage.setItem('mg_current_user', JSON.stringify(currentUser));
     } else {
-      localStorage.removeItem('mg_current_user');
+      sessionStorage.removeItem('mg_current_user');
     }
   }, [currentUser]);
 
@@ -472,6 +473,9 @@ export function App() {
 
   // Validar sesión activa al cargar la app
   useEffect(() => {
+    // Seguridad: eliminar sesiones persistentes antiguas (la sesión ahora vive solo mientras la pestaña esté abierta)
+    localStorage.removeItem('mg_auth_token');
+    localStorage.removeItem('mg_current_user');
     const token = authService.getToken();
     if (token) {
       authService.getProfile().then((res) => {
@@ -1181,6 +1185,14 @@ export function App() {
 
         </main>
       </div>
+
+      {/* Cierre de sesión automático por inactividad (5 min + aviso de 60 s) */}
+      <SessionTimeoutGuard
+        onTimeout={async () => {
+          await handleLogout();
+          showToast('Sesión cerrada por inactividad', 'Por seguridad, vuelva a ingresar sus credenciales.', 'warning');
+        }}
+      />
 
       {/* Toast Notification Queue */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />

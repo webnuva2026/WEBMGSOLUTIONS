@@ -20,19 +20,19 @@ export interface LoginResponse {
 
 export const authService = {
   getToken(): string | null {
-    return localStorage.getItem('mg_auth_token');
+    return sessionStorage.getItem('mg_auth_token');
   },
 
   setToken(token: string): void {
-    localStorage.setItem('mg_auth_token', token);
+    sessionStorage.setItem('mg_auth_token', token);
   },
 
   removeToken(): void {
-    localStorage.removeItem('mg_auth_token');
+    sessionStorage.removeItem('mg_auth_token');
   },
 
   getStoredUser(): Usuario | null {
-    const userJson = localStorage.getItem('mg_current_user');
+    const userJson = sessionStorage.getItem('mg_current_user');
     if (!userJson) return null;
     try {
       return JSON.parse(userJson);
@@ -42,7 +42,7 @@ export const authService = {
   },
 
   setStoredUser(user: Usuario): void {
-    localStorage.setItem('mg_current_user', JSON.stringify(user));
+    sessionStorage.setItem('mg_current_user', JSON.stringify(user));
   },
 
   async login(email: string, password: string): Promise<LoginResponse> {
@@ -93,7 +93,7 @@ export const authService = {
         this.setStoredUser(data.user);
       } else if (response.status === 401 || response.status === 403) {
         this.removeToken();
-        localStorage.removeItem('mg_current_user');
+        sessionStorage.removeItem('mg_current_user');
       }
 
       return data;
@@ -121,7 +121,7 @@ export const authService = {
       }
     }
     this.removeToken();
-    localStorage.removeItem('mg_current_user');
+    sessionStorage.removeItem('mg_current_user');
   },
 
   async changePassword(passwordActual: string, nuevaPassword: string): Promise<{ success: boolean; message: string }> {
