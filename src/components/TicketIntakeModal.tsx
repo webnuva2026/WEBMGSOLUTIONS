@@ -31,6 +31,7 @@ import { clientService } from '../services/client.service';
 import { consultaService } from '../services/consulta.service';
 import { categoryService } from '../services/category.service';
 import { brandModelService } from '../services/brandModel.service';
+import { userService } from '../services/user.service';
 
 interface TicketIntakeModalProps {
   isOpen: boolean;
@@ -130,6 +131,43 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
   const selectedClient = useMemo(() => {
     return clientes.find((c) => c.id === Number(newOrderClienteId));
   }, [clientes, newOrderClienteId]);
+
+  // Disponibilidad operativa de los técnicos (se sincroniza desde el servidor)
+  const [presenciaMap, setPresenciaMap] = useState<Record<number, string>>({});
+  const PRESENCIA_LABELS: Record<string, string> = {
+    DISPONIBLE: 'Disponible',
+    OCUPADO: 'Ocupado / En reparación',
+    ALMUERZO: 'En almuerzo',
+    ENFERMERIA: 'En enfermería / tópico',
+    COMISION: 'En comisión',
+    AUSENTE: 'Ausente / pausa corta',
+  };
+  const getPresenciaTecnico = (id: number) => {
+    const code = presenciaMap[id] || 'DISPONIBLE';
+    return { code, label: PRESENCIA_LABELS[code] || code, disponible: code === 'DISPONIBLE' };
+  };
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    const load = async () => {
+      try {
+        const res = await userService.getPresencia();
+        if (active && res.success) setPresenciaMap(res.presencia || {});
+      } catch {
+        /* sin conexión: se asume disponible */
+      }
+    };
+    load();
+    const timer = setInterval(load, 15000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [isOpen]);
+
+  const presenciaSeleccionada = getPresenciaTecnico(Number(newOrderTecnicoId));
+  const tecnicoSeleccionadoNoDisponible = Boolean(newOrderTecnicoId) && !presenciaSeleccionada.disponible;
 
   // Clientes filtrados por búsqueda
   const filteredClients = useMemo(() => {
@@ -477,6 +515,14 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
     if (ingresoModo === 'GARANTIA' && !checklistGarantiaCompleto) {
       onShowToast('Inspección Incompleta', 'Debe marcar conformes los 4 puntos de inspección física para tramitar garantía.', 'warning');
       return;
+    }
+
+    if (tecnicoSeleccionadoNoDisponible) {
+      const nombreTec = tecnicos.find((u) => u.id === Number(newOrderTecnicoId))?.nombreCompleto || 'El técnico';
+      const seguir = window.confirm(
+        `⚠️ ${nombreTec} se encuentra: ${presenciaSeleccionada.label.toUpperCase()}.\n\n¿Está seguro de asignarle este ticket de todas formas?`
+      );
+      if (!seguir) return;
     }
 
     setIsSavingOrder(true);
@@ -1287,13 +1333,25 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
                       {tecnicos.length === 0 ? (
                         <option value="">(Sin técnicos registrados)</option>
                       ) : (
-                        tecnicos.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.nombreCompleto} ({t.rolNombre || t.rol})
-                          </option>
-                        ))
+                        tecnicos.map((t) => {
+                          const est = getPresenciaTecnico(t.id);
+                          return (
+                            <option key={t.id} value={t.id}>
+                              {t.nombreCompleto} ({t.rolNombre || t.rol}) — {est.disponible ? '🟢 ' : '⚠️ No disponible: '}{est.label}
+                            </option>
+                          );
+                        })
                       )}
                     </select>
+                    {tecnicoSeleccionadoNoDisponible && (
+                      <div className="mt-1.5 p-2 bg-amber-50 border border-amber-300 rounded-lg text-[11px] text-amber-900 flex items-start gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                        <span>
+                          <strong>Técnico no disponible:</strong> {presenciaSeleccionada.label}. Puede asignarle el ticket, pero
+                          no lo atenderá hasta volver. Se pedirá confirmación al generar el ticket.
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -2670,6 +2670,52 @@ async function getPermisos(req, res) {
     res.status(500).json({ success: false, message: "Error obteniendo permisos." });
   }
 }
+var PRESENCIA_VALIDOS = ["DISPONIBLE", "OCUPADO", "ALMUERZO", "ENFERMERIA", "COMISION", "AUSENTE"];
+var presenciaTablaLista = false;
+async function asegurarTablaPresencia() {
+  if (presenciaTablaLista) return;
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS presencia_usuarios (
+      usuario_id INT NOT NULL PRIMARY KEY,
+      estado VARCHAR(20) NOT NULL DEFAULT 'DISPONIBLE',
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )`
+  );
+  presenciaTablaLista = true;
+}
+async function getPresencia(req, res) {
+  try {
+    await asegurarTablaPresencia();
+    const [rows] = await pool.query("SELECT usuario_id, estado FROM presencia_usuarios");
+    const presencia = {};
+    rows.forEach((r) => {
+      presencia[Number(r.usuario_id)] = String(r.estado);
+    });
+    res.json({ success: true, presencia });
+  } catch (error) {
+    console.error("Error en getPresencia:", error);
+    res.status(500).json({ success: false, message: "Error consultando disponibilidad." });
+  }
+}
+async function setPresencia(req, res) {
+  try {
+    const estado = String(req.body?.estado || "").toUpperCase();
+    if (!PRESENCIA_VALIDOS.includes(estado)) {
+      res.status(400).json({ success: false, message: "Estado de disponibilidad inv\xE1lido." });
+      return;
+    }
+    await asegurarTablaPresencia();
+    await pool.query(
+      `INSERT INTO presencia_usuarios (usuario_id, estado) VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE estado = VALUES(estado)`,
+      [req.user.userId, estado]
+    );
+    res.json({ success: true, estado });
+  } catch (error) {
+    console.error("Error en setPresencia:", error);
+    res.status(500).json({ success: false, message: "Error actualizando disponibilidad." });
+  }
+}
 
 // server/routes/user.routes.ts
 var router2 = Router2();
@@ -2687,6 +2733,8 @@ router2.post("/roles", authenticateToken, requireRoles("ADMIN", "SUPERADMIN"), c
 router2.put("/roles/:id", authenticateToken, requireRoles("ADMIN", "SUPERADMIN"), updateRole);
 router2.delete("/roles/:id", authenticateToken, requireRoles("ADMIN", "SUPERADMIN"), deleteRole);
 router2.get("/permisos", authenticateToken, getPermisos);
+router2.get("/presencia", authenticateToken, getPresencia);
+router2.put("/presencia", authenticateToken, setPresencia);
 var user_routes_default = router2;
 
 // server/routes/client.routes.ts

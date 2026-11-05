@@ -866,3 +866,64 @@ export async function getPermisos(req: Request, res: Response): Promise<void> {
     res.status(500).json({ success: false, message: 'Error obteniendo permisos.' });
   }
 }
+
+// =====================================================================
+// PRESENCIA / DISPONIBILIDAD OPERATIVA DEL PERSONAL
+// =====================================================================
+const PRESENCIA_VALIDOS = ['DISPONIBLE', 'OCUPADO', 'ALMUERZO', 'ENFERMERIA', 'COMISION', 'AUSENTE'];
+let presenciaTablaLista = false;
+
+async function asegurarTablaPresencia(): Promise<void> {
+  if (presenciaTablaLista) return;
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS presencia_usuarios (
+      usuario_id INT NOT NULL PRIMARY KEY,
+      estado VARCHAR(20) NOT NULL DEFAULT 'DISPONIBLE',
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )`
+  );
+  presenciaTablaLista = true;
+}
+
+/**
+ * GET /api/presencia
+ * Retorna el estado operativo actual (Disponible, Almuerzo, Enfermería, etc.) de cada usuario.
+ */
+export async function getPresencia(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    await asegurarTablaPresencia();
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT usuario_id, estado FROM presencia_usuarios');
+    const presencia: Record<number, string> = {};
+    rows.forEach((r) => {
+      presencia[Number(r.usuario_id)] = String(r.estado);
+    });
+    res.json({ success: true, presencia });
+  } catch (error) {
+    console.error('Error en getPresencia:', error);
+    res.status(500).json({ success: false, message: 'Error consultando disponibilidad.' });
+  }
+}
+
+/**
+ * PUT /api/presencia
+ * El usuario autenticado actualiza su propio estado operativo.
+ */
+export async function setPresencia(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    const estado = String(req.body?.estado || '').toUpperCase();
+    if (!PRESENCIA_VALIDOS.includes(estado)) {
+      res.status(400).json({ success: false, message: 'Estado de disponibilidad inválido.' });
+      return;
+    }
+    await asegurarTablaPresencia();
+    await pool.query(
+      `INSERT INTO presencia_usuarios (usuario_id, estado) VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE estado = VALUES(estado)`,
+      [req.user!.userId, estado]
+    );
+    res.json({ success: true, estado });
+  } catch (error) {
+    console.error('Error en setPresencia:', error);
+    res.status(500).json({ success: false, message: 'Error actualizando disponibilidad.' });
+  }
+}

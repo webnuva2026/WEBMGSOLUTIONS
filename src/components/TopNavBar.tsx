@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { userService } from '../services/user.service';
 import {
   Search,
   Bell,
@@ -231,12 +232,17 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   React.useEffect(() => {
     const saved = localStorage.getItem(presenceStorageKey);
     setPresenceStatus(saved || 'DISPONIBLE');
+    // Publicar el estado actual en el servidor para que Recepción lo vea
+    if (currentUser?.id) {
+      userService.setPresencia(saved || 'DISPONIBLE').catch(() => {});
+    }
   }, [presenceStorageKey]);
 
   const handleSelectPresence = (statusId: string) => {
     setPresenceStatus(statusId);
     localStorage.setItem(presenceStorageKey, statusId);
     setShowPresenceMenu(false);
+    userService.setPresencia(statusId).catch(() => {});
   };
 
   const currentPresence =

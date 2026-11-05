@@ -31,6 +31,21 @@ export interface CreateRoleData {
 }
 
 export const userService = {
+  // ─── PRESENCIA / DISPONIBILIDAD ───
+  async getPresencia(): Promise<{ success: boolean; presencia: Record<number, string> }> {
+    const res = await fetch(`${API_BASE_URL}/presencia`, { headers: getAuthHeaders() });
+    return res.json();
+  },
+
+  async setPresencia(estado: string): Promise<{ success: boolean; estado?: string }> {
+    const res = await fetch(`${API_BASE_URL}/presencia`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ estado }),
+    });
+    return res.json();
+  },
+
   // ─── USUARIOS ───
   async getUsers(): Promise<{ success: boolean; usuarios: Usuario[]; message?: string }> {
     const res = await fetch(`${API_BASE_URL}/usuarios`, {
