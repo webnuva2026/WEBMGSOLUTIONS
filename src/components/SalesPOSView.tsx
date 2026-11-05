@@ -907,69 +907,97 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
     return <Package className="w-5 h-5 text-slate-600" />;
   };
 
-  // Metadatos visuales para las Tarjetas de Departamentos
+  // Metadatos visuales y cromáticos distintivos para las Tarjetas de Departamentos
   const getDepartmentMeta = (cat: string) => {
     const c = (cat || '').toUpperCase();
     if (c.includes('LAPTOP') || c.includes('NOTEBOOK')) {
       return {
-        icon: <Laptop className="w-6 h-6 text-blue-600" />,
-        bgIcon: 'bg-blue-50 border-blue-200',
-        borderHover: 'hover:border-blue-400 hover:shadow-blue-100/60',
-        badgeBg: 'bg-blue-100 text-blue-800',
-        description: 'Equipos portátiles corporativos, ultrabooks y laptops gaming con garantía por serie.',
+        icon: <Laptop className="w-5 h-5 text-blue-600" />,
+        bgIcon: 'bg-blue-50 border-blue-200 text-blue-600',
+        topBorder: 'border-t-4 border-t-blue-600',
+        hoverBorder: 'hover:border-blue-300 hover:shadow-blue-500/10',
+        badgeBg: 'bg-blue-50 text-blue-700 border border-blue-200',
+        brandPill: 'bg-blue-50/70 text-blue-800 border border-blue-100',
+        actionColor: 'text-blue-600 group-hover:text-blue-700',
+        btnBg: 'bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white',
+        description: 'Laptops corporativas, ultrabooks y equipos gaming de alta gama.',
       };
     }
     if (c.includes('IMPRESORA')) {
       return {
-        icon: <PrinterIcon className="w-6 h-6 text-indigo-600" />,
-        bgIcon: 'bg-indigo-50 border-indigo-200',
-        borderHover: 'hover:border-indigo-400 hover:shadow-indigo-100/60',
-        badgeBg: 'bg-indigo-100 text-indigo-800',
-        description: 'Impresoras multifuncionales sistema continuo EcoTank, inyección y láser.',
+        icon: <PrinterIcon className="w-5 h-5 text-indigo-600" />,
+        bgIcon: 'bg-indigo-50 border-indigo-200 text-indigo-600',
+        topBorder: 'border-t-4 border-t-indigo-600',
+        hoverBorder: 'hover:border-indigo-300 hover:shadow-indigo-500/10',
+        badgeBg: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
+        brandPill: 'bg-indigo-50/70 text-indigo-800 border border-indigo-100',
+        actionColor: 'text-indigo-600 group-hover:text-indigo-700',
+        btnBg: 'bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white',
+        description: 'Multifuncionales con sistema continuo EcoTank, inyección y láser.',
       };
     }
     if (c.includes('MONITOR') || c.includes('PANTALLA')) {
       return {
-        icon: <Monitor className="w-6 h-6 text-cyan-600" />,
-        bgIcon: 'bg-cyan-50 border-cyan-200',
-        borderHover: 'hover:border-cyan-400 hover:shadow-cyan-100/60',
-        badgeBg: 'bg-cyan-100 text-cyan-800',
-        description: 'Monitores FHD/IPS, pantallas gaming de alta tasa de refresco y visualización profesional.',
+        icon: <Monitor className="w-5 h-5 text-cyan-600" />,
+        bgIcon: 'bg-cyan-50 border-cyan-200 text-cyan-600',
+        topBorder: 'border-t-4 border-t-cyan-500',
+        hoverBorder: 'hover:border-cyan-300 hover:shadow-cyan-500/10',
+        badgeBg: 'bg-cyan-50 text-cyan-800 border border-cyan-200',
+        brandPill: 'bg-cyan-50/70 text-cyan-800 border border-cyan-100',
+        actionColor: 'text-cyan-700 group-hover:text-cyan-800',
+        btnBg: 'bg-cyan-50 text-cyan-800 hover:bg-cyan-600 hover:text-white',
+        description: 'Monitores FHD, paneles IPS y pantallas gamer de alta frecuencia.',
       };
     }
     if (c.includes('REPUESTO')) {
       return {
-        icon: <Wrench className="w-6 h-6 text-amber-600" />,
-        bgIcon: 'bg-amber-50 border-amber-200',
-        borderHover: 'hover:border-amber-400 hover:shadow-amber-100/60',
-        badgeBg: 'bg-amber-100 text-amber-800',
-        description: 'Pantallas LED Slim de reemplazo para laptop, baterías originales, cargadores e insumos.',
+        icon: <Wrench className="w-5 h-5 text-amber-600" />,
+        bgIcon: 'bg-amber-50 border-amber-200 text-amber-600',
+        topBorder: 'border-t-4 border-t-amber-500',
+        hoverBorder: 'hover:border-amber-300 hover:shadow-amber-500/10',
+        badgeBg: 'bg-amber-50 text-amber-800 border border-amber-200',
+        brandPill: 'bg-amber-50/70 text-amber-900 border border-amber-200/80',
+        actionColor: 'text-amber-700 group-hover:text-amber-800',
+        btnBg: 'bg-amber-50 text-amber-800 hover:bg-amber-600 hover:text-white',
+        description: 'Pantallas Slim FHD de reemplazo, baterías, teclados y pasta térmica.',
       };
     }
     if (c.includes('COMPONENTE') || c.includes('HARDWARE')) {
       return {
-        icon: <Cpu className="w-6 h-6 text-purple-600" />,
-        bgIcon: 'bg-purple-50 border-purple-200',
-        borderHover: 'hover:border-purple-400 hover:shadow-purple-100/60',
-        badgeBg: 'bg-purple-100 text-purple-800',
-        description: 'Discos sólidos SSD NVMe M.2, memorias RAM DDR4/DDR5 SODIMM y repotenciación.',
+        icon: <Cpu className="w-5 h-5 text-purple-600" />,
+        bgIcon: 'bg-purple-50 border-purple-200 text-purple-600',
+        topBorder: 'border-t-4 border-t-purple-600',
+        hoverBorder: 'hover:border-purple-300 hover:shadow-purple-500/10',
+        badgeBg: 'bg-purple-50 text-purple-700 border border-purple-200',
+        brandPill: 'bg-purple-50/70 text-purple-800 border border-purple-100',
+        actionColor: 'text-purple-600 group-hover:text-purple-700',
+        btnBg: 'bg-purple-50 text-purple-700 hover:bg-purple-600 hover:text-white',
+        description: 'Discos sólidos SSD NVMe M.2 y memorias RAM SODIMM para upgrades.',
       };
     }
     if (c.includes('PERIF')) {
       return {
-        icon: <Layers className="w-6 h-6 text-emerald-600" />,
-        bgIcon: 'bg-emerald-50 border-emerald-200',
-        borderHover: 'hover:border-emerald-400 hover:shadow-emerald-100/60',
-        badgeBg: 'bg-emerald-100 text-emerald-800',
-        description: 'Mouses inalámbricos y gamer, teclados mecánicos, audífonos y accesorios.',
+        icon: <Layers className="w-5 h-5 text-emerald-600" />,
+        bgIcon: 'bg-emerald-50 border-emerald-200 text-emerald-600',
+        topBorder: 'border-t-4 border-t-emerald-600',
+        hoverBorder: 'hover:border-emerald-300 hover:shadow-emerald-500/10',
+        badgeBg: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+        brandPill: 'bg-emerald-50/70 text-emerald-800 border border-emerald-100',
+        actionColor: 'text-emerald-600 group-hover:text-emerald-700',
+        btnBg: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white',
+        description: 'Mouses inalámbricos, teclados, cargadores y mochilas protectoras.',
       };
     }
     return {
-      icon: <Package className="w-6 h-6 text-rose-600" />,
-      bgIcon: 'bg-rose-50 border-rose-200',
-      borderHover: 'hover:border-rose-400 hover:shadow-rose-100/60',
-      badgeBg: 'bg-rose-100 text-rose-800',
-      description: 'Botellas de tinta original, kits de recarga, tóners y consumibles de impresión.',
+      icon: <Package className="w-5 h-5 text-rose-600" />,
+      bgIcon: 'bg-rose-50 border-rose-200 text-rose-600',
+      topBorder: 'border-t-4 border-t-rose-500',
+      hoverBorder: 'hover:border-rose-300 hover:shadow-rose-500/10',
+      badgeBg: 'bg-rose-50 text-rose-700 border border-rose-200',
+      brandPill: 'bg-rose-50/70 text-rose-800 border border-rose-100',
+      actionColor: 'text-rose-600 group-hover:text-rose-700',
+      btnBg: 'bg-rose-50 text-rose-700 hover:bg-rose-600 hover:text-white',
+      description: 'Botellas de tinta original, kits de recarga y consumibles de impresión.',
     };
   };
 
@@ -1127,29 +1155,33 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
 
             {/* VISTA 1: DISTRIBUCIÓN POR DEPARTAMENTOS / CATEGORÍAS */}
             {isDepartmentGridView ? (
-              <div className="flex-1 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-gradient-to-r from-[#00346F] to-[#004A99] text-white p-4 rounded-xl shadow-xs">
-                  <div>
-                    <div className="flex items-center gap-2">
+              <div className="flex-1 space-y-3">
+                {/* Banner superior más compacto y estilizado */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-gradient-to-r from-[#002B5C] via-[#003B7A] to-[#004A99] text-white p-3 sm:px-4 sm:py-2.5 rounded-xl shadow-xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
                       <LayoutGrid className="w-4 h-4 text-blue-200" />
-                      <h2 className="text-sm font-extrabold uppercase tracking-wide">
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="text-xs sm:text-sm font-black uppercase tracking-wide truncate">
                         Distribución por Departamentos Comerciales
                       </h2>
+                      <p className="text-[11px] text-blue-100/90 truncate">
+                        Seleccione una línea de negocio para explorar sus modelos, existencias y productos relacionados.
+                      </p>
                     </div>
-                    <p className="text-xs text-blue-100 mt-0.5">
-                      Seleccione una línea de negocio (Laptops, Impresoras, Monitores & Pantallas, Repuestos, etc.) para ver sus modelos y productos relacionados.
-                    </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setSelectedCategory('TODAS')}
-                    className="px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-lg text-xs font-bold transition-all whitespace-nowrap self-start sm:self-auto"
+                    className="px-3 py-1 bg-white/15 hover:bg-white/25 text-white rounded-lg text-xs font-bold transition-all whitespace-nowrap self-start sm:self-auto shrink-0 shadow-2xs"
                   >
-                    Ver Lista Completa ({posEligibleProducts.length})
+                    Ver Todo el Catálogo ({posEligibleProducts.length})
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3.5">
+                {/* Grid Compacto con Cromática Distintiva por Categoría */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3">
                   {departmentsSummary.map((dept) => {
                     const meta = getDepartmentMeta(dept.name);
                     return (
@@ -1159,47 +1191,46 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                           setSelectedCategory(dept.name);
                           setSelectedBrand('TODAS');
                         }}
-                        className={`bg-white rounded-xl border border-slate-200 p-4 flex flex-col justify-between cursor-pointer transition-all hover:shadow-md group ${meta.borderHover}`}
+                        className={`bg-white rounded-xl border border-slate-200/90 ${meta.topBorder} p-3.5 flex flex-col justify-between cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 group ${meta.hoverBorder}`}
                       >
                         <div>
-                          <div className="flex items-start justify-between gap-3 mb-2.5">
-                            <div
-                              className={`w-12 h-12 rounded-xl border flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-105 ${meta.bgIcon}`}
-                            >
-                              {meta.icon}
-                            </div>
-                            <div className="text-right">
-                              <span
-                                className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${meta.badgeBg}`}
+                          {/* Fila Superior: Ícono coloreado + Título + Píldora de Modelos */}
+                          <div className="flex items-start justify-between gap-2.5 mb-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div
+                                className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${meta.bgIcon}`}
                               >
-                                {dept.count} {dept.count === 1 ? 'Modelo' : 'Modelos'}
-                              </span>
-                              <p className="text-[11px] font-bold text-emerald-700 mt-1">
-                                Stock: {dept.totalStock} unds.
-                              </p>
+                                {meta.icon}
+                              </div>
+                              <div className="min-w-0">
+                                <h3 className="text-xs sm:text-sm font-black text-slate-900 group-hover:text-[#00346F] transition-colors truncate">
+                                  {dept.name}
+                                </h3>
+                                <p className="text-[10px] text-slate-500 truncate leading-tight">
+                                  {meta.description}
+                                </p>
+                              </div>
                             </div>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase shrink-0 ${meta.badgeBg}`}
+                            >
+                              {dept.count} {dept.count === 1 ? 'mod.' : 'modelos'}
+                            </span>
                           </div>
 
-                          <h3 className="text-sm font-extrabold text-[#0B1C30] group-hover:text-[#00346F] transition-colors">
-                            {dept.name}
-                          </h3>
-                          <p className="text-[11px] text-slate-500 mt-1 leading-relaxed line-clamp-2">
-                            {meta.description}
-                          </p>
-
-                          {/* Brands Pills inside Department */}
+                          {/* Chips de Marcas con cromática de categoría */}
                           {dept.brands.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-3">
+                            <div className="flex flex-wrap gap-1 my-2">
                               {dept.brands.slice(0, 5).map((b) => (
                                 <span
                                   key={b}
-                                  className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold"
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${meta.brandPill}`}
                                 >
                                   {b}
                                 </span>
                               ))}
                               {dept.brands.length > 5 && (
-                                <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-bold">
+                                <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-bold">
                                   +{dept.brands.length - 5}
                                 </span>
                               )}
@@ -1207,15 +1238,22 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                           )}
                         </div>
 
-                        <div className="pt-3 border-t border-slate-100 mt-3.5 flex items-center justify-between">
-                          <span className="text-[11px] font-semibold text-slate-500">
-                            Desde{' '}
-                            <strong className="text-[#0B1C30]">
+                        {/* Pie de tarjeta compacto con precio, stock y botón de acceso */}
+                        <div className="pt-2.5 border-t border-slate-100 mt-2 flex items-center justify-between text-xs">
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-[10px] text-slate-400 font-semibold uppercase">Desde</span>
+                            <span className="text-xs font-black text-slate-900">
                               S/ {dept.minPrice.toFixed(2)}
-                            </strong>
-                          </span>
-                          <span className="text-xs font-extrabold text-[#00346F] flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                            Ingresar <ArrowRight className="w-3.5 h-3.5" />
+                            </span>
+                            <span className="text-[10px] font-bold text-emerald-700 ml-1">
+                              • {dept.totalStock} unds.
+                            </span>
+                          </div>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition-all ${meta.btnBg}`}
+                          >
+                            <span>Ingresar</span>
+                            <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
                           </span>
                         </div>
                       </div>
