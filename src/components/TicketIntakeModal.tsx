@@ -122,7 +122,7 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
     return usuarios.filter(
       (u) =>
         u.estado === 'ACTIVO' &&
-        (u.rol === 'TECNICO' || u.rol === 'SUPERADMIN' || u.rol === 'ADMIN' || (u.rolNombre && u.rolNombre.toUpperCase().includes('TÉCNICO')))
+        (u.rol === 'TECNICO' || (u.rolNombre && u.rolNombre.toUpperCase().includes('TÉCNICO')))
     );
   }, [usuarios]);
 
