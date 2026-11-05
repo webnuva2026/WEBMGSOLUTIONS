@@ -3209,12 +3209,12 @@ async function searchClientByDoc(req, res) {
 
 // server/routes/client.routes.ts
 var router3 = Router3();
-router3.get("/", authenticateToken, requirePermission("clientes", "FACTURADOR", "SECRETARIA"), getClients);
-router3.get("/:id", authenticateToken, requirePermission("clientes", "FACTURADOR", "SECRETARIA"), getClientById);
-router3.post("/", authenticateToken, requirePermission("clientes", "FACTURADOR", "SECRETARIA"), createClient);
-router3.put("/:id", authenticateToken, requirePermission("clientes", "FACTURADOR", "SECRETARIA"), updateClient);
-router3.patch("/:id/estado", authenticateToken, requirePermission("clientes"), toggleClientStatus);
-router3.get("/buscar/:documento", authenticateToken, requirePermission("clientes", "SECRETARIA", "FACTURADOR"), searchClientByDoc);
+router3.get("/", authenticateToken, requirePermission("clientes", "FACTURADOR", "SECRETARIA", "RECEPCION"), getClients);
+router3.get("/:id", authenticateToken, requirePermission("clientes", "FACTURADOR", "SECRETARIA", "RECEPCION"), getClientById);
+router3.post("/", authenticateToken, requirePermission("clientes", "FACTURADOR", "SECRETARIA", "RECEPCION"), createClient);
+router3.put("/:id", authenticateToken, requirePermission("clientes", "FACTURADOR", "SECRETARIA", "RECEPCION"), updateClient);
+router3.patch("/:id/estado", authenticateToken, requirePermission("clientes", "SECRETARIA", "RECEPCION"), toggleClientStatus);
+router3.get("/buscar/:documento", authenticateToken, requirePermission("clientes", "SECRETARIA", "FACTURADOR", "RECEPCION"), searchClientByDoc);
 var client_routes_default = router3;
 
 // server/routes/company.routes.ts

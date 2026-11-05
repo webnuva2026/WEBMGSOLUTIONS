@@ -1135,6 +1135,7 @@ export function App() {
               onToggleClienteEstado={handleToggleClienteStatus}
               onShowToast={showToast}
               onGoToServices={handleOpenServices}
+              onClientUpdated={() => loadDatabaseData(selectedSedeId)}
             />
           )}
 

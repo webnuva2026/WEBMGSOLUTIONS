@@ -36,7 +36,22 @@ import { useDebounce } from '../hooks/useDebounce';
 
 type ViewMode = 'table' | 'grid';
 
-export const ClientsManagementView: React.FC = () => {
+interface ClientsManagementViewProps {
+  clientes?: any[];
+  ordenes?: any[];
+  equipos?: any[];
+  currentUser?: any;
+  onSaveCliente?: (cli: any) => void;
+  onToggleClienteEstado?: (id: number) => void;
+  onShowToast?: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+  onGoToServices?: (clientId?: number) => void;
+  onClientUpdated?: () => void;
+}
+
+export const ClientsManagementView: React.FC<ClientsManagementViewProps> = ({
+  onShowToast,
+  onClientUpdated,
+}) => {
   // Data states
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
@@ -262,7 +277,8 @@ export const ClientsManagementView: React.FC = () => {
         : 'Nombres y Apellidos requeridos';
     }
 
-    if (!formData.direccionFiscal.trim()) {
+    const cleanDireccion = formData.direccionFiscal.trim() || (editingCliente ? 'CHICLAYO' : '');
+    if (!cleanDireccion) {
       errors.direccionFiscal = formData.tipoDocumento === 'RUC'
         ? 'Dirección fiscal requerida'
         : 'Dirección requerida';
@@ -275,11 +291,21 @@ export const ClientsManagementView: React.FC = () => {
     }
 
     try {
+      const payloadToSave = {
+        ...formData,
+        direccionFiscal: cleanDireccion,
+      };
       if (editingCliente) {
-        const res = await clientService.updateClient(editingCliente.id, formData);
+        const res = await clientService.updateClient(editingCliente.id, payloadToSave);
         if (res.success) {
           setClientes(prev => prev.map(c => c.id === editingCliente.id ? res.data : c));
           setIsModalOpen(false);
+          onShowToast?.(
+            'Cliente actualizado',
+            `Los datos de ${res.data.razonSocial} (teléfono / correo / dirección) se guardaron correctamente.`,
+            'success'
+          );
+          onClientUpdated?.();
           setFormData({
             tipoDocumento: 'RUC',
             numeroDocumento: '',
@@ -294,11 +320,13 @@ export const ClientsManagementView: React.FC = () => {
           setFormErrors({ submit: res.message || 'Error al actualizar cliente.' });
         }
       } else {
-        const res = await clientService.createClient(formData);
+        const res = await clientService.createClient(payloadToSave);
         if (res.success) {
           setClientes(prev => [res.data, ...prev]);
           setTotal(prev => prev + 1);
           setIsModalOpen(false);
+          onShowToast?.('Cliente registrado', `Cliente ${res.data.razonSocial} creado correctamente.`, 'success');
+          onClientUpdated?.();
           setFormData({
             tipoDocumento: 'RUC',
             numeroDocumento: '',
@@ -620,61 +648,66 @@ export const ClientsManagementView: React.FC = () => {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-[#EFF4FF] border-b border-slate-200 text-slate-600 uppercase font-bold tracking-wider text-[11px]">
-                  <th className="py-3 px-4">Tipo</th>
-                  <th className="py-3 px-4">N° Doc.</th>
-                  <th className="py-3 px-4">Razón Social / Nombres</th>
-                  <th className="py-3 px-4">Dirección</th>
-                  <th className="py-3 px-4">Email / Teléfono</th>
-                  <th className="py-3 px-4 text-center">Equipos</th>
-                  <th className="py-3 px-4 text-center">Estado</th>
-                  <th className="py-3 px-4 text-right">Acciones</th>
+                  <th className="py-3 px-3">Documento</th>
+                  <th className="py-3 px-3">Razón Social / Nombres</th>
+                  <th className="py-3 px-3">Dirección</th>
+                  <th className="py-3 px-3">Email / Teléfono</th>
+                  <th className="py-3 px-2.5 text-center">Equipos</th>
+                  <th className="py-3 px-2.5 text-center">Estado</th>
+                  <th className="py-3 px-3 text-right sticky right-0 bg-[#EFF4FF] shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)]">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {clientes.map((c, idx) => (
-                  <tr key={c.id} className={idx % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'}>
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${c.tipoDocumento === 'RUC'
-                        ? 'bg-blue-100 text-[#00346F]'
-                        : c.tipoDocumento === 'DNI'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-amber-100 text-amber-800'
-                        }`}>
-                        {c.tipoDocumento}
-                      </span>
+                  <tr key={c.id} className={`${idx % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'} hover:bg-blue-50/40 transition-colors`}>
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${c.tipoDocumento === 'RUC'
+                          ? 'bg-blue-100 text-[#00346F]'
+                          : c.tipoDocumento === 'DNI'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-800'
+                          }`}>
+                          {c.tipoDocumento}
+                        </span>
+                        <span className="font-mono font-bold text-slate-700">{c.numeroDocumento}</span>
+                      </div>
                     </td>
-                    <td className="py-3 px-4 font-mono font-bold text-slate-700">
-                      {c.numeroDocumento}
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-slate-900 max-w-xs">
-                      <div className="truncate">{c.razonSocial}</div>
+                    <td className="py-3 px-3 font-semibold text-slate-900 max-w-[210px]">
+                      <div className="truncate" title={c.razonSocial}>{c.razonSocial}</div>
                       {c.nombreEmpresa && (
                         <div className="text-[10px] text-slate-400 font-normal truncate">
                           {c.nombreEmpresa}
                         </div>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-slate-600 max-w-xs truncate">{c.direccionFiscal}</td>
-                    <td className="py-3 px-4 text-slate-500">
+                    <td className="py-3 px-3 text-slate-600 max-w-[170px] truncate" title={c.direccionFiscal}>
+                      {c.direccionFiscal}
+                    </td>
+                    <td
+                      onClick={() => handleOpenEdit(c)}
+                      title="Clic para editar correo o teléfono"
+                      className="py-3 px-3 text-slate-600 cursor-pointer hover:text-[#00346F] group"
+                    >
                       <div className="flex items-center gap-1">
-                        {c.email && <Mail className="w-3 h-3 text-slate-400" />}
-                        <span className="text-[10px]">{c.email || '-'}</span>
+                        <Mail className="w-3 h-3 text-slate-400 group-hover:text-[#00346F] shrink-0" />
+                        <span className="text-[11px] truncate max-w-[175px]">{c.email || 'Agregar correo...'}</span>
                       </div>
                       <div className="flex items-center gap-1 mt-0.5">
-                        {c.telefono && <Phone className="w-3 h-3 text-slate-400" />}
-                        <span className="text-[10px]">{c.telefono || '-'}</span>
+                        <Phone className="w-3 h-3 text-slate-400 group-hover:text-[#00346F] shrink-0" />
+                        <span className="text-[11px] font-medium">{c.telefono || 'Agregar teléfono...'}</span>
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700">
+                    <td className="py-3 px-2.5 text-center">
+                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700">
                         {c.totalEquipos || 0}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-3 px-2.5 text-center">
                       <button
                         onClick={() => handleToggleStatus(c.id, c.estado)}
                         disabled={actionLoading}
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold cursor-pointer transition-transform hover:scale-105 ${c.estado === 'ACTIVO'
+                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold cursor-pointer transition-transform hover:scale-105 ${c.estado === 'ACTIVO'
                           ? 'bg-[#DCFCE7] text-[#166534]'
                           : 'bg-[#FEE2E2] text-[#991B1B]'
                           }`}
@@ -683,13 +716,24 @@ export const ClientsManagementView: React.FC = () => {
                         <span>{c.estado}</span>
                       </button>
                     </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center gap-1 justify-end">
-                        <button onClick={() => handleViewDetail(c)} className="text-slate-500 hover:text-blue-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors" title="Ver">
+                    <td className={`py-3 px-3 text-right sticky right-0 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)] ${idx % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'}`}>
+                      <div className="flex items-center gap-1.5 justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleViewDetail(c)}
+                          className="text-slate-500 hover:text-blue-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                          title="Ver Ficha del Cliente"
+                        >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => handleOpenEdit(c)} className="text-slate-500 hover:text-[#00346F] p-1.5 rounded-lg hover:bg-slate-200 transition-colors" title="Editar">
-                          <Edit2 className="w-3.5 h-3.5" />
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(c)}
+                          className="px-2.5 py-1.5 bg-[#EFF4FF] hover:bg-[#00346F] text-[#00346F] hover:text-white rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                          title="Editar teléfono, correo o dirección del cliente"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>Editar</span>
                         </button>
                       </div>
                     </td>
@@ -1080,6 +1124,27 @@ export const ClientsManagementView: React.FC = () => {
               <div className="flex items-center gap-2 text-xs text-slate-600">
                 <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0" />
                 <span>{detailCliente.direccionFiscal}</span>
+              </div>
+              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDetailCliente(null)}
+                  className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                >
+                  Cerrar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cli = detailCliente;
+                    setDetailCliente(null);
+                    handleOpenEdit(cli);
+                  }}
+                  className="px-4 py-2 bg-[#00346F] hover:bg-[#004A99] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  Editar Datos / Contacto
+                </button>
               </div>
             </div>
           </div>
