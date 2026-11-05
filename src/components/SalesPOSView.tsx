@@ -37,6 +37,11 @@ import {
   Check,
   Sparkles,
   Lock,
+  Monitor,
+  Wrench,
+  LayoutGrid,
+  ArrowLeft,
+  Layers,
 } from 'lucide-react';
 import {
   Producto,
@@ -86,7 +91,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
 
   // Filters & Product Search
   const [searchProductQuery, setSearchProductQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('TODAS');
+  const [selectedCategory, setSelectedCategory] = useState<string>('DEPARTAMENTOS');
   const [selectedBrand, setSelectedBrand] = useState<string>('TODAS');
   const [activeSucursalNombre, setActiveSucursalNombre] = useState<string>(
     sucursales[0]?.nombre || 'Principal - Chiclayo Centro'
@@ -331,44 +336,101 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
     }
   }, [requiresIdentifiedClient]);
 
-  // Extract unique categories and brands from products (excluyendo repuestos exclusivos de taller)
-  const categoriesList = useMemo(() => {
-    const set = new Set(
-      productos
-        .filter(
-          (p) =>
-            !p.categoriaNombre?.toUpperCase().includes('REPUESTO') &&
-            p.tipoDestino !== 'SERVICIO_TALLER'
-        )
-        .map((p) => p.categoriaNombre)
-        .filter(Boolean)
+  // Productos habilitados para venta en mostrador POS (incluyendo Repuestos & Pantallas comercializables)
+  const posEligibleProducts = useMemo(() => {
+    return productos.filter(
+      (p) =>
+        p.estado === 'ACTIVO' &&
+        p.disponibleVenta !== false &&
+        p.tipoDestino !== 'SERVICIO_TALLER'
     );
-    return ['TODAS', ...Array.from(set)];
   }, [productos]);
 
+  // Orden prioritario de departamentos comerciales
+  const getCategoryOrderScore = (cat: string) => {
+    const c = (cat || '').toUpperCase();
+    if (c.includes('LAPTOP') || c.includes('NOTEBOOK')) return 1;
+    if (c.includes('IMPRESORA')) return 2;
+    if (c.includes('MONITOR') || c.includes('PANTALLA')) return 3;
+    if (c.includes('REPUESTO')) return 4;
+    if (c.includes('COMPONENTE') || c.includes('HARDWARE')) return 5;
+    if (c.includes('PERIF')) return 6;
+    if (c.includes('SUMINISTRO') || c.includes('TINTA')) return 7;
+    return 99;
+  };
+
+  // Extract unique categories ordered by commercial priority
+  const categoriesList = useMemo(() => {
+    const set = new Set<string>(
+      posEligibleProducts.map((p) => p.categoriaNombre).filter((c): c is string => Boolean(c))
+    );
+    const sorted = Array.from(set).sort(
+      (a, b) => getCategoryOrderScore(a) - getCategoryOrderScore(b)
+    );
+    return ['DEPARTAMENTOS', 'TODAS', ...sorted];
+  }, [posEligibleProducts]);
+
+  // Resumen enriquecido por Departamento / Categoría para la vista principal de tarjetas
+  const departmentsSummary = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        name: string;
+        count: number;
+        totalStock: number;
+        brands: Set<string>;
+        minPrice: number;
+        sampleProducts: string[];
+      }
+    >();
+
+    posEligibleProducts.forEach((p) => {
+      const cat = p.categoriaNombre || 'OTROS EQUIPOS';
+      if (!map.has(cat)) {
+        map.set(cat, {
+          name: cat,
+          count: 0,
+          totalStock: 0,
+          brands: new Set(),
+          minPrice: p.precioUnitario,
+          sampleProducts: [],
+        });
+      }
+      const entry = map.get(cat)!;
+      entry.count += 1;
+      entry.totalStock += Math.max(0, p.stock);
+      if (p.marcaNombre) entry.brands.add(p.marcaNombre);
+      if (p.precioUnitario < entry.minPrice) entry.minPrice = p.precioUnitario;
+      if (entry.sampleProducts.length < 3) entry.sampleProducts.push(p.nombre);
+    });
+
+    return Array.from(map.values())
+      .sort((a, b) => getCategoryOrderScore(a.name) - getCategoryOrderScore(b.name))
+      .map((d) => ({
+        ...d,
+        brands: Array.from(d.brands),
+      }));
+  }, [posEligibleProducts]);
+
+  // Marcas dinámicas según el departamento activo
   const brandsList = useMemo(() => {
-    const set = new Set(productos.map((p) => p.marcaNombre).filter(Boolean));
+    const base =
+      selectedCategory !== 'DEPARTAMENTOS' && selectedCategory !== 'TODAS'
+        ? posEligibleProducts.filter((p) => p.categoriaNombre === selectedCategory)
+        : posEligibleProducts;
+    const set = new Set(base.map((p) => p.marcaNombre).filter(Boolean));
     return ['TODAS', ...Array.from(set)];
-  }, [productos]);
+  }, [posEligibleProducts, selectedCategory]);
 
   // Filtered Products for Catalog
   const filteredProducts = useMemo(() => {
-    return productos.filter((p) => {
-      if (p.estado !== 'ACTIVO') return false;
-
-      // Ocultar productos no aptos para venta en mostrador (ej. uso interno de taller o lote en cuarentena/dañado)
-      if (p.disponibleVenta === false) return false;
-
-      // Excluir repuestos de uso interno técnico que no se venden en mostrador
+    return posEligibleProducts.filter((p) => {
+      // Category filter (si está en vista DEPARTAMENTOS pero el usuario escribe en el buscador, busca en todo el catálogo)
       if (
-        p.categoriaNombre?.toUpperCase().includes('REPUESTO') ||
-        p.tipoDestino === 'SERVICIO_TALLER'
+        selectedCategory !== 'TODAS' &&
+        selectedCategory !== 'DEPARTAMENTOS' &&
+        p.categoriaNombre !== selectedCategory
       ) {
-        return false;
-      }
-
-      // Category filter
-      if (selectedCategory !== 'TODAS' && p.categoriaNombre !== selectedCategory) {
         return false;
       }
 
@@ -382,13 +444,149 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
         const q = searchProductQuery.toLowerCase().trim();
         const matchName = p.nombre.toLowerCase().includes(q);
         const matchCode = p.codigo.toLowerCase().includes(q);
-        const matchBar = p.codigoBarra ? p.codigoBarra.includes(q) : false;
-        if (!matchName && !matchCode && !matchBar) return false;
+        const matchBrand = (p.marcaNombre || '').toLowerCase().includes(q);
+        const matchCat = (p.categoriaNombre || '').toLowerCase().includes(q);
+        const matchBar = p.codigoBarra ? p.codigoBarra.toLowerCase().includes(q) : false;
+        if (!matchName && !matchCode && !matchBrand && !matchCat && !matchBar) return false;
       }
 
       return true;
     });
-  }, [productos, selectedCategory, selectedBrand, searchProductQuery]);
+  }, [posEligibleProducts, selectedCategory, selectedBrand, searchProductQuery]);
+
+  // Productos Relacionados y Complementarios según la Categoría activa o el Carrito
+  const relatedProductsInfo = useMemo(() => {
+    const activeCat =
+      selectedCategory !== 'DEPARTAMENTOS' && selectedCategory !== 'TODAS'
+        ? selectedCategory
+        : cart.length > 0
+          ? cart[cart.length - 1].categoria
+          : '';
+
+    if (!activeCat) return { title: '', subtitle: '', items: [] as { product: Producto; badge: string }[] };
+
+    const c = activeCat.toUpperCase();
+    const cartIds = new Set(cart.map((i) => i.productoId));
+    const candidates = posEligibleProducts.filter(
+      (p) => p.stock > 0 && !cartIds.has(p.id) && p.categoriaNombre !== activeCat
+    );
+
+    if (c.includes('LAPTOP') || c.includes('NOTEBOOK')) {
+      const items = candidates
+        .filter((p) => {
+          const pc = (p.categoriaNombre || '').toUpperCase();
+          return (
+            pc.includes('PERIF') ||
+            pc.includes('COMPONENTE') ||
+            pc.includes('REPUESTO') ||
+            pc.includes('MONITOR')
+          );
+        })
+        .map((product) => {
+          const pc = (product.categoriaNombre || '').toUpperCase();
+          let badge = 'Complemento Laptop';
+          if (pc.includes('COMPONENTE')) badge = 'Upgrade RAM / SSD';
+          else if (pc.includes('REPUESTO')) badge = 'Repuesto / Mantenimiento';
+          else if (pc.includes('PERIF')) badge = 'Accesorio Recomendado';
+          else if (pc.includes('MONITOR')) badge = 'Pantalla Externa';
+          return { product, badge };
+        })
+        .slice(0, 6);
+      return {
+        title: 'Productos Relacionados para Laptops & Notebooks',
+        subtitle: 'Accesorios, upgrades de memoria RAM/SSD y repuestos compatibles (pantallas, baterías, pasta térmica)',
+        items,
+      };
+    }
+
+    if (c.includes('IMPRESORA')) {
+      const items = candidates
+        .filter((p) => {
+          const pc = (p.categoriaNombre || '').toUpperCase();
+          return pc.includes('SUMINISTRO') || pc.includes('TINTA') || pc.includes('PERIF') || pc.includes('REPUESTO');
+        })
+        .map((product) => {
+          const pc = (product.categoriaNombre || '').toUpperCase();
+          const badge = pc.includes('SUMINISTRO') || pc.includes('TINTA')
+            ? 'Tinta / Suministro Oficial'
+            : 'Complemento de Oficina';
+          return { product, badge };
+        })
+        .slice(0, 6);
+      return {
+        title: 'Suministros, Tintas y Complementos para Impresoras',
+        subtitle: 'Botellas de tinta original, kits de recarga y accesorios compatibles con impresoras',
+        items,
+      };
+    }
+
+    if (c.includes('MONITOR') || c.includes('PANTALLA')) {
+      const items = candidates
+        .filter((p) => {
+          const pc = (p.categoriaNombre || '').toUpperCase();
+          const pn = productNameUpper(p);
+          return pc.includes('PERIF') || pc.includes('LAPTOP') || pn.includes('PANTALLA') || pc.includes('REPUESTO');
+        })
+        .map((product) => {
+          const pc = (product.categoriaNombre || '').toUpperCase();
+          const badge = pc.includes('REPUESTO')
+            ? 'Pantalla Repuesto Laptop'
+            : pc.includes('PERIF')
+              ? 'Periférico de Estación'
+              : 'Equipo Compatible';
+          return { product, badge };
+        })
+        .slice(0, 6);
+      return {
+        title: 'Productos Relacionados a Monitores & Pantallas',
+        subtitle: 'Pantallas de reemplazo para laptop, periféricos de escritorio y equipos portátiles',
+        items,
+      };
+    }
+
+    if (c.includes('REPUESTO')) {
+      const items = candidates
+        .filter((p) => {
+          const pc = (p.categoriaNombre || '').toUpperCase();
+          return pc.includes('COMPONENTE') || pc.includes('LAPTOP') || pc.includes('MONITOR');
+        })
+        .map((product) => {
+          const pc = (product.categoriaNombre || '').toUpperCase();
+          const badge = pc.includes('COMPONENTE') ? 'Hardware & Upgrade' : 'Equipo Compatible';
+          return { product, badge };
+        })
+        .slice(0, 6);
+      return {
+        title: 'Hardware y Componentes Relacionados a Repuestos',
+        subtitle: 'Unidades SSD NVMe, memorias RAM SODIMM y equipos compatibles para repotenciación',
+        items,
+      };
+    }
+
+    // Default para Componentes, Periféricos y Suministros
+    const items = candidates
+      .filter((p) => {
+        const pc = (p.categoriaNombre || '').toUpperCase();
+        if (c.includes('SUMINISTRO')) return pc.includes('IMPRESORA');
+        if (c.includes('COMPONENTE')) return pc.includes('REPUESTO') || pc.includes('LAPTOP');
+        return pc.includes('LAPTOP') || pc.includes('MONITOR') || pc.includes('COMPONENTE');
+      })
+      .map((product) => ({
+        product,
+        badge: 'Producto Relacionado',
+      }))
+      .slice(0, 6);
+
+    return {
+      title: `Productos Relacionados a ${activeCat}`,
+      subtitle: 'Equipos y artículos complementarios sugeridos para venta cruzada',
+      items,
+    };
+  }, [selectedCategory, cart, posEligibleProducts]);
+
+  function productNameUpper(p: Producto) {
+    return (p.nombre || '').toUpperCase();
+  }
 
   // Financial calculations
   const totalBruto = cart.reduce((sum, item) => sum + item.subtotal, 0);
@@ -701,10 +899,82 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
     const c = cat?.toUpperCase() || '';
     if (c.includes('LAPTOP') || c.includes('NOTEBOOK')) return <Laptop className="w-5 h-5 text-blue-600" />;
     if (c.includes('IMPRESORA')) return <PrinterIcon className="w-5 h-5 text-indigo-600" />;
+    if (c.includes('MONITOR') || c.includes('PANTALLA')) return <Monitor className="w-5 h-5 text-cyan-600" />;
+    if (c.includes('REPUESTO')) return <Wrench className="w-5 h-5 text-amber-600" />;
+    if (c.includes('COMPONENTE') || c.includes('HARDWARE') || c.includes('MEMORIA') || c.includes('RAM') || c.includes('CPU'))
+      return <Cpu className="w-5 h-5 text-purple-600" />;
     if (c.includes('ALMACENAMIENTO') || c.includes('SSD')) return <HardDrive className="w-5 h-5 text-emerald-600" />;
-    if (c.includes('MEMORIA') || c.includes('RAM') || c.includes('CPU')) return <Cpu className="w-5 h-5 text-purple-600" />;
     return <Package className="w-5 h-5 text-slate-600" />;
   };
+
+  // Metadatos visuales para las Tarjetas de Departamentos
+  const getDepartmentMeta = (cat: string) => {
+    const c = (cat || '').toUpperCase();
+    if (c.includes('LAPTOP') || c.includes('NOTEBOOK')) {
+      return {
+        icon: <Laptop className="w-6 h-6 text-blue-600" />,
+        bgIcon: 'bg-blue-50 border-blue-200',
+        borderHover: 'hover:border-blue-400 hover:shadow-blue-100/60',
+        badgeBg: 'bg-blue-100 text-blue-800',
+        description: 'Equipos portátiles corporativos, ultrabooks y laptops gaming con garantía por serie.',
+      };
+    }
+    if (c.includes('IMPRESORA')) {
+      return {
+        icon: <PrinterIcon className="w-6 h-6 text-indigo-600" />,
+        bgIcon: 'bg-indigo-50 border-indigo-200',
+        borderHover: 'hover:border-indigo-400 hover:shadow-indigo-100/60',
+        badgeBg: 'bg-indigo-100 text-indigo-800',
+        description: 'Impresoras multifuncionales sistema continuo EcoTank, inyección y láser.',
+      };
+    }
+    if (c.includes('MONITOR') || c.includes('PANTALLA')) {
+      return {
+        icon: <Monitor className="w-6 h-6 text-cyan-600" />,
+        bgIcon: 'bg-cyan-50 border-cyan-200',
+        borderHover: 'hover:border-cyan-400 hover:shadow-cyan-100/60',
+        badgeBg: 'bg-cyan-100 text-cyan-800',
+        description: 'Monitores FHD/IPS, pantallas gaming de alta tasa de refresco y visualización profesional.',
+      };
+    }
+    if (c.includes('REPUESTO')) {
+      return {
+        icon: <Wrench className="w-6 h-6 text-amber-600" />,
+        bgIcon: 'bg-amber-50 border-amber-200',
+        borderHover: 'hover:border-amber-400 hover:shadow-amber-100/60',
+        badgeBg: 'bg-amber-100 text-amber-800',
+        description: 'Pantallas LED Slim de reemplazo para laptop, baterías originales, cargadores e insumos.',
+      };
+    }
+    if (c.includes('COMPONENTE') || c.includes('HARDWARE')) {
+      return {
+        icon: <Cpu className="w-6 h-6 text-purple-600" />,
+        bgIcon: 'bg-purple-50 border-purple-200',
+        borderHover: 'hover:border-purple-400 hover:shadow-purple-100/60',
+        badgeBg: 'bg-purple-100 text-purple-800',
+        description: 'Discos sólidos SSD NVMe M.2, memorias RAM DDR4/DDR5 SODIMM y repotenciación.',
+      };
+    }
+    if (c.includes('PERIF')) {
+      return {
+        icon: <Layers className="w-6 h-6 text-emerald-600" />,
+        bgIcon: 'bg-emerald-50 border-emerald-200',
+        borderHover: 'hover:border-emerald-400 hover:shadow-emerald-100/60',
+        badgeBg: 'bg-emerald-100 text-emerald-800',
+        description: 'Mouses inalámbricos y gamer, teclados mecánicos, audífonos y accesorios.',
+      };
+    }
+    return {
+      icon: <Package className="w-6 h-6 text-rose-600" />,
+      bgIcon: 'bg-rose-50 border-rose-200',
+      borderHover: 'hover:border-rose-400 hover:shadow-rose-100/60',
+      badgeBg: 'bg-rose-100 text-rose-800',
+      description: 'Botellas de tinta original, kits de recarga, tóners y consumibles de impresión.',
+    };
+  };
+
+  const isDepartmentGridView =
+    selectedCategory === 'DEPARTAMENTOS' && !searchProductQuery.trim();
 
   return (
     <div className="flex-1 flex flex-col bg-[#F8F9FF] h-[calc(100vh-4.2rem)] max-h-[calc(100vh-4.2rem)] overflow-hidden">
@@ -835,128 +1105,417 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                 {categoriesList.map((cat) => (
                   <button
                     key={cat}
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all ${selectedCategory === cat
+                    onClick={() => {
+                      setSelectedCategory(cat);
+                      setSelectedBrand('TODAS');
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${selectedCategory === cat
                       ? 'bg-[#00346F] text-white shadow-xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                   >
-                    {cat}
+                    {cat === 'DEPARTAMENTOS' && <LayoutGrid className="w-3.5 h-3.5" />}
+                    {cat === 'DEPARTAMENTOS'
+                      ? 'DEPARTAMENTOS'
+                      : cat === 'TODAS'
+                        ? 'VER TODO EL CATÁLOGO'
+                        : cat}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Products Grid */}
-            <div className="flex-1">
-              <div className="flex justify-between items-center mb-3">
-                <p className="text-xs font-bold text-slate-700">
-                  Catálogo de Equipos y Repuestos ({filteredProducts.length} productos disponibles)
-                </p>
-                <span className="text-[11px] text-slate-500">
-                  Precios incluyen IGV (18%)
-                </span>
-              </div>
+            {/* VISTA 1: DISTRIBUCIÓN POR DEPARTAMENTOS / CATEGORÍAS */}
+            {isDepartmentGridView ? (
+              <div className="flex-1 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-gradient-to-r from-[#00346F] to-[#004A99] text-white p-4 rounded-xl shadow-xs">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <LayoutGrid className="w-4 h-4 text-blue-200" />
+                      <h2 className="text-sm font-extrabold uppercase tracking-wide">
+                        Distribución por Departamentos Comerciales
+                      </h2>
+                    </div>
+                    <p className="text-xs text-blue-100 mt-0.5">
+                      Seleccione una línea de negocio (Laptops, Impresoras, Monitores & Pantallas, Repuestos, etc.) para ver sus modelos y productos relacionados.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCategory('TODAS')}
+                    className="px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-lg text-xs font-bold transition-all whitespace-nowrap self-start sm:self-auto"
+                  >
+                    Ver Lista Completa ({posEligibleProducts.length})
+                  </button>
+                </div>
 
-              {filteredProducts.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
-                  {filteredProducts.map((prod) => {
-                    const isInCart = cart.find((i) => i.productoId === prod.id);
-                    const isOutOfStock = prod.stock <= 0;
-
+                  {departmentsSummary.map((dept) => {
+                    const meta = getDepartmentMeta(dept.name);
                     return (
                       <div
-                        key={prod.id}
-                        className={`bg-white rounded-xl border p-4 flex flex-col justify-between transition-all hover:shadow-md ${isInCart
-                          ? 'border-blue-400 ring-1 ring-blue-300'
-                          : isOutOfStock
-                            ? 'border-red-200 opacity-60 bg-red-50/20'
-                            : 'border-slate-200 hover:border-slate-300'
-                          }`}
+                        key={dept.name}
+                        onClick={() => {
+                          setSelectedCategory(dept.name);
+                          setSelectedBrand('TODAS');
+                        }}
+                        className={`bg-white rounded-xl border border-slate-200 p-4 flex flex-col justify-between cursor-pointer transition-all hover:shadow-md group ${meta.borderHover}`}
                       >
                         <div>
-                          {/* Card Header with Badges */}
-                          <div className="flex justify-between items-start gap-2 mb-2">
-                            <span className="px-2 py-0.5 bg-blue-50 text-[#00346F] rounded text-[10px] font-extrabold uppercase tracking-wider">
-                              {prod.categoriaNombre}
-                            </span>
-                            <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold">
-                              {prod.marcaNombre}
-                            </span>
-                          </div>
-
-                          {/* Product Title and Icon */}
-                          <div className="flex items-start gap-2.5 mb-2">
-                            <div className="w-9 h-9 rounded-lg bg-[#EFF4FF] flex items-center justify-center flex-shrink-0 mt-0.5">
-                              {getCategoryIcon(prod.categoriaNombre)}
+                          <div className="flex items-start justify-between gap-3 mb-2.5">
+                            <div
+                              className={`w-12 h-12 rounded-xl border flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-105 ${meta.bgIcon}`}
+                            >
+                              {meta.icon}
                             </div>
-                            <div>
-                              <h3 className="text-xs font-bold text-slate-900 leading-snug line-clamp-2">
-                                {prod.nombre}
-                              </h3>
-                              <p className="font-mono text-[10px] text-slate-400 mt-0.5">
-                                SKU: {prod.codigo} {prod.codigoBarra ? `• EAN: ${prod.codigoBarra}` : ''}
+                            <div className="text-right">
+                              <span
+                                className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${meta.badgeBg}`}
+                              >
+                                {dept.count} {dept.count === 1 ? 'Modelo' : 'Modelos'}
+                              </span>
+                              <p className="text-[11px] font-bold text-emerald-700 mt-1">
+                                Stock: {dept.totalStock} unds.
                               </p>
                             </div>
                           </div>
+
+                          <h3 className="text-sm font-extrabold text-[#0B1C30] group-hover:text-[#00346F] transition-colors">
+                            {dept.name}
+                          </h3>
+                          <p className="text-[11px] text-slate-500 mt-1 leading-relaxed line-clamp-2">
+                            {meta.description}
+                          </p>
+
+                          {/* Brands Pills inside Department */}
+                          {dept.brands.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-3">
+                              {dept.brands.slice(0, 5).map((b) => (
+                                <span
+                                  key={b}
+                                  className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold"
+                                >
+                                  {b}
+                                </span>
+                              ))}
+                              {dept.brands.length > 5 && (
+                                <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-bold">
+                                  +{dept.brands.length - 5}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
 
-                        {/* Card Footer: Stock & Price & Action */}
-                        <div className="pt-3 border-t border-slate-100 mt-2 flex items-center justify-between">
-                          <div>
-                            <span
-                              className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${isOutOfStock
-                                ? 'bg-red-100 text-red-700'
-                                : prod.stock <= 5
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-emerald-100 text-emerald-800'
-                                }`}
-                            >
-                              {isOutOfStock ? 'Agotado' : `Stock: ${prod.stock} ${prod.unidadMedida}`}
-                            </span>
-                            <div className="text-sm font-extrabold text-[#00346F] mt-0.5">
-                              S/ {prod.precioUnitario.toFixed(2)}
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            disabled={isOutOfStock}
-                            onClick={() => handleAddToCart(prod)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition-all active:scale-95 ${isOutOfStock
-                              ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                              : isInCart
-                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                : 'bg-[#00346F] hover:bg-[#004A99] text-white'
-                              }`}
-                          >
-                            {isInCart ? (
-                              <>
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>+{isInCart.cantidad}</span>
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>Agregar</span>
-                              </>
-                            )}
-                          </button>
+                        <div className="pt-3 border-t border-slate-100 mt-3.5 flex items-center justify-between">
+                          <span className="text-[11px] font-semibold text-slate-500">
+                            Desde{' '}
+                            <strong className="text-[#0B1C30]">
+                              S/ {dept.minPrice.toFixed(2)}
+                            </strong>
+                          </span>
+                          <span className="text-xs font-extrabold text-[#00346F] flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                            Ingresar <ArrowRight className="w-3.5 h-3.5" />
+                          </span>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-              ) : (
-                <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">
-                  <Package className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                  <p className="font-bold text-sm">No se encontraron productos</p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Pruebe con otros términos de búsqueda o cambie el filtro de categoría/marca.
-                  </p>
+
+                {/* Si ya hay productos en el carrito, mostrar también sugerencias relacionadas en la vista principal */}
+                {relatedProductsInfo.items.length > 0 && (
+                  <div className="bg-gradient-to-br from-amber-50/70 via-white to-blue-50/50 rounded-xl border border-amber-200/80 p-4 shadow-xs">
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">
+                            {relatedProductsInfo.title}
+                          </h3>
+                          <p className="text-[11px] text-slate-500">
+                            {relatedProductsInfo.subtitle}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                      {relatedProductsInfo.items.map(({ product: relProd, badge }) => (
+                        <div
+                          key={relProd.id}
+                          className="bg-white rounded-lg border border-slate-200 p-3 flex items-center justify-between gap-2.5 hover:border-[#00346F] transition-all"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-extrabold uppercase mb-1">
+                              {badge}
+                            </span>
+                            <h4 className="text-xs font-bold text-slate-800 truncate">
+                              {relProd.nombre}
+                            </h4>
+                            <p className="text-[11px] font-extrabold text-[#00346F] mt-0.5">
+                              S/ {relProd.precioUnitario.toFixed(2)}{' '}
+                              <span className="text-[10px] font-normal text-slate-500">
+                                • Stock: {relProd.stock}
+                              </span>
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleAddToCart(relProd)}
+                            className="px-2.5 py-1.5 bg-[#00346F] hover:bg-[#004A99] text-white rounded-lg text-[11px] font-bold flex items-center gap-1 flex-shrink-0 shadow-xs"
+                          >
+                            <Plus className="w-3 h-3" /> Agregar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* VISTA 2: PRODUCTOS DENTRO DEL DEPARTAMENTO SELECCIONADO + PRODUCTOS RELACIONADOS */
+              <div className="flex-1 space-y-4">
+                {/* Barra de Navegación del Departamento Activo */}
+                <div className="bg-white rounded-xl border border-slate-200 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory('DEPARTAMENTOS');
+                        setSelectedBrand('TODAS');
+                        setSearchProductQuery('');
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      Departamentos
+                    </button>
+                    <div className="h-5 w-px bg-slate-200 hidden sm:block" />
+                    <div className="flex items-center gap-2">
+                      {selectedCategory !== 'TODAS' && selectedCategory !== 'DEPARTAMENTOS' && (
+                        <div className="w-8 h-8 rounded-lg bg-[#EFF4FF] flex items-center justify-center">
+                          {getCategoryIcon(selectedCategory)}
+                        </div>
+                      )}
+                      <div>
+                        <h2 className="text-xs sm:text-sm font-extrabold text-[#0B1C30] uppercase">
+                          {selectedCategory === 'TODAS' || selectedCategory === 'DEPARTAMENTOS'
+                            ? 'Catálogo Completo de Equipos y Repuestos'
+                            : selectedCategory}
+                        </h2>
+                        <p className="text-[11px] text-slate-500">
+                          {filteredProducts.length} {filteredProducts.length === 1 ? 'producto disponible' : 'productos disponibles'} • Precios incluyen IGV (18%)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Filtro rápido de marcas dentro de la categoría */}
+                  {brandsList.length > 2 && (
+                    <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+                      {brandsList.map((b) => (
+                        <button
+                          key={b}
+                          type="button"
+                          onClick={() => setSelectedBrand(b)}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-bold whitespace-nowrap transition-all ${selectedBrand === b
+                            ? 'bg-blue-100 text-[#00346F] ring-1 ring-blue-300'
+                            : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                            }`}
+                        >
+                          {b === 'TODAS' ? 'Todas las Marcas' : b}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+
+                {/* Grid de Productos de la Categoría */}
+                {filteredProducts.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
+                    {filteredProducts.map((prod) => {
+                      const isInCart = cart.find((i) => i.productoId === prod.id);
+                      const isOutOfStock = prod.stock <= 0;
+
+                      return (
+                        <div
+                          key={prod.id}
+                          className={`bg-white rounded-xl border p-4 flex flex-col justify-between transition-all hover:shadow-md ${isInCart
+                            ? 'border-blue-400 ring-1 ring-blue-300'
+                            : isOutOfStock
+                              ? 'border-red-200 opacity-60 bg-red-50/20'
+                              : 'border-slate-200 hover:border-slate-300'
+                            }`}
+                        >
+                          <div>
+                            {/* Card Header with Badges */}
+                            <div className="flex justify-between items-start gap-2 mb-2">
+                              <span className="px-2 py-0.5 bg-blue-50 text-[#00346F] rounded text-[10px] font-extrabold uppercase tracking-wider">
+                                {prod.categoriaNombre}
+                              </span>
+                              <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold">
+                                {prod.marcaNombre}
+                              </span>
+                            </div>
+
+                            {/* Product Title and Icon */}
+                            <div className="flex items-start gap-2.5 mb-2">
+                              <div className="w-9 h-9 rounded-lg bg-[#EFF4FF] flex items-center justify-center flex-shrink-0 mt-0.5">
+                                {getCategoryIcon(prod.categoriaNombre)}
+                              </div>
+                              <div>
+                                <h3 className="text-xs font-bold text-slate-900 leading-snug line-clamp-2">
+                                  {prod.nombre}
+                                </h3>
+                                <p className="font-mono text-[10px] text-slate-400 mt-0.5">
+                                  SKU: {prod.codigo} {prod.codigoBarra ? `• EAN: ${prod.codigoBarra}` : ''}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card Footer: Stock & Price & Action */}
+                          <div className="pt-3 border-t border-slate-100 mt-2 flex items-center justify-between">
+                            <div>
+                              <span
+                                className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${isOutOfStock
+                                  ? 'bg-red-100 text-red-700'
+                                  : prod.stock <= 5
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-emerald-100 text-emerald-800'
+                                  }`}
+                              >
+                                {isOutOfStock ? 'Agotado' : `Stock: ${prod.stock} ${prod.unidadMedida}`}
+                              </span>
+                              <div className="text-sm font-extrabold text-[#00346F] mt-0.5">
+                                S/ {prod.precioUnitario.toFixed(2)}
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              disabled={isOutOfStock}
+                              onClick={() => handleAddToCart(prod)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition-all active:scale-95 ${isOutOfStock
+                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                : isInCart
+                                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                  : 'bg-[#00346F] hover:bg-[#004A99] text-white'
+                                }`}
+                            >
+                              {isInCart ? (
+                                <>
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>+{isInCart.cantidad}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>Agregar</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">
+                    <Package className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="font-bold text-sm">No se encontraron productos</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Pruebe con otros términos de búsqueda o cambie el filtro de categoría/marca.
+                    </p>
+                  </div>
+                )}
+
+                {/* SECCIÓN DE PRODUCTOS RELACIONADOS Y COMPLEMENTARIOS AL INGRESAR A LA CATEGORÍA */}
+                {relatedProductsInfo.items.length > 0 && (
+                  <div className="bg-gradient-to-br from-[#EFF4FF] via-white to-amber-50/40 rounded-xl border border-blue-200 p-4 shadow-xs mt-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-[#00346F] text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="text-xs sm:text-sm font-extrabold text-[#0B1C30]">
+                            {relatedProductsInfo.title}
+                          </h3>
+                          <p className="text-[11px] text-slate-500">
+                            {relatedProductsInfo.subtitle}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full bg-blue-100 text-[#00346F] text-[10px] font-extrabold uppercase self-start sm:self-auto">
+                        Sugerencias Compatibles
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                      {relatedProductsInfo.items.map(({ product: relProd, badge }) => {
+                        const isRelInCart = cart.find((i) => i.productoId === relProd.id);
+                        return (
+                          <div
+                            key={relProd.id}
+                            className="bg-white rounded-xl border border-slate-200 p-3.5 flex flex-col justify-between hover:border-[#00346F] hover:shadow-sm transition-all"
+                          >
+                            <div>
+                              <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                                <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-extrabold uppercase">
+                                  {badge}
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-500">
+                                  {relProd.marcaNombre}
+                                </span>
+                              </div>
+                              <div className="flex items-start gap-2">
+                                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                  {getCategoryIcon(relProd.categoriaNombre)}
+                                </div>
+                                <div>
+                                  <h4 className="text-xs font-bold text-slate-900 line-clamp-2 leading-snug">
+                                    {relProd.nombre}
+                                  </h4>
+                                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                    {relProd.categoriaNombre}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="pt-2.5 border-t border-slate-100 mt-2.5 flex items-center justify-between">
+                              <div>
+                                <span className="text-[10px] font-bold text-emerald-700 block">
+                                  Stock: {relProd.stock} {relProd.unidadMedida}
+                                </span>
+                                <span className="text-xs font-extrabold text-[#00346F]">
+                                  S/ {relProd.precioUnitario.toFixed(2)}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleAddToCart(relProd)}
+                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all ${isRelInCart
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-[#00346F] hover:bg-[#004A99] text-white'
+                                  }`}
+                              >
+                                <Plus className="w-3 h-3" />
+                                <span>{isRelInCart ? `+${isRelInCart.cantidad}` : 'Agregar'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* RIGHT SIDE: CART & CHECKOUT TERMINAL */}
