@@ -232,7 +232,21 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
 
   // Estados contextuales específicos por tipo de equipo
   const [impresoraSistema, setImpresoraSistema] = useState<string>('EcoTank / Tanque Continuo');
-  const [impresoraConsumibles, setImpresoraConsumibles] = useState<string>('Con tanques/tóner instalados');
+  const [impresoraSistemaOtro, setImpresoraSistemaOtro] = useState<string>('');
+  const [impresoraFalla, setImpresoraFalla] = useState<string>('Atasco de papel');
+  const IMPRESORA_FALLAS = [
+    'Atasco de papel',
+    'No imprime / Cabezal tapado',
+    'Imprime con rayas, manchas o colores incompletos',
+    'Luces parpadeando / Reseteo de almohadillas',
+    'No jala papel / Falla de rodillos',
+    'No enciende / Falla eléctrica',
+    'Mantenimiento general y limpieza de cabezales',
+    'Otros',
+  ];
+  // Falla efectiva: en impresoras con falla predefinida no se usa la caja de texto
+  const fallaPorSelector = tipoEquipoBehavior === 'IMPRESORA' && ingresoModo === 'SERVICIO' && impresoraFalla !== 'Otros';
+  const effectiveFalla = fallaPorSelector ? impresoraFalla : newOrderFalla;
   const [monitorBase, setMonitorBase] = useState<string>('Con base/pie original');
   const [monitorConector, setMonitorConector] = useState<string>('HDMI');
   const [customAccesorio, setCustomAccesorio] = useState<string>('');
@@ -450,8 +464,13 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
       return;
     }
 
-    if (!newOrderFalla.trim()) {
+    if (!effectiveFalla.trim()) {
       onShowToast('Falla Requerida', 'Especifique la falla o motivo de ingreso del equipo.', 'warning');
+      return;
+    }
+
+    if (tipoEquipoBehavior === 'IMPRESORA' && ingresoModo === 'SERVICIO' && impresoraSistema === 'Otros' && !impresoraSistemaOtro.trim()) {
+      onShowToast('Sistema requerido', 'Especifique el sistema de impresión de la impresora.', 'warning');
       return;
     }
 
@@ -484,7 +503,7 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
 
       const detalleContextual =
         tipoEquipoBehavior === 'IMPRESORA'
-          ? `[Impresora: ${impresoraSistema} | Consumibles: ${impresoraConsumibles}]`
+          ? `[Impresora: ${impresoraSistema === 'Otros' ? `Otros - ${impresoraSistemaOtro.trim()}` : impresoraSistema}]`
           : tipoEquipoBehavior === 'MONITOR'
           ? `[Monitor: ${monitorBase} | Conector: ${monitorConector}]`
           : '';
@@ -509,7 +528,7 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
           modelo: finalModelo,
           numeroSerie: newOrderSerie.trim().toUpperCase() || 'S/N-SINDATO',
           accesorios: newOrderAccesorios.length > 0 ? newOrderAccesorios : ['Solo equipo'],
-          fallaReportada: newOrderFalla.trim(),
+          fallaReportada: effectiveFalla.trim(),
           prioridad: ingresoModo === 'GARANTIA' ? 'NORMAL' : newOrderPrioridad,
           tecnicoId: assignedTech ? assignedTech.id : currentUser.id,
           esGarantia: ingresoModo === 'GARANTIA',
@@ -540,7 +559,7 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
         numeroSerie: newOrderSerie.trim().toUpperCase() || 'S/N-SINDATO',
         passwordEquipo: finalPassword,
         accesoriosDejados: newOrderAccesorios.length > 0 ? newOrderAccesorios : ['Solo equipo'],
-        fallaReportada: newOrderFalla.trim(),
+        fallaReportada: effectiveFalla.trim(),
         estadoEstetico: newOrderEstetico.trim(),
         prioridad: ingresoModo === 'GARANTIA' ? 'NORMAL' : newOrderPrioridad,
         tecnicoId: assignedTech ? assignedTech.id : currentUser.id,
@@ -570,8 +589,8 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
             titulo: ingresoModo === 'GARANTIA' ? 'Ingreso por Garantía Oficial (Costo S/ 0.00)' : 'Recepción del equipo e ingreso a mostrador',
             descripcion:
               ingresoModo === 'GARANTIA'
-                ? `Recepción por Garantía oficial. Falla: ${newOrderFalla}. Inspección física conforme 4/4.`
-                : `Equipo recepcionado. Falla: ${newOrderFalla}. Técnico asignado: ${assignedTech ? assignedTech.nombreCompleto : 'Por asignar'}`,
+                ? `Recepción por Garantía oficial. Falla: ${effectiveFalla}. Inspección física conforme 4/4.`
+                : `Equipo recepcionado. Falla: ${effectiveFalla}. Técnico asignado: ${assignedTech ? assignedTech.nombreCompleto : 'Por asignar'}`,
           },
         ],
       };
@@ -1062,19 +1081,31 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
                           <option value="Tóner Láser Color">Tóner Láser Color</option>
                           <option value="Cartuchos de Tinta">Cartuchos de Tinta</option>
                           <option value="Matricial / Térmica">Matricial / Térmica (Tickets)</option>
+                          <option value="Otros">Otros</option>
                         </select>
+                        {impresoraSistema === 'Otros' && (
+                          <input
+                            type="text"
+                            required
+                            value={impresoraSistemaOtro}
+                            onChange={(e) => setImpresoraSistemaOtro(e.target.value)}
+                            placeholder="Especifique el sistema de impresión..."
+                            className="w-full mt-1.5 p-2 bg-white border border-[#00346F] rounded-lg font-medium text-xs focus:outline-none"
+                          />
+                        )}
                       </div>
                       <div>
-                        <label className="block font-semibold text-slate-600 mb-1">Estado de Consumibles *</label>
+                        <label className="block font-semibold text-slate-600 mb-1">Falla: *</label>
                         <select
-                          value={impresoraConsumibles}
-                          onChange={(e) => setImpresoraConsumibles(e.target.value)}
+                          value={impresoraFalla}
+                          onChange={(e) => setImpresoraFalla(e.target.value)}
                           className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium text-xs focus:outline-none focus:border-[#00346F]"
                         >
-                          <option value="Con tanques/tóner instalados">Con tanques/tóner instalados</option>
-                          <option value="Sin consumibles / Tanques vacíos">Sin consumibles / Tanques vacíos</option>
-                          <option value="Con atasco de papel">Con atasco de papel</option>
-                          <option value="Trae hojas de prueba impresas">Trae hojas de prueba impresas</option>
+                          {IMPRESORA_FALLAS.map((f) => (
+                            <option key={f} value={f}>
+                              {f}
+                            </option>
+                          ))}
                         </select>
                       </div>
                     </div>
@@ -1218,6 +1249,7 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
 
               {/* 5. FALLA REPORTADA Y ACCESORIOS */}
               <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                {!fallaPorSelector && (
                 <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">
                     Falla / Motivo de Ingreso Reportado por el Cliente *
@@ -1231,6 +1263,7 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
                   />
                 </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
