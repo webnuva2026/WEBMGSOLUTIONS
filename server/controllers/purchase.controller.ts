@@ -529,6 +529,9 @@ export async function recepcionarCompra(req: Request, res: Response): Promise<vo
       codigoComprobante,
       observacionesRecepcion = '',
       seriesPorProducto = {}, // Record<number, string[]>
+      preciosVentaPorProducto = {}, // Record<number, number>
+      destinosPorProducto = {}, // Record<number, string>
+      mostrarEnPosPorProducto = {}, // Record<number, boolean>
     } = req.body;
 
     const [compraRows] = await connection.query<RowDataPacket[]>(
@@ -611,13 +614,34 @@ export async function recepcionarCompra(req: Request, res: Response): Promise<vo
         );
       }
 
-      // 2. Actualizar precio costo del producto
+      // 2. Actualizar precio de costo, precio de venta comercial y visibilidad en almacén/POS
+      const ventaConfirmada = Number(preciosVentaPorProducto[prodId]) || 0;
+      const destinoConfirmado = destinosPorProducto[prodId] || destinoProd;
+      const mostrarEnPos = mostrarEnPosPorProducto[prodId] !== undefined ? (mostrarEnPosPorProducto[prodId] ? 1 : 0) : 1;
+
+      const prodUpdates: string[] = ['updated_at = NOW()'];
+      const prodParams: any[] = [];
+
       if (costoUnit > 0) {
-        await connection.query(
-          'UPDATE productos SET precio_costo = ?, updated_at = NOW() WHERE id = ?',
-          [costoUnit, prodId]
-        );
+        prodUpdates.push('precio_costo = ?');
+        prodParams.push(costoUnit);
       }
+      if (ventaConfirmada > 0) {
+        prodUpdates.push('precio_venta = ?');
+        prodParams.push(ventaConfirmada);
+      }
+      if (destinoConfirmado) {
+        prodUpdates.push('tipo_destino = ?');
+        prodParams.push(destinoConfirmado);
+      }
+      prodUpdates.push('disponible_venta = ?');
+      prodParams.push(mostrarEnPos);
+
+      prodParams.push(prodId);
+      await connection.query(
+        `UPDATE productos SET ${prodUpdates.join(', ')} WHERE id = ?`,
+        prodParams
+      );
 
       // 3. Insertar números de serie en producto_unidades si aplica
       const providedSeries: string[] = Array.isArray(seriesPorProducto[prodId])

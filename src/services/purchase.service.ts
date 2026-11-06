@@ -135,6 +135,9 @@ export const purchaseService = {
       codigoComprobante: string;
       observacionesRecepcion?: string;
       seriesPorProducto?: Record<number, string[]>;
+      preciosVentaPorProducto?: Record<number, number>;
+      destinosPorProducto?: Record<number, string>;
+      mostrarEnPosPorProducto?: Record<number, boolean>;
     }
   ): Promise<{ success: boolean; codigoComprobante?: string; estado?: string; message?: string }> {
     try {

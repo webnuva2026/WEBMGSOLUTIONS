@@ -189,6 +189,7 @@ export const WarehouseDashboardView: React.FC<WarehouseDashboardViewProps> = ({
             setPurchasesSubTab('nueva');
             setActiveTab('pedidos');
           }}
+          onGoToCatalogoMaestro={() => setActiveView('catalogo-maestro')}
         />
       ) : activeTab === 'pedidos' || activeTab === 'proveedores' ? (
         <PurchasesView

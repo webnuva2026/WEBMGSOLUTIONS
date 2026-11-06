@@ -31,6 +31,7 @@ import {
   Tag,
   Info,
   Truck,
+  ArrowRight,
 } from 'lucide-react';
 import {
   warehouseService,
@@ -51,6 +52,7 @@ interface WarehouseInventoryViewProps {
   onProductCreated?: () => void;
   onRequestOrderProduct?: (productoId: number) => void;
   onOpenPedidosTab?: () => void;
+  onGoToCatalogoMaestro?: () => void;
 }
 
 export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
@@ -60,12 +62,14 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
   onProductCreated,
   onRequestOrderProduct,
   onOpenPedidosTab,
+  onGoToCatalogoMaestro,
 }) => {
   // ─── ESTADOS PRINCIPALES ───
   const [inventario, setInventario] = useState<ItemInventarioAlmacen[]>([]);
   const [resumen, setResumen] = useState<ResumenAlmacenData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isAltaModalOpen, setIsAltaModalOpen] = useState(false);
 
   // Catálogos para filtros y creación
   const [categorias, setCategorias] = useState<Categoria[]>([]);
@@ -511,33 +515,12 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
             {!readOnly && (
               <button
                 type="button"
-                onClick={() => {
-                  const primeraCat = categoriasActivas[0]?.id || 1;
-                  const marcasDeCat = marcasActivas.filter((m) => !m.categoriaId || m.categoriaId === primeraCat);
-                  const primeraMarca = marcasDeCat[0]?.id || marcasActivas[0]?.id || 1;
-
-                  setNewProdData({
-                    codigo: `PRD-${Date.now().toString().slice(-5)}`,
-                    nombre: '',
-                    descripcion: '',
-                    categoriaId: primeraCat,
-                    marcaId: primeraMarca,
-                    modeloId: null,
-                    precioVenta: 0,
-                    precioCosto: 0,
-                    stockMinimo: 3,
-                    requiereSerie: primeraCat <= 3,
-                    disponibleVenta: true,
-                    tipoDestino: 'VENTA',
-                    stockInicial: 0,
-                    sucursalId: 1,
-                  });
-                  setIsNewProdModalOpen(true);
-                }}
-                className="flex items-center gap-2 rounded-xl bg-[#00346F] px-4 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-[#004A99] active:scale-95"
+                onClick={() => setIsAltaModalOpen(true)}
+                title="Gestión de productos: Catálogo Maestro, Pedido a Proveedor o Carga Directa"
+                className="flex items-center gap-2 rounded-xl bg-[#00346F] px-4 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-[#004A99] active:scale-95 cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
-                + Nuevo Producto / Equipo
+                ➕ Carga Inicial / Gestión de Producto
               </button>
             )}
           </div>
@@ -1305,6 +1288,157 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
                   {isSubmittingQuarantine && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                   Confirmar Cuarentena
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── MODAL ASISTIDO DE ALTA Y GESTIÓN DE PRODUCTOS ─── */}
+        {isAltaModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-fadeIn">
+            <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-100 bg-[#0B1C30] px-6 py-4 text-white">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/20 text-blue-300">
+                    <Layers className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold">Gestión y Abastecimiento de Productos</h3>
+                    <p className="text-[11px] text-slate-300">
+                      Selecciona la vía adecuada para incorporar o regularizar productos en MG Solutions
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAltaModalOpen(false)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 overflow-y-auto">
+                {/* Opción 1: Catálogo Maestro */}
+                <div className="rounded-xl border-2 border-indigo-200 bg-indigo-50/50 p-4 transition-all hover:border-indigo-500 hover:shadow-md">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs">
+                        <Layers className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-black text-indigo-950">
+                            1. Registrar Nuevo Modelo en Catálogo Maestro
+                          </h4>
+                          <span className="rounded-full bg-indigo-200/80 px-2 py-0.5 text-[10px] font-extrabold text-indigo-900">
+                            Recomendado
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-indigo-800/90 leading-relaxed">
+                          Define la ficha técnica oficial del nuevo equipo (Procesador, RAM, Pantalla, Tarjeta Gráfica, etc.) para que quede estandarizado y listo para solicitarlo a cualquier proveedor.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAltaModalOpen(false);
+                        if (onGoToCatalogoMaestro) onGoToCatalogoMaestro();
+                        else onShowToast('Catálogo Maestro', 'Acceda al módulo de Catálogo Maestro desde el menú lateral.', 'info');
+                      }}
+                      className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-indigo-700 shadow-xs cursor-pointer"
+                    >
+                      Ir al Catálogo Maestro
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Opción 2: Pedido a Proveedor */}
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 transition-all hover:border-emerald-500 hover:shadow-md">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs">
+                        <Truck className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-emerald-950">
+                          2. Realizar Pedido a Proveedor (Flujo Comercial)
+                        </h4>
+                        <p className="mt-1 text-xs text-emerald-800/90 leading-relaxed">
+                          Genera una orden de compra comercial seleccionando el modelo del Catálogo Maestro. Al recibir físicamente la mercadería registrarás las series y fijarás el precio de venta para el POS.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAltaModalOpen(false);
+                        if (onOpenPedidosTab) onOpenPedidosTab();
+                      }}
+                      className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 shadow-xs cursor-pointer"
+                    >
+                      Hacer Pedido a Proveedor
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Opción 3: Carga Inicial Directa */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 transition-all hover:border-slate-400">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-700 text-white shadow-xs">
+                        <Package className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-slate-800">
+                          3. Carga Inicial / Regularización Directa en Almacén
+                        </h4>
+                        <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                          Utilice esta vía solo para inventario histórico o físico que ya se encuentra en tienda sin orden de compra pendiente.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAltaModalOpen(false);
+                        const primeraCat = categoriasActivas[0]?.id || 1;
+                        const marcasDeCat = marcasActivas.filter((m) => !m.categoriaId || m.categoriaId === primeraCat);
+                        const primeraMarca = marcasDeCat[0]?.id || marcasActivas[0]?.id || 1;
+
+                        setNewProdData({
+                          codigo: `PRD-${Date.now().toString().slice(-5)}`,
+                          nombre: '',
+                          descripcion: '',
+                          categoriaId: primeraCat,
+                          marcaId: primeraMarca,
+                          modeloId: null,
+                          precioVenta: 0,
+                          precioCosto: 0,
+                          stockMinimo: 3,
+                          requiereSerie: primeraCat <= 3,
+                          disponibleVenta: true,
+                          tipoDestino: 'VENTA',
+                          stockInicial: 0,
+                          sucursalId: 1,
+                        });
+                        setIsNewProdModalOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 shadow-2xs cursor-pointer"
+                    >
+                      Cargar Producto Directo
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -137,6 +137,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
   const [catDestino, setCatDestino] = useState<'VENTA' | 'SERVICIO_TALLER' | 'MIXTO'>('VENTA');
   const [catRequiereSerie, setCatRequiereSerie] = useState<boolean>(true);
   const [isCreatingFromCatalog, setIsCreatingFromCatalog] = useState(false);
+  const [productSelectionMode, setProductSelectionMode] = useState<'catalogo' | 'almacen'>('catalogo');
+  const [recepcionPreciosVentaMap, setRecepcionPreciosVentaMap] = useState<Record<number, string>>({});
+  const [recepcionDestinosMap, setRecepcionDestinosMap] = useState<Record<number, string>>({});
+  const [recepcionMostrarPosMap, setRecepcionMostrarPosMap] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     let active = true;
@@ -256,6 +260,16 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
       onShowToast('Error', err?.message || 'No se pudo crear el producto.', 'error');
     } finally {
       setIsCreatingFromCatalog(false);
+    }
+  };
+
+  const handleAddModeloToOrder = () => {
+    if (!catModeloSel) return;
+    const existente = getProductoDeModelo(catModeloSel.id);
+    if (existente) {
+      handleAddItemToCart();
+    } else {
+      handleCrearProductoDesdeCatalogo();
     }
   };
 
@@ -1025,240 +1039,355 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  {/* Catálogo Maestro: Categoría → Marca → Modelo */}
-                  <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-3 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-extrabold text-indigo-900 flex items-center gap-1.5">
-                        <Layers className="h-3.5 w-3.5" />
-                        Pedir desde el Catálogo Maestro
-                      </p>
-                      <span className="text-[10px] text-indigo-700">Categoría ➔ Marca ➔ Modelo</span>
-                    </div>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <select
-                        value={catFiltroCategoria}
-                        onChange={(e) => {
-                          setCatFiltroCategoria(e.target.value ? Number(e.target.value) : '');
-                          setCatFiltroMarca('');
-                          setCatModeloSel(null);
-                        }}
-                        className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700"
-                      >
-                        <option value="">Todas las categorías</option>
-                        {catCategorias.map((c) => (
-                          <option key={c.id} value={c.id}>{c.nombre}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={catFiltroMarca}
-                        onChange={(e) => {
-                          setCatFiltroMarca(e.target.value ? Number(e.target.value) : '');
-                          setCatModeloSel(null);
-                        }}
-                        className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700"
-                      >
-                        <option value="">Todas las marcas</option>
-                        {catMarcasFiltradas.map((m) => (
-                          <option key={m.id} value={m.id}>{m.nombre}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 space-y-1">
-                      {catModelosFiltrados.length === 0 ? (
-                        <p className="p-2 text-center text-[11px] text-slate-400">No hay modelos para este filtro.</p>
-                      ) : (
-                        catModelosFiltrados.map((mo) => {
-                          const prod = getProductoDeModelo(mo.id);
-                          const activo = catModeloSel?.id === mo.id || (prod && selectedProductId === prod.id);
-                          return (
-                            <div
-                              key={mo.id}
-                              onClick={() => handleSelectModeloCatalogo(mo)}
-                              className={`flex cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-all ${
-                                activo ? 'bg-indigo-600 text-white' : 'hover:bg-indigo-50 text-slate-800'
-                              }`}
+                <div className="space-y-4">
+                  {/* Selector de Modo */}
+                  <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
+                    <button
+                      type="button"
+                      onClick={() => setProductSelectionMode('catalogo')}
+                      className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
+                        productSelectionMode === 'catalogo'
+                          ? 'bg-[#00346F] text-white shadow-md'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Layers className="h-4 w-4" />
+                      1. Catálogo Maestro (Categoría ➔ Marca ➔ Modelo)
+                      <span className="rounded-full bg-blue-500/30 px-2 py-0.5 text-[9px] font-black uppercase text-blue-100">
+                        Recomendado
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProductSelectionMode('almacen')}
+                      className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
+                        productSelectionMode === 'almacen'
+                          ? 'bg-[#00346F] text-white shadow-md'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Search className="h-4 w-4" />
+                      2. Búsqueda Rápida en Almacén
+                    </button>
+                  </div>
+
+                  {productSelectionMode === 'catalogo' ? (
+                    /* ─── MODO 1: CATÁLOGO MAESTRO JERÁRQUICO EN CASCADA ─── */
+                    <div className="rounded-2xl border border-indigo-200 bg-indigo-50/30 p-4 space-y-4">
+                      {/* PASO 1: CATEGORÍA */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-xs font-extrabold text-indigo-950 flex items-center gap-1.5">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-black text-white">1</span>
+                            Seleccione Categoría Comercial:
+                          </label>
+                          {catFiltroCategoria && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCatFiltroCategoria('');
+                                setCatFiltroMarca('');
+                                setCatModeloSel(null);
+                              }}
+                              className="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer"
                             >
-                              <span className="font-bold">
-                                {mo.marcaNombre || catMarcas.find((m) => m.id === mo.marcaId)?.nombre} {mo.nombre}
-                              </span>
-                              <span
-                                className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                                  prod
-                                    ? activo ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
-                                    : activo ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                              Ver todas
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {catCategorias.map((c) => {
+                            const isSel = catFiltroCategoria === c.id;
+                            return (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => {
+                                  setCatFiltroCategoria(c.id);
+                                  setCatFiltroMarca('');
+                                  setCatModeloSel(null);
+                                }}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                                  isSel
+                                    ? 'bg-indigo-600 text-white shadow-xs'
+                                    : 'border border-slate-200 bg-white text-slate-700 hover:bg-indigo-50 hover:border-indigo-300'
                                 }`}
                               >
-                                {prod ? `✔ En almacén • Stock ${prod.stock}` : '🆕 Se creará al pedir'}
-                              </span>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
+                                {c.nombre}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
 
-                    {catModeloSel && (
-                      <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2.5">
-                        <p className="text-xs font-bold text-amber-900">
-                          Modelo nuevo en almacén: {catModeloSel.nombre}. Complete los datos y se creará el producto automáticamente.
-                        </p>
-                        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-600">Cantidad</label>
-                            <input
-                              type="number"
-                              min="1"
-                              value={itemCantidad}
-                              onChange={(e) => setItemCantidad(Math.max(1, parseInt(e.target.value) || 1))}
-                              className="mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-black"
-                            />
+                      {/* PASO 2: MARCA */}
+                      {catFiltroCategoria && (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-extrabold text-indigo-950 flex items-center gap-1.5">
+                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-black text-white">2</span>
+                              Seleccione Marca:
+                            </label>
+                            {catFiltroMarca && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCatFiltroMarca('');
+                                  setCatModeloSel(null);
+                                }}
+                                className="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer"
+                              >
+                                Todas las marcas
+                              </button>
+                            )}
                           </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-600">Costo compra (S/)</label>
-                            <input
-                              type="number"
-                              step="any"
-                              min="0"
-                              value={itemPrecioCosto === 0 ? '' : itemPrecioCosto}
-                              onChange={(e) => setItemPrecioCosto(e.target.value)}
-                              placeholder="0.00"
-                              className="mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-black"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-600">Precio venta (S/)</label>
-                            <input
-                              type="number"
-                              step="any"
-                              min="0"
-                              value={catPrecioVenta}
-                              onChange={(e) => setCatPrecioVenta(e.target.value)}
-                              placeholder="0.00"
-                              className="mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-black"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-600">Destino</label>
-                            <select
-                              value={catDestino}
-                              onChange={(e) => setCatDestino(e.target.value as any)}
-                              className="mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold"
-                            >
-                              <option value="VENTA">Venta</option>
-                              <option value="SERVICIO_TALLER">Taller</option>
-                              <option value="MIXTO">Mixto</option>
-                            </select>
+                          <div className="flex flex-wrap gap-1.5">
+                            {catMarcasFiltradas.length === 0 ? (
+                              <p className="text-[11px] text-slate-400">No hay marcas asociadas a esta categoría.</p>
+                            ) : (
+                              catMarcasFiltradas.map((m) => {
+                                const isSel = catFiltroMarca === m.id;
+                                return (
+                                  <button
+                                    key={m.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setCatFiltroMarca(m.id);
+                                      setCatModeloSel(null);
+                                    }}
+                                    className={`rounded-lg px-3 py-1 text-xs font-bold transition-all cursor-pointer ${
+                                      isSel
+                                        ? 'bg-indigo-700 text-white shadow-xs'
+                                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-indigo-50'
+                                    }`}
+                                  >
+                                    {m.nombre}
+                                  </button>
+                                );
+                              })
+                            )}
                           </div>
                         </div>
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                      )}
+
+                      {/* PASO 3: MODELOS DEL CATÁLOGO MAESTRO */}
+                      {catFiltroCategoria && (
+                        <div>
+                          <label className="text-xs font-extrabold text-indigo-950 flex items-center gap-1.5 mb-2">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-black text-white">3</span>
+                            Modelos Disponibles en Catálogo Maestro:
+                          </label>
+                          <div className="max-h-52 overflow-y-auto rounded-xl border border-indigo-200 bg-white p-2 space-y-1.5">
+                            {catModelosFiltrados.length === 0 ? (
+                              <p className="p-3 text-center text-xs text-slate-400">
+                                No se encontraron modelos registrados en Catálogo Maestro para los filtros seleccionados.
+                              </p>
+                            ) : (
+                              catModelosFiltrados.map((mo) => {
+                                const prod = getProductoDeModelo(mo.id);
+                                const isSel = catModeloSel?.id === mo.id;
+                                const marcaNombre = mo.marcaNombre || catMarcas.find((m) => m.id === mo.marcaId)?.nombre || '';
+                                return (
+                                  <div
+                                    key={mo.id}
+                                    onClick={() => handleSelectModeloCatalogo(mo)}
+                                    className={`flex cursor-pointer items-center justify-between rounded-xl p-2.5 transition-all ${
+                                      isSel
+                                        ? 'bg-indigo-600 text-white shadow-xs'
+                                        : 'hover:bg-indigo-50 border border-slate-100 text-slate-800'
+                                    }`}
+                                  >
+                                    <div>
+                                      <p className="font-bold text-xs">
+                                        {marcaNombre} {mo.nombre}
+                                      </p>
+                                      {mo.descripcion && (
+                                        <p className={`text-[10px] line-clamp-1 ${isSel ? 'text-indigo-100' : 'text-slate-500'}`}>
+                                          {mo.descripcion}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span
+                                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                          prod
+                                            ? isSel ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                                            : isSel ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-900'
+                                        }`}
+                                      >
+                                        {prod ? `✔ En Almacén • Stock: ${prod.stock}` : '🆕 Modelo Nuevo (Catálogo)'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* PASO 4: FORMULARIO DE CANTIDAD Y COSTO PACTADO */}
+                      {catModeloSel && (
+                        <div className="rounded-xl border border-indigo-300 bg-white p-4 shadow-xs space-y-3">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <div>
+                              <span className="text-[10px] font-black uppercase text-indigo-600">Paso 4: Cantidad y Costo Pactado</span>
+                              <h4 className="text-xs font-black text-slate-900">
+                                {catMarcas.find((m) => m.id === catModeloSel.marcaId)?.nombre} {catModeloSel.nombre}
+                              </h4>
+                            </div>
+                            <span className="text-[11px] text-slate-400">
+                              * El precio de venta se fijará al recepcionar la mercadería
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700">Cantidad a Pedir *</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={itemCantidad}
+                                onChange={(e) => setItemCantidad(Math.max(1, parseInt(e.target.value) || 1))}
+                                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-black text-slate-900 outline-none focus:border-indigo-600"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700">Costo Unit. Compra (S/) *</label>
+                              <input
+                                type="number"
+                                step="any"
+                                min="0"
+                                value={itemPrecioCosto === 0 ? '' : itemPrecioCosto}
+                                onChange={(e) => setItemPrecioCosto(e.target.value)}
+                                placeholder="0.00"
+                                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-black text-slate-900 outline-none focus:border-indigo-600"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700">Destino</label>
+                              <select
+                                value={catDestino}
+                                onChange={(e) => setCatDestino(e.target.value as any)}
+                                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-800 outline-none"
+                              >
+                                <option value="VENTA">Venta Comercial Directa (POS)</option>
+                                <option value="SERVICIO_TALLER">Uso Interno / Taller</option>
+                                <option value="MIXTO">Mixto / Repuestos</option>
+                              </select>
+                            </div>
+                            <div className="flex items-end">
+                              <button
+                                type="button"
+                                disabled={isCreatingFromCatalog}
+                                onClick={handleAddModeloToOrder}
+                                className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-black text-white hover:bg-indigo-700 disabled:opacity-50 shadow-xs cursor-pointer"
+                              >
+                                {isCreatingFromCatalog ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                                Agregar al Pedido
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 pt-1 text-[11px] text-slate-600">
                             <input
                               type="checkbox"
+                              id="checkReqSerieCat"
                               checked={catRequiereSerie}
                               onChange={(e) => setCatRequiereSerie(e.target.checked)}
-                              className="h-3.5 w-3.5"
+                              className="h-3.5 w-3.5 cursor-pointer"
                             />
-                            Requiere número de serie por unidad
-                          </label>
-                          <button
-                            type="button"
-                            disabled={isCreatingFromCatalog}
-                            onClick={handleCrearProductoDesdeCatalogo}
-                            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
-                          >
-                            {isCreatingFromCatalog ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                            Crear producto y agregar a la orden
-                          </button>
+                            <label htmlFor="checkReqSerieCat" className="cursor-pointer font-medium">
+                              Exigir ingreso de números de serie físicos al recibir en almacén (Laptops, Impresoras, Monitores)
+                            </label>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Search product */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700">Buscar en Catálogo de MG Solutions</label>
-                    <div className="relative mt-1">
-                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                      <input
-                        type="text"
-                        value={searchProductQuery}
-                        onChange={(e) => setSearchProductQuery(e.target.value)}
-                        placeholder="Escribe el nombre, código o marca del producto..."
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-xs text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
-                      />
+                      )}
                     </div>
-                  </div>
-
-                  {/* Product options list */}
-                  <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-1.5 space-y-1">
-                    {availableProducts.map((prod) => {
-                      const isSelected = selectedProductId === prod.id;
-                      return (
-                        <div
-                          key={prod.id}
-                          onClick={() => handleSelectProduct(prod.id)}
-                          className={`flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-xs transition-all ${
-                            isSelected
-                              ? 'bg-[#00346F] text-white shadow-xs'
-                              : 'hover:bg-white text-slate-800'
-                          }`}
-                        >
-                          <div>
-                            <p className="font-bold">{prod.nombre}</p>
-                            <p className={`text-[10px] ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
-                              Código: {prod.codigo} | Marca: {prod.marcaNombre} | Stock actual: {prod.stock} un.
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <span className="font-black text-xs">Costo act: S/ {prod.precioCosto.toFixed(2)}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Quantity and unit cost inputs */}
-                  {selectedProductObj && (
-                    <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3">
-                      <p className="text-xs font-bold text-[#00346F]">
-                        Producto seleccionado: {selectedProductObj.nombre}
-                      </p>
-                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600">Cantidad Comprada</label>
+                  ) : (
+                    /* ─── MODO 2: BÚSQUEDA RÁPIDA EN ALMACÉN EXISTENTE ─── */
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700">Buscar producto en Almacén</label>
+                        <div className="relative mt-1">
+                          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                           <input
-                            type="number"
-                            min="1"
-                            value={itemCantidad}
-                            onChange={(e) => setItemCantidad(Math.max(1, parseInt(e.target.value) || 1))}
-                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-800"
+                            type="text"
+                            value={searchProductQuery}
+                            onChange={(e) => setSearchProductQuery(e.target.value)}
+                            placeholder="Escribe el nombre, código o marca del producto..."
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-xs text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
                           />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600">Costo Unit. Compra (S/)</label>
-                          <input
-                            type="number"
-                            step="any"
-                            min="0"
-                            value={itemPrecioCosto === 0 ? '' : itemPrecioCosto}
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) => setItemPrecioCosto(e.target.value)}
-                            placeholder="0.00"
-                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-800 focus:border-[#00346F] focus:outline-none"
-                          />
-
-                        </div>
-                        <div className="flex flex-col justify-end">
-                          <button
-                            type="button"
-                            onClick={handleAddItemToCart}
-                            className="flex items-center justify-center gap-1.5 rounded-lg bg-[#00346F] px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-[#004A99]"
-                          >
-                            <Plus className="h-4 w-4" />
-                            Agregar a Orden
-                          </button>
                         </div>
                       </div>
+
+                      <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-1.5 space-y-1">
+                        {availableProducts.map((prod) => {
+                          const isSelected = selectedProductId === prod.id;
+                          return (
+                            <div
+                              key={prod.id}
+                              onClick={() => handleSelectProduct(prod.id)}
+                              className={`flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-xs transition-all ${
+                                isSelected
+                                  ? 'bg-[#00346F] text-white shadow-xs'
+                                  : 'hover:bg-white text-slate-800'
+                              }`}
+                            >
+                              <div>
+                                <p className="font-bold">{prod.nombre}</p>
+                                <p className={`text-[10px] ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
+                                  Código: {prod.codigo} | Marca: {prod.marcaNombre} | Stock actual: {prod.stock} un.
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <span className="font-black text-xs">Costo act: S/ {prod.precioCosto.toFixed(2)}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {selectedProductObj && (
+                        <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3">
+                          <p className="text-xs font-bold text-[#00346F]">
+                            Producto seleccionado: {selectedProductObj.nombre}
+                          </p>
+                          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600">Cantidad Comprada</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={itemCantidad}
+                                onChange={(e) => setItemCantidad(Math.max(1, parseInt(e.target.value) || 1))}
+                                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-800"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600">Costo Unit. Compra (S/)</label>
+                              <input
+                                type="number"
+                                step="any"
+                                min="0"
+                                value={itemPrecioCosto === 0 ? '' : itemPrecioCosto}
+                                onChange={(e) => setItemPrecioCosto(e.target.value)}
+                                placeholder="0.00"
+                                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-800"
+                              />
+                            </div>
+                            <div className="flex items-end">
+                              <button
+                                type="button"
+                                onClick={handleAddItemToCart}
+                                className="w-full rounded-lg bg-[#00346F] px-4 py-2 text-xs font-bold text-white hover:bg-[#004A99] shadow-xs cursor-pointer"
+                              >
+                                + Agregar al Pedido
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2185,35 +2314,86 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                 </p>
                 {receivingCompra.items.map((it) => {
                   const seriesList = recepcionSeriesMap[it.productoId] || [];
+                  const costo = Number(it.precioCostoUnitario || 0);
+                  const ventaStr = recepcionPreciosVentaMap[it.productoId] || '';
+                  const ventaNum = parseFloat(ventaStr) || 0;
+                  const ganancia = ventaNum > costo ? ventaNum - costo : 0;
+                  const margenPct = ventaNum > 0 && costo > 0 ? ((ventaNum - costo) / ventaNum) * 100 : 0;
+
                   return (
-                    <div key={it.productoId} className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 space-y-2.5">
-                      <div className="flex items-center justify-between">
+                    <div key={it.productoId} className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
                         <div>
-                          <span className="font-mono text-[10px] text-slate-400">{it.codigo}</span>
-                          <p className="font-bold text-slate-900 text-xs">{it.nombre}</p>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[10px] text-slate-500 bg-slate-200 px-1.5 py-0.5 rounded">{it.codigo || 'SIN-COD'}</span>
+                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">{it.categoria || 'Equipo'}</span>
+                          </div>
+                          <p className="font-black text-slate-900 text-sm mt-0.5">{it.nombre}</p>
+                          <p className="text-[11px] text-slate-500">
+                            Costo de compra pactado: <strong className="text-slate-800">S/ {costo.toFixed(2)}</strong> c/u
+                          </p>
                         </div>
-                        <span className="rounded-lg bg-[#00346F] px-2.5 py-1 text-xs font-black text-white">
+                        <span className="rounded-xl bg-[#00346F] px-3 py-1.5 text-xs font-black text-white shadow-xs">
                           +{it.cantidad} un.
                         </span>
                       </div>
 
+                      {/* Fijación de Precio de Venta al Público (PVP) */}
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 bg-white p-3 rounded-xl border border-slate-200">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Precio de Venta Comercial (PVP) (S/) *
+                          </label>
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            required
+                            value={ventaStr}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setRecepcionPreciosVentaMap((prev) => ({ ...prev, [it.productoId]: val }));
+                            }}
+                            placeholder="Ej. 3199.00"
+                            className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-black text-emerald-700 outline-none focus:border-emerald-600"
+                          />
+                        </div>
+                        <div className="flex flex-col justify-center">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">Margen Comercial Estimado</span>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`text-xs font-black ${margenPct > 0 ? 'text-emerald-700' : 'text-slate-500'}`}>
+                              {margenPct > 0 ? `+${margenPct.toFixed(1)}%` : '0.0%'}
+                            </span>
+                            {ganancia > 0 && (
+                              <span className="text-[10px] font-semibold text-slate-500">
+                                (Ganancia: S/ {ganancia.toFixed(2)} por unidad)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Ingreso de Series Físicas para Equipos Seriados */}
                       {it.requiereSerie && (
-                        <div className="rounded-lg border border-blue-200 bg-white p-3 space-y-2">
+                        <div className="rounded-xl border border-blue-200 bg-white p-3.5 space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-[#00346F] flex items-center gap-1">
-                              <Barcode className="w-3.5 h-3.5" />
-                              Series requeridas ({seriesList.length}/{it.cantidad}):
+                            <span className="font-bold text-[#00346F] flex items-center gap-1.5 text-xs">
+                              <Barcode className="w-4 h-4 text-blue-600" />
+                              Series Físicas Recibidas ({seriesList.length}/{it.cantidad}):
                             </span>
                             <button
                               type="button"
                               onClick={() => handleAutoGenReceptionSeries(it)}
-                              className="text-[11px] font-bold text-indigo-600 hover:underline"
+                              className="text-[11px] font-bold text-indigo-600 hover:underline cursor-pointer"
                             >
                               ⚡ Autogenerar {it.cantidad} series
                             </button>
                           </div>
+                          <p className="text-[10px] text-slate-500">
+                            Escanee el código de barras de cada caja o digite las series separadas por salto de línea.
+                          </p>
                           <textarea
-                            rows={2}
+                            rows={Math.min(4, Math.max(2, it.cantidad))}
                             value={recepcionBulkTextMap[it.productoId] || ''}
                             onChange={(e) => {
                               const raw = e.target.value.toUpperCase();
@@ -2228,15 +2408,22 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                               ).slice(0, it.cantidad);
                               setRecepcionSeriesMap((prev) => ({ ...prev, [it.productoId]: parsed }));
                             }}
-                            placeholder={`Escanee o escriba las ${it.cantidad} series separadas por salto de línea o coma...`}
-                            className="w-full rounded-lg border border-slate-300 p-2 font-mono text-xs text-slate-800"
+                            placeholder={`Escanee o ingrese las ${it.cantidad} series físicas aquí...`}
+                            className="w-full rounded-lg border border-slate-300 p-2 font-mono text-xs text-slate-800 outline-none focus:border-blue-600"
                           />
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className={seriesList.length >= it.cantidad ? 'font-bold text-emerald-600' : 'font-bold text-amber-600'}>
+                              {seriesList.length >= it.cantidad
+                                ? '✔ Todas las series requeridas han sido ingresadas'
+                                : `Faltan ${it.cantidad - seriesList.length} series por ingresar`}
+                            </span>
+                            <span className="text-slate-400">Total a ingresar: {it.cantidad}</span>
+                          </div>
                         </div>
                       )}
                     </div>
                   );
-                })}
-              </div>
+                })}</div>
 
               <div className="flex items-center justify-end gap-2 border-t border-slate-200 pt-4">
                 <button

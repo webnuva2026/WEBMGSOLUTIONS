@@ -7247,8 +7247,14 @@ async function recepcionarCompra(req, res) {
     const {
       codigoComprobante,
       observacionesRecepcion = "",
-      seriesPorProducto = {}
+      seriesPorProducto = {},
       // Record<number, string[]>
+      preciosVentaPorProducto = {},
+      // Record<number, number>
+      destinosPorProducto = {},
+      // Record<number, string>
+      mostrarEnPosPorProducto = {}
+      // Record<number, boolean>
     } = req.body;
     const [compraRows] = await connection.query(
       "SELECT id, codigo, sucursal_id, estado_id, observaciones FROM compras WHERE id = ?",
@@ -7314,12 +7320,30 @@ async function recepcionarCompra(req, res) {
           [prodId, targetSucursalId, cant]
         );
       }
+      const ventaConfirmada = Number(preciosVentaPorProducto[prodId]) || 0;
+      const destinoConfirmado = destinosPorProducto[prodId] || destinoProd;
+      const mostrarEnPos = mostrarEnPosPorProducto[prodId] !== void 0 ? mostrarEnPosPorProducto[prodId] ? 1 : 0 : 1;
+      const prodUpdates = ["updated_at = NOW()"];
+      const prodParams = [];
       if (costoUnit > 0) {
-        await connection.query(
-          "UPDATE productos SET precio_costo = ?, updated_at = NOW() WHERE id = ?",
-          [costoUnit, prodId]
-        );
+        prodUpdates.push("precio_costo = ?");
+        prodParams.push(costoUnit);
       }
+      if (ventaConfirmada > 0) {
+        prodUpdates.push("precio_venta = ?");
+        prodParams.push(ventaConfirmada);
+      }
+      if (destinoConfirmado) {
+        prodUpdates.push("tipo_destino = ?");
+        prodParams.push(destinoConfirmado);
+      }
+      prodUpdates.push("disponible_venta = ?");
+      prodParams.push(mostrarEnPos);
+      prodParams.push(prodId);
+      await connection.query(
+        `UPDATE productos SET ${prodUpdates.join(", ")} WHERE id = ?`,
+        prodParams
+      );
       const providedSeries = Array.isArray(seriesPorProducto[prodId]) ? seriesPorProducto[prodId] : [];
       for (const s of providedSeries) {
         const cleanSerie = String(s || "").trim().toUpperCase();
