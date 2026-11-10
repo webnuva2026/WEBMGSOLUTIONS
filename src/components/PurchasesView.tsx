@@ -179,24 +179,25 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
   const getProductoDeModelo = (modeloId: number) => productos.find((p) => p.modeloId === modeloId);
 
   const handleSelectModeloCatalogo = (modelo: Modelo) => {
-    const existente = getProductoDeModelo(modelo.id);
-    if (existente) {
-      setCatModeloSel(null);
-      handleSelectProduct(existente.id);
-      setSearchProductQuery(existente.codigo || existente.nombre);
-      return;
-    }
-    // Modelo sin producto: se creará automáticamente al agregarlo a la orden
-    setSelectedProductId('');
     setCatModeloSel(modelo);
+    const existente = getProductoDeModelo(modelo.id);
     const marca = catMarcas.find((m) => m.id === modelo.marcaId);
     const cat = catCategorias.find((c) => c.id === marca?.categoriaId);
     const nombreCat = (cat?.nombre || '').toUpperCase();
+    
     setCatRequiereSerie(!(nombreCat.includes('REPUESTO') || nombreCat.includes('SUMINISTRO') || nombreCat.includes('PERIF') || nombreCat.includes('COMPONENTE')));
     setCatDestino(nombreCat.includes('REPUESTO') ? 'MIXTO' : 'VENTA');
-    setCatPrecioVenta('');
-    setItemPrecioCosto(0);
     setItemCantidad(1);
+
+    if (existente) {
+      setSelectedProductId(existente.id);
+      setItemPrecioCosto(existente.precioCosto || Math.round(existente.precioUnitario * 0.75));
+      setCatPrecioVenta(String(existente.precioUnitario || ''));
+    } else {
+      setSelectedProductId('');
+      setItemPrecioCosto(0);
+      setCatPrecioVenta('');
+    }
   };
 
   const handleCrearProductoDesdeCatalogo = async () => {
@@ -207,9 +208,9 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
       return;
     }
     const costo = Number(itemPrecioCosto) || 0;
-    const venta = Number(catPrecioVenta) || 0;
-    if (costo <= 0 || venta <= 0) {
-      onShowToast('Precios requeridos', 'Ingrese el costo de compra y el precio de venta del producto nuevo.', 'warning');
+    const venta = Number(catPrecioVenta) || (costo > 0 ? Math.round(costo * 1.25) : 0);
+    if (costo <= 0) {
+      onShowToast('Costo requerido', 'Ingrese el costo unitario de compra pactado.', 'warning');
       return;
     }
     if (itemCantidad <= 0) {
@@ -266,8 +267,36 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
   const handleAddModeloToOrder = () => {
     if (!catModeloSel) return;
     const existente = getProductoDeModelo(catModeloSel.id);
+    const costo = Number(itemPrecioCosto) || 0;
+    const cantidad = Number(itemCantidad) || 1;
+
+    if (costo <= 0) {
+      onShowToast('Costo requerido', 'Ingrese el costo de compra unitario pactado.', 'warning');
+      return;
+    }
+    if (cantidad <= 0) {
+      onShowToast('Cantidad inválida', 'La cantidad debe ser mayor a 0.', 'warning');
+      return;
+    }
+
     if (existente) {
-      handleAddItemToCart();
+      const newItem: ItemCompra = {
+        productoId: existente.id,
+        codigo: existente.codigo,
+        nombre: existente.nombre,
+        categoria: existente.categoria,
+        marca: existente.marca,
+        cantidad,
+        precioCostoUnitario: costo,
+        subtotal: cantidad * costo,
+        requiereSerie: existente.requiereSerie,
+        series: [],
+      };
+      setCartItems((prev) => [...prev, newItem]);
+      onShowToast('Ítem agregado', `${existente.nombre} agregado al pedido de compra.`, 'info');
+      setCatModeloSel(null);
+      setItemPrecioCosto(0);
+      setItemCantidad(1);
     } else {
       handleCrearProductoDesdeCatalogo();
     }
@@ -452,20 +481,6 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
     onShowToast('Series asignadas', `${finalSeries.length} series registradas correctamente.`, 'success');
   };
 
-  const handleAutoGenerateSeries = () => {
-    if (seriesModalItemIndex === null || !activeSeriesItem) return;
-    const targetCount = activeSeriesItem.cantidad;
-    const prefix = `SN-${activeSeriesItem.marca.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
-    const generated: string[] = [];
-    for (let i = 1; i <= targetCount; i++) {
-      generated.push(`${prefix}-${String(i).padStart(3, '0')}`);
-    }
-    const updated = [...cartItems];
-    updated[seriesModalItemIndex].series = generated;
-    setCartItems(updated);
-    onShowToast('Series generadas', `Se autogeneraron ${targetCount} series correlativas.`, 'info');
-  };
-
   // Financial totals for the purchase
   const totalBruto = useMemo(() => {
     return cartItems.reduce((sum, item) => sum + item.subtotal, 0);
@@ -558,16 +573,6 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
     });
     setRecepcionSeriesMap(initialSeries);
     setRecepcionBulkTextMap(initialBulk);
-  };
-
-  const handleAutoGenReceptionSeries = (item: ItemCompra) => {
-    const prefix = `SN-${(item.marca || 'MGS').slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
-    const list: string[] = [];
-    for (let i = 1; i <= item.cantidad; i++) {
-      list.push(`${prefix}-${String(i).padStart(3, '0')}`);
-    }
-    setRecepcionSeriesMap((prev) => ({ ...prev, [item.productoId]: list }));
-    setRecepcionBulkTextMap((prev) => ({ ...prev, [item.productoId]: list.join('\n') }));
   };
 
   const handleConfirmReception = async (e: React.FormEvent) => {
@@ -1453,22 +1458,29 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                       {/* Control de series para ingreso a almacén */}
                       {item.requiereSerie && (
                         <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/60">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenSeriesModal(index)}
-                            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold border transition-colors cursor-pointer ${
-                              (item.series?.length || 0) === item.cantidad
-                                ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                                : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
-                            }`}
-                          >
-                            <Barcode className="h-3.5 w-3.5" />
-                            {(item.series?.length || 0) === item.cantidad
-                              ? `✓ ${item.cantidad} series asignadas`
-                              : `⚠️ Asignar series (${item.series?.length || 0}/${item.cantidad})`}
-                          </button>
+                          {modoOperacion === 'RECEPCION_DIRECTA' ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenSeriesModal(index)}
+                              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold border transition-colors cursor-pointer ${
+                                (item.series?.length || 0) === item.cantidad
+                                  ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                  : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                              }`}
+                            >
+                              <Barcode className="h-3.5 w-3.5" />
+                              {(item.series?.length || 0) === item.cantidad
+                                ? `✓ ${item.cantidad} series asignadas`
+                                : `⚠️ Asignar series (${item.series?.length || 0}/${item.cantidad})`}
+                            </button>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 border border-blue-200/60 px-2.5 py-1 text-[10px] font-bold text-[#00346F]">
+                              <Barcode className="h-3 w-3 text-blue-600" />
+                              Trazable por Serie • Se registrarán físicamente al recibir la mercadería
+                            </span>
+                          )}
 
-                          {item.series && item.series.length > 0 && (
+                          {modoOperacion === 'RECEPCION_DIRECTA' && item.series && item.series.length > 0 && (
                             <span className="text-[10px] text-slate-500 truncate max-w-[280px]">
                               {item.series.join(', ')}
                             </span>
@@ -2184,17 +2196,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                 </div>
               )}
 
-              {/* Quick auto-generator if batch has no barcodes */}
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-[11px] text-slate-500">¿Lote sin código de barras?</span>
-                <button
-                  type="button"
-                  onClick={handleAutoGenerateSeries}
-                  className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
-                >
-                  ⚡ Autogenerar {activeSeriesItem.cantidad} series correlativas
-                </button>
-              </div>
+
 
               {/* Lista de series ingresadas */}
               <div>
@@ -2381,13 +2383,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                               <Barcode className="w-4 h-4 text-blue-600" />
                               Series Físicas Recibidas ({seriesList.length}/{it.cantidad}):
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => handleAutoGenReceptionSeries(it)}
-                              className="text-[11px] font-bold text-indigo-600 hover:underline cursor-pointer"
-                            >
-                              ⚡ Autogenerar {it.cantidad} series
-                            </button>
+
                           </div>
                           <p className="text-[10px] text-slate-500">
                             Escanee el código de barras de cada caja o digite las series separadas por salto de línea.

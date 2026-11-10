@@ -46,6 +46,7 @@ import { ClientsManagementView } from './components/ClientsManagementView';
 import { CategoriesView } from './components/CategoriesView';
 import { BrandsView } from './components/BrandsView';
 import { CatalogMasterView } from './components/CatalogMasterView';
+import { WorkshopPartsCatalogView } from './components/WorkshopPartsCatalogView';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { SessionTimeoutGuard } from './components/SessionTimeoutGuard';
 import { ServiceTrackingView } from './components/ServiceTrackingView';
@@ -1101,6 +1102,15 @@ export function App() {
               initialTab={activeView === 'marcas' ? 'marcas' : 'categorias'}
               onShowToast={showToast}
               readOnly={currentUser.rol !== 'ADMIN' && currentUser.rol !== 'SUPERADMIN' && currentUser.rol !== 'ALMACEN'}
+              setActiveView={setActiveView}
+            />
+          )}
+
+          {activeView === 'repuestos-catalogo' && (
+            <WorkshopPartsCatalogView
+              currentUser={currentUser}
+              onShowToast={showToast}
+              onNavigateToPedidos={() => setActiveView('compras')}
               setActiveView={setActiveView}
             />
           )}

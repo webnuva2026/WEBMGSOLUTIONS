@@ -16,6 +16,7 @@ import {
   Receipt,
   Store,
   Boxes,
+  Cpu,
 } from 'lucide-react';
 import { Usuario } from '../types';
 
@@ -55,9 +56,10 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
       icon: <Boxes className="w-5 h-5 shrink-0" />,
     },
     movimientos: { label: 'Movimientos entre sedes', icon: <ArrowLeftRight className="w-5 h-5 shrink-0" /> },
-    catalogo: { label: 'Catálogo Maestro', icon: <Layers className="w-5 h-5 shrink-0" /> },
-    categorias: { label: 'Catálogo Maestro', icon: <Layers className="w-5 h-5 shrink-0" /> },
-    marcas: { label: 'Catálogo Maestro', icon: <Layers className="w-5 h-5 shrink-0" /> },
+    catalogo: { label: 'Catálogo de Productos', icon: <Layers className="w-5 h-5 shrink-0" /> },
+    categorias: { label: 'Catálogo de Productos', icon: <Layers className="w-5 h-5 shrink-0" /> },
+    marcas: { label: 'Catálogo de Productos', icon: <Layers className="w-5 h-5 shrink-0" /> },
+    'repuestos-catalogo': { label: 'Catálogo de Repuestos', icon: <Cpu className="w-5 h-5 shrink-0" /> },
     usuarios: { label: 'Usuarios & Permisos', icon: <ShieldCheck className="w-5 h-5 shrink-0" /> },
     'config-empresa': { label: 'Sucursales', icon: <Store className="w-5 h-5 shrink-0" /> },
     sucursales: { label: 'Sucursales', icon: <Store className="w-5 h-5 shrink-0" /> },
@@ -133,6 +135,7 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
         'clientes',
         'movimientos',
         'catalogo',
+        'repuestos-catalogo',
         'usuarios',
         'sucursales',
       ];
@@ -145,6 +148,9 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
         if (m === 'productos' || m === 'compras') return 'panel-almacen';
         return m;
       });
+      if (currentUser.rol === 'TECNICO' && !mapped.includes('repuestos-catalogo')) {
+        mapped.push('repuestos-catalogo');
+      }
       list = Array.from<string>(new Set(mapped));
     }
 

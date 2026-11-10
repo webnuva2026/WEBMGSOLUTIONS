@@ -2652,12 +2652,18 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                 </div>
               </div>
 
-              {/* Input manual / lector de código de barras */}
+              {/* Buscador / Lector de código de barras para series registradas en almacén */}
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Escanear o Escribir Serie Física (Código de Barras / QR):
-                </label>
-                <div className="flex gap-2">
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block font-bold text-slate-700 text-xs">
+                    Buscar o Escanear Serie Física (Pistola Lector de Códigos / Búsqueda):
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-medium">
+                    Solo series registradas en almacén
+                  </span>
+                </div>
+                <div className="relative flex items-center">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
                   <input
                     type="text"
                     value={seriesModal.manualInput}
@@ -2667,32 +2673,33 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        const val = seriesModal.manualInput.trim();
-                        if (val && !seriesModal.selectedSeries.includes(val)) {
-                          if (seriesModal.selectedSeries.length >= seriesModal.item.cantidad) {
-                            onShowToast(
-                              'Límite de cantidad',
-                              `Solo puede asignar ${seriesModal.item.cantidad} serie(s) para este ítem.`,
-                              'warning'
-                            );
-                            return;
-                          }
-                          setSeriesModal({
-                            ...seriesModal,
-                            selectedSeries: [...seriesModal.selectedSeries, val],
-                            manualInput: '',
-                          });
+                        const term = seriesModal.manualInput.trim();
+                        if (!term) return;
+
+                        // Validar estrictamente contra unidades registradas en MySQL para garantizar fiabilidad
+                        const matchedUnit = seriesModal.availableUnits.find(
+                          (u) => u.numeroSerie.toUpperCase() === term.toUpperCase()
+                        );
+
+                        if (!matchedUnit) {
+                          onShowToast(
+                            'Serie no válida o no registrada',
+                            `La serie "${term}" no existe en el inventario disponible de esta sede. Para proteger la fiabilidad del stock, solo se pueden asignar series físicas registradas en almacén.`,
+                            'error'
+                          );
+                          return;
                         }
-                      }
-                    }}
-                    placeholder="Ej: LNV-X1C-2026-004 o escanear..."
-                    className="flex-1 p-2 bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold text-xs"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const val = seriesModal.manualInput.trim();
-                      if (val && !seriesModal.selectedSeries.includes(val)) {
+
+                        if (seriesModal.selectedSeries.includes(matchedUnit.numeroSerie)) {
+                          onShowToast(
+                            'Serie ya seleccionada',
+                            `La serie ${matchedUnit.numeroSerie} ya está en la lista a entregar.`,
+                            'info'
+                          );
+                          setSeriesModal({ ...seriesModal, manualInput: '' });
+                          return;
+                        }
+
                         if (seriesModal.selectedSeries.length >= seriesModal.item.cantidad) {
                           onShowToast(
                             'Límite de cantidad',
@@ -2701,16 +2708,77 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                           );
                           return;
                         }
+
                         setSeriesModal({
                           ...seriesModal,
-                          selectedSeries: [...seriesModal.selectedSeries, val],
+                          selectedSeries: [...seriesModal.selectedSeries, matchedUnit.numeroSerie],
                           manualInput: '',
                         });
+                        onShowToast('Serie asignada', `Unidad ${matchedUnit.numeroSerie} seleccionada con éxito.`, 'success');
                       }
                     }}
-                    className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold text-xs"
+                    placeholder="Escanear con pistola o escribir serie para filtrar..."
+                    className="w-full pl-9 pr-24 py-2 bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold text-xs focus:bg-white focus:border-[#00346F] focus:ring-1 focus:ring-[#00346F] outline-none"
+                  />
+                  {seriesModal.manualInput && (
+                    <button
+                      type="button"
+                      onClick={() => setSeriesModal({ ...seriesModal, manualInput: '' })}
+                      className="absolute right-20 text-slate-400 hover:text-slate-600 p-1"
+                      title="Limpiar búsqueda"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const term = seriesModal.manualInput.trim();
+                      if (!term) return;
+
+                      const matchedUnit = seriesModal.availableUnits.find(
+                        (u) => u.numeroSerie.toUpperCase() === term.toUpperCase()
+                      );
+
+                      if (!matchedUnit) {
+                        onShowToast(
+                          'Serie no válida o no registrada',
+                          `La serie "${term}" no existe en el inventario disponible de esta sede. Para proteger la fiabilidad del stock, solo se pueden asignar series físicas registradas en almacén.`,
+                          'error'
+                        );
+                        return;
+                      }
+
+                      if (seriesModal.selectedSeries.includes(matchedUnit.numeroSerie)) {
+                        onShowToast(
+                          'Serie ya seleccionada',
+                          `La serie ${matchedUnit.numeroSerie} ya está en la lista a entregar.`,
+                          'info'
+                        );
+                        setSeriesModal({ ...seriesModal, manualInput: '' });
+                        return;
+                      }
+
+                      if (seriesModal.selectedSeries.length >= seriesModal.item.cantidad) {
+                        onShowToast(
+                          'Límite de cantidad',
+                          `Solo puede asignar ${seriesModal.item.cantidad} serie(s) para este ítem.`,
+                          'warning'
+                        );
+                        return;
+                      }
+
+                      setSeriesModal({
+                        ...seriesModal,
+                        selectedSeries: [...seriesModal.selectedSeries, matchedUnit.numeroSerie],
+                        manualInput: '',
+                      });
+                      onShowToast('Serie asignada', `Unidad ${matchedUnit.numeroSerie} seleccionada con éxito.`, 'success');
+                    }}
+                    className="absolute right-1 px-3 py-1.5 bg-[#00346F] hover:bg-blue-900 text-white rounded-md font-bold text-xs flex items-center gap-1 transition-colors"
                   >
-                    + Agregar
+                    <Barcode className="w-3.5 h-3.5" />
+                    <span>Escanear</span>
                   </button>
                 </div>
               </div>
@@ -2722,7 +2790,9 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                     Series disponibles en inventario físico:
                   </span>
                   <span className="text-[11px] text-slate-500 font-mono">
-                    {seriesModal.availableUnits.length} disponibles
+                    {seriesModal.manualInput.trim()
+                      ? `${seriesModal.availableUnits.filter(u => u.numeroSerie.toLowerCase().includes(seriesModal.manualInput.trim().toLowerCase())).length} de ${seriesModal.availableUnits.length} disponibles`
+                      : `${seriesModal.availableUnits.length} disponibles`}
                   </span>
                 </div>
 
@@ -2733,77 +2803,93 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                   </div>
                 ) : seriesModal.availableUnits.length > 0 ? (
                   <div className="max-h-48 overflow-y-auto space-y-1.5 border border-slate-200 rounded-xl p-2 bg-slate-50">
-                    {seriesModal.availableUnits.map((unit) => {
-                      const isChecked = seriesModal.selectedSeries.includes(unit.numeroSerie);
+                    {(() => {
+                      const filteredUnits = seriesModal.manualInput.trim()
+                        ? seriesModal.availableUnits.filter((u) =>
+                            u.numeroSerie.toLowerCase().includes(seriesModal.manualInput.trim().toLowerCase())
+                          )
+                        : seriesModal.availableUnits;
 
-                      return (
-                        <div
-                          key={unit.id}
-                          onClick={() => {
-                            if (isChecked) {
-                              setSeriesModal({
-                                ...seriesModal,
-                                selectedSeries: seriesModal.selectedSeries.filter(
-                                  (s) => s !== unit.numeroSerie
-                                ),
-                              });
-                            } else {
-                              if (seriesModal.selectedSeries.length >= seriesModal.item.cantidad) {
-                                onShowToast(
-                                  'Límite alcanzado',
-                                  `Ya seleccionó las ${seriesModal.item.cantidad} series requeridas.`,
-                                  'warning'
-                                );
-                                return;
+                      if (filteredUnits.length === 0) {
+                        return (
+                          <div className="p-4 text-center text-slate-500 text-xs">
+                            No se encontraron series registradas que coincidan con &quot;<span className="font-mono font-bold text-slate-700">{seriesModal.manualInput}</span>&quot;.
+                          </div>
+                        );
+                      }
+
+                      return filteredUnits.map((unit) => {
+                        const isChecked = seriesModal.selectedSeries.includes(unit.numeroSerie);
+
+                        return (
+                          <div
+                            key={unit.id}
+                            onClick={() => {
+                              if (isChecked) {
+                                setSeriesModal({
+                                  ...seriesModal,
+                                  selectedSeries: seriesModal.selectedSeries.filter(
+                                    (s) => s !== unit.numeroSerie
+                                  ),
+                                });
+                              } else {
+                                if (seriesModal.selectedSeries.length >= seriesModal.item.cantidad) {
+                                  onShowToast(
+                                    'Límite alcanzado',
+                                    `Ya seleccionó las ${seriesModal.item.cantidad} series requeridas.`,
+                                    'warning'
+                                  );
+                                  return;
+                                }
+                                setSeriesModal({
+                                  ...seriesModal,
+                                  selectedSeries: [...seriesModal.selectedSeries, unit.numeroSerie],
+                                });
                               }
-                              setSeriesModal({
-                                ...seriesModal,
-                                selectedSeries: [...seriesModal.selectedSeries, unit.numeroSerie],
-                              });
-                            }
-                          }}
-                          className={`p-2.5 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${isChecked
-                            ? 'bg-blue-50 border-blue-400 ring-1 ring-blue-300'
-                            : 'bg-white border-slate-200 hover:border-slate-300'
-                            }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              readOnly
-                              className="rounded text-[#00346F] focus:ring-0"
-                            />
-                            <div>
-                              <span className="font-mono font-bold text-slate-800">
-                                {unit.numeroSerie}
-                              </span>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-[9px] px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded font-bold">
-                                  {unit.condicion || 'NUEVO'}
+                            }}
+                            className={`p-2.5 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${isChecked
+                              ? 'bg-blue-50 border-blue-400 ring-1 ring-blue-300'
+                              : 'bg-white border-slate-200 hover:border-slate-300'
+                              }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                readOnly
+                                className="rounded text-[#00346F] focus:ring-0"
+                              />
+                              <div>
+                                <span className="font-mono font-bold text-slate-800">
+                                  {unit.numeroSerie}
                                 </span>
-                                <span className="text-[10px] text-slate-400">
-                                  Sede: {unit.sucursalNombre || 'Principal'}
-                                </span>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-[9px] px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded font-bold">
+                                    {unit.condicion || 'NUEVO'}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400">
+                                    Sede: {unit.sucursalNombre || 'Principal'}
+                                  </span>
+                                </div>
                               </div>
                             </div>
+                            {isChecked && (
+                              <span className="text-[10px] font-extrabold text-blue-700 bg-blue-100 px-2 py-0.5 rounded">
+                                Asignado
+                              </span>
+                            )}
                           </div>
-                          {isChecked && (
-                            <span className="text-[10px] font-extrabold text-blue-700 bg-blue-100 px-2 py-0.5 rounded">
-                              Asignado
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
                 ) : (
                   <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-center space-y-1">
                     <p className="font-bold text-amber-800">
-                      No hay series físicas precargadas en almacén para este producto.
+                      No hay series físicas disponibles en almacén para este producto.
                     </p>
                     <p className="text-[11px] text-amber-700">
-                      Puede ingresar o escanear manualmente los números de serie en el campo superior.
+                      Para garantizar la fiabilidad del inventario, este producto requiere haber sido ingresado previamente en Almacén con sus números de serie correspondientes.
                     </p>
                   </div>
                 )}
