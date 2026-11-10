@@ -87,16 +87,7 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
   const [selectedProductoForSeries, setSelectedProductoForSeries] = useState<ItemInventarioAlmacen | null>(null);
   const [unidadesList, setUnidadesList] = useState<UnidadFisicaSerie[]>([]);
   const [loadingUnidades, setLoadingUnidades] = useState(false);
-  const [activeSeriesTab, setActiveSeriesTab] = useState<'list' | 'add'>('list');
 
-  // Formulario de ingreso de nuevas series
-  const [inputSeriesRaw, setInputSeriesRaw] = useState('');
-  const [inputSucursalId, setInputSucursalId] = useState<number>(1);
-  const [inputCondicion, setInputCondicion] = useState<'NUEVO' | 'DANADO_RECEPCION' | 'DEFECTUOSO' | 'USADO'>('NUEVO');
-  const [inputTipoDestino, setInputTipoDestino] = useState<'VENTA' | 'SERVICIO_TALLER' | 'MIXTO'>('VENTA');
-  const [inputVisibleVenta, setInputVisibleVenta] = useState(true);
-  const [inputObservaciones, setInputObservaciones] = useState('');
-  const [isSubmittingSeries, setIsSubmittingSeries] = useState(false);
 
   // Modal para reportar unidad a cuarentena / dañada
   const [unidadToQuarantine, setUnidadToQuarantine] = useState<UnidadFisicaSerie | null>(null);
@@ -172,12 +163,6 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
   // Cargar series cuando se abre el modal de un producto
   const handleOpenSeriesModal = async (prod: ItemInventarioAlmacen) => {
     setSelectedProductoForSeries(prod);
-    setActiveSeriesTab('list');
-    setInputSeriesRaw('');
-    setInputCondicion('NUEVO');
-    setInputTipoDestino(prod.tipoDestino);
-    setInputVisibleVenta(prod.disponibleVenta);
-    setInputObservaciones('');
     setLoadingUnidades(true);
 
     try {
@@ -219,69 +204,6 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
       }
     } catch (err) {
       onShowToast('Error', 'Error al conectar con el servidor.', 'error');
-    }
-  };
-
-  // ─── REGISTRAR NUEVAS SERIES ───
-  const handleRegistrarSeries = async () => {
-    if (!selectedProductoForSeries) return;
-
-    // Procesar números de serie ingresados (por coma o salto de línea)
-    const seriesParsed = inputSeriesRaw
-      .split(/[\n,;]+/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-
-    if (seriesParsed.length === 0) {
-      onShowToast('Atención', 'Ingrese al menos un número de serie válido.', 'warning');
-      return;
-    }
-
-    setIsSubmittingSeries(true);
-    try {
-      const payload: RegistrarSeriesPayload = {
-        sucursalId: inputSucursalId || 1,
-        series: seriesParsed,
-        tipoDestino: inputTipoDestino,
-        disponibleVenta: inputCondicion === 'DANADO_RECEPCION' || inputCondicion === 'DEFECTUOSO' ? false : inputVisibleVenta,
-        condicion: inputCondicion,
-        observaciones: inputObservaciones,
-      };
-
-      const res = await warehouseService.registrarUnidades(selectedProductoForSeries.id, payload);
-      if (res.success) {
-        onShowToast(
-          'Recepción Exitosa',
-          `Se registraron ${res.unidadesRegistradas} unidades. ${res.estadoAsignado || ''}`,
-          'success'
-        );
-
-        // Recargar unidades del producto y todo el inventario
-        const [resUnits, resInv, resRes] = await Promise.all([
-          warehouseService.getUnidades(selectedProductoForSeries.id),
-          warehouseService.getInventario(),
-          warehouseService.getResumen(),
-        ]);
-
-        if (resUnits.success && resUnits.unidades) setUnidadesList(resUnits.unidades);
-        if (resInv.success && resInv.inventario) {
-          setInventario(resInv.inventario);
-          const updatedProd = resInv.inventario.find((p) => p.id === selectedProductoForSeries.id);
-          if (updatedProd) setSelectedProductoForSeries(updatedProd);
-        }
-        if (resRes.success && resRes.data) setResumen(resRes.data);
-        if (onProductCreated) onProductCreated();
-
-        // Volver a la pestaña de listado
-        setActiveSeriesTab('list');
-        setInputSeriesRaw('');
-      } else {
-        onShowToast('Error al registrar', res.message || 'No se pudieron registrar las series.', 'error');
-      }
-    } catch (err) {
-      onShowToast('Error', 'Ocurrió un error inesperado al registrar series.', 'error');
-    } finally {
-      setIsSubmittingSeries(false);
     }
   };
 
@@ -960,247 +882,129 @@ export const WarehouseInventoryView: React.FC<WarehouseInventoryViewProps> = ({
                 </button>
               </div>
 
-              {/* Pestañas del Modal */}
-              <div className="flex border-b border-slate-200 bg-slate-50 px-6">
-                <button
-                  type="button"
-                  onClick={() => setActiveSeriesTab('list')}
-                  className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${activeSeriesTab === 'list'
-                    ? 'border-[#00346F] text-[#00346F]'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                    }`}
-                >
+              {/* Barra Informativa de Unidades */}
+              <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#00346F]">
                   <Package className="h-4 w-4" />
-                  Unidades Físicas Registradas ({unidadesList.length})
-                </button>
-                {!readOnly && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveSeriesTab('add')}
-                    className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${activeSeriesTab === 'add'
-                      ? 'border-[#00346F] text-[#00346F]'
-                      : 'border-transparent text-slate-500 hover:text-slate-700'
-                      }`}
-                  >
-                    <Plus className="h-4 w-4" />
-                    + Ingresar Nuevas Series (Recepción)
-                  </button>
-                )}
+                  <span>Unidades Físicas Registradas en Inventario ({unidadesList.length})</span>
+                </div>
+                <span className="text-[11px] text-slate-500 font-medium">
+                  * El alta de series físicas se realiza exclusivamente durante la recepción de pedidos en Almacén
+                </span>
               </div>
 
-              {/* Contenido Modal */}
+              {/* Contenido Modal: Lista de Series Registradas */}
               <div className="flex-1 overflow-y-auto p-6">
-                {activeSeriesTab === 'list' ? (
-                  loadingUnidades ? (
-                    <div className="flex flex-col items-center justify-center py-12">
-                      <Loader2 className="h-6 w-6 animate-spin text-[#00346F]" />
-                      <p className="mt-2 text-xs text-slate-500">Cargando números de serie...</p>
-                    </div>
-                  ) : unidadesList.length === 0 ? (
-                    <div className="py-12 text-center">
-                      <Barcode className="mx-auto h-8 w-8 text-slate-300" />
-                      <p className="mt-2 text-sm font-bold text-slate-700">No hay series registradas aún</p>
-                      <p className="mt-1 text-xs text-slate-400">
-                        Ve a la pestaña "+ Ingresar Nuevas Series" para registrar los números de serie de esta máquina.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs">
-                        <thead>
-                          <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                            <th className="pb-3">Número de Serie</th>
-                            <th className="pb-3">Estado Operativo</th>
-                            <th className="pb-3">Condición</th>
-                            <th className="pb-3">Sucursal</th>
-                            <th className="pb-3">En POS</th>
-                            <th className="pb-3 text-right">Acción</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {unidadesList.map((u) => {
-                            const isDanado = u.estadoCodigo === 'DANADO_CUARENTENA';
-                            const isVendido = u.estadoCodigo === 'VENDIDO';
-                            const isTaller = u.estadoCodigo === 'EN_SERVICIO';
+                {loadingUnidades ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin text-[#00346F]" />
+                    <p className="mt-2 text-xs text-slate-500">Cargando números de serie...</p>
+                  </div>
+                ) : unidadesList.length === 0 ? (
+                  <div className="py-12 text-center">
+                    <Barcode className="mx-auto h-8 w-8 text-slate-300" />
+                    <p className="mt-2 text-sm font-bold text-slate-700">No hay series registradas aún</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Las series físicas se registran durante la recepción física del pedido de compra del proveedor.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                          <th className="pb-3">Número de Serie</th>
+                          <th className="pb-3">Estado Operativo</th>
+                          <th className="pb-3">Condición</th>
+                          <th className="pb-3">Sucursal</th>
+                          <th className="pb-3">En POS</th>
+                          <th className="pb-3 text-right">Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {unidadesList.map((u) => {
+                          const isQuarantine =
+                            u.estadoCodigo === 'CUARENTENA_RECEPCION' || u.condicion === 'DANADO_RECEPCION';
+                          const isVendido = u.estadoCodigo === 'VENDIDO';
 
-                            return (
-                              <tr key={u.id} className="hover:bg-slate-50/80">
-                                <td className="py-3 font-mono font-bold text-slate-800">
-                                  <div className="flex items-center gap-2">
-                                    <span>{u.numeroSerie}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleCopySerie(u.numeroSerie)}
-                                      title="Copiar N° de serie"
-                                      className="text-slate-400 hover:text-slate-600"
-                                    >
-                                      {copiedSerie === u.numeroSerie ? (
-                                        <Check className="h-3.5 w-3.5 text-emerald-600" />
-                                      ) : (
-                                        <Copy className="h-3.5 w-3.5" />
-                                      )}
-                                    </button>
-                                  </div>
-                                  {u.observaciones && (
-                                    <p className="mt-0.5 text-[10px] font-normal text-rose-600 italic">
-                                      {u.observaciones}
-                                    </p>
-                                  )}
-                                </td>
-
-                                <td className="py-3">
-                                  <span
-                                    className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold ${isDanado
+                          return (
+                            <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-3 font-mono font-bold text-slate-800">
+                                <div className="flex items-center gap-1.5">
+                                  <span>{u.numeroSerie}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(u.numeroSerie);
+                                      onShowToast('Copiado', `Serie ${u.numeroSerie} copiada al portapapeles.`, 'info');
+                                    }}
+                                    className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                                    title="Copiar serie"
+                                  >
+                                    <Copy className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                                {u.observaciones && (
+                                  <p className="text-[10px] text-slate-400 font-sans italic font-normal line-clamp-1">
+                                    {u.observaciones}
+                                  </p>
+                                )}
+                              </td>
+                              <td className="py-3">
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                    isQuarantine
                                       ? 'bg-rose-100 text-rose-800'
                                       : isVendido
-                                        ? 'bg-slate-200 text-slate-700'
-                                        : isTaller
-                                          ? 'bg-indigo-100 text-indigo-800'
-                                          : 'bg-emerald-100 text-emerald-800'
-                                      }`}
-                                  >
-                                    {isDanado ? '⚠️ En Cuarentena' : u.estadoNombre}
-                                  </span>
-                                </td>
-
-                                <td className="py-3 text-slate-600">
-                                  <span className="font-semibold">{u.condicion}</span>
-                                </td>
-
-                                <td className="py-3 text-slate-600">{u.sucursalNombre}</td>
-
-                                <td className="py-3">
+                                      ? 'bg-slate-100 text-slate-700'
+                                      : 'bg-emerald-100 text-emerald-800'
+                                  }`}
+                                >
+                                  {isQuarantine && <AlertTriangle className="h-3 w-3" />}
+                                  {u.estadoNombre ||
+                                    (isQuarantine ? 'En Cuarentena' : isVendido ? 'Vendido' : 'Disponible')}
+                                </span>
+                              </td>
+                              <td className="py-3 font-semibold text-slate-600">
+                                {u.condicion === 'NUEVO'
+                                  ? 'NUEVO'
+                                  : u.condicion === 'DANADO_RECEPCION'
+                                  ? 'DAÑADO'
+                                  : u.condicion}
+                              </td>
+                              <td className="py-3 text-slate-600">
+                                {u.sucursalNombre || 'Principal'}
+                              </td>
+                              <td className="py-3">
+                                <span
+                                  className={`inline-flex items-center gap-1 text-[11px] font-bold ${
+                                    u.disponibleVenta ? 'text-emerald-600' : 'text-slate-400'
+                                  }`}
+                                >
                                   {u.disponibleVenta ? (
-                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
-                                      <CheckCircle2 className="h-3 w-3" /> Sí
-                                    </span>
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
                                   ) : (
-                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-400">
-                                      <XCircle className="h-3 w-3" /> Oculto
-                                    </span>
+                                    <X className="h-3.5 w-3.5" />
                                   )}
-                                </td>
-
-                                <td className="py-3 text-right">
-                                  {!readOnly && (
-                                    <div className="flex items-center justify-end gap-1.5">
-                                      {!isDanado && !isVendido && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setUnidadToQuarantine(u);
-                                            setMotivoCuarentena('');
-                                          }}
-                                          className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100"
-                                        >
-                                          Mover a Cuarentena
-                                        </button>
-                                      )}
-
-                                      {isDanado && (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleReintegrateUnit(u)}
-                                          className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100"
-                                        >
-                                          Reintegrar a Venta
-                                        </button>
-                                      )}
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )
-                ) : (
-                  /* Formulario de Ingreso de Series */
-                  <div className="space-y-4">
-                    <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-800">
-                      <p className="font-bold">Instrucciones de Recepción:</p>
-                      <p className="mt-0.5">
-                        Puedes pegar múltiples números de serie separados por <strong>saltos de línea</strong> o por{' '}
-                        <strong>comas</strong>. Si el lote o alguna máquina llegó con golpe de fábrica, puedes marcar la
-                        condición como "Dañado en Recepción" para que se envíe directamente a cuarentena sin riesgo de ser vendida.
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="mb-1 block text-xs font-bold text-slate-700">Sucursal de Destino</label>
-                        <select
-                          value={inputSucursalId}
-                          onChange={(e) => setInputSucursalId(Number(e.target.value))}
-                          className="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-semibold"
-                        >
-                          {sucursales.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.nombre}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="mb-1 block text-xs font-bold text-slate-700">Condición de Recepción</label>
-                        <select
-                          value={inputCondicion}
-                          onChange={(e) => setInputCondicion(e.target.value as any)}
-                          className="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-semibold"
-                        >
-                          <option value="NUEVO">🟢 Nuevo (Sellado / En óptimo estado)</option>
-                          <option value="DANADO_RECEPCION">🔴 Dañado en Recepción (Separar a Cuarentena)</option>
-                          <option value="DEFECTUOSO">⚠️ Falla de Fábrica / Defectuoso</option>
-                          <option value="USADO">🔵 Usado / Open Box</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-xs font-bold text-slate-700">
-                        Números de Serie (Uno por línea o separados por coma)
-                      </label>
-                      <textarea
-                        rows={5}
-                        value={inputSeriesRaw}
-                        onChange={(e) => setInputSeriesRaw(e.target.value)}
-                        placeholder={`Ejemplo:\nSN-HP-2026-001\nSN-HP-2026-002\nSN-HP-2026-003`}
-                        className="w-full rounded-xl border border-slate-200 p-3 font-mono text-xs focus:border-[#00346F] focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-xs font-bold text-slate-700">Observaciones del Lote / Recepción</label>
-                      <input
-                        type="text"
-                        value={inputObservaciones}
-                        onChange={(e) => setInputObservaciones(e.target.value)}
-                        placeholder="Ej. Lote recibido con guía G001-492, embalaje revisado"
-                        className="w-full rounded-xl border border-slate-200 p-2.5 text-xs"
-                      />
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setActiveSeriesTab('list')}
-                        className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleRegistrarSeries}
-                        disabled={isSubmittingSeries}
-                        className="flex items-center gap-2 rounded-xl bg-[#00346F] px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-[#004A99] disabled:opacity-50"
-                      >
-                        {isSubmittingSeries && <Loader2 className="h-4 w-4 animate-spin" />}
-                        Guardar Series en Almacén
-                      </button>
-                    </div>
+                                  {u.disponibleVenta ? 'Sí' : 'No'}
+                                </span>
+                              </td>
+                              <td className="py-3 text-right">
+                                {!readOnly && !isQuarantine && !isVendido && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setUnidadToQuarantine(u)}
+                                    className="rounded-lg bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer"
+                                  >
+                                    Mover a Cuarentena
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
