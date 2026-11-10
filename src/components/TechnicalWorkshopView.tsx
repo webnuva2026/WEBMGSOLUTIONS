@@ -558,6 +558,8 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
   const [newAvanceTitulo, setNewAvanceTitulo] = useState('');
   const [newAvanceDesc, setNewAvanceDesc] = useState('');
   const [newAvanceEstado, setNewAvanceEstado] = useState<EstadoOrdenServicio>('EN_DIAGNOSTICO');
+  const [presupuestoTitulo, setPresupuestoTitulo] = useState('📋 Presupuesto Elaborado para Aprobación');
+  const [presupuestoComentario, setPresupuestoComentario] = useState('');
 
   // Repuestos e insumos filtrados exclusivamente para uso técnico en taller
   const repuestosDisponibles = useMemo(() => {
@@ -908,7 +910,9 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
     workshopService
       .updateEstado(selectedOrder.id, {
         nuevoEstado: newAvanceEstado,
-        observaciones: `${newAvanceTitulo}: ${newAvanceDesc}`,
+        titulo: newAvanceTitulo.trim(),
+        descripcion: newAvanceDesc.trim(),
+        observaciones: `${newAvanceTitulo.trim()}: ${newAvanceDesc.trim()}`,
       })
       .catch((err) => console.warn('Sync estado orden fallback:', err));
 
@@ -957,12 +961,20 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
     onShowToast('Repuesto agregado', `${prod.nombre} x${repuestoCantidad}`, 'info');
   };
 
-  const syncPresupuestoDB = async (order: OrdenServicio) => {
+  const syncPresupuestoDB = async (
+    order: OrdenServicio,
+    titulo?: string,
+    comentario?: string,
+    pasarAPresupuestado?: boolean
+  ) => {
     try {
       await workshopService.savePresupuesto(order.id, {
         repuestos: order.repuestos,
         serviciosManoObra: order.serviciosManoObra,
         costoTotal: order.costoTotal,
+        titulo,
+        comentario,
+        pasarAPresupuestado,
       });
     } catch (err) {
       console.warn('Sync presupuesto DB fallback:', err);
@@ -1077,6 +1089,8 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
     try {
       await workshopService.updateEstado(selectedOrder.id, {
         nuevoEstado,
+        titulo: tituloBitacora,
+        descripcion: descripcionBitacora,
         costoServicio: finalCosto,
         observaciones: `${tituloBitacora}: ${descripcionBitacora}`,
       });
@@ -1090,16 +1104,22 @@ export const TechnicalWorkshopView: React.FC<TechnicalWorkshopViewProps> = ({
     }
   };
 
-  const handleFijarPresupuesto = () => {
+  const handleFijarPresupuesto = async () => {
     if (!selectedOrder) return;
-    syncPresupuestoDB(selectedOrder);
     const descRep = selectedOrder.repuestos.map((r) => `${r.descripcion} (S/ ${r.total.toFixed(2)})`).join(', ') || 'Sin repuestos de almacén';
     const descServ = selectedOrder.serviciosManoObra.map((s) => `${s.descripcion} (S/ ${s.precio.toFixed(2)})`).join(', ') || 'Revisión técnica';
 
+    const finalTitulo = (presupuestoTitulo || '').trim() || '📋 Presupuesto Elaborado para Aprobación';
+    const finalComentario = (presupuestoComentario || '').trim()
+      ? `${presupuestoComentario.trim()} (Costos: Total S/ ${selectedOrder.costoTotal.toFixed(2)} - Repuestos: ${descRep} | Servicios: ${descServ})`
+      : `Costos calculados: Total S/ ${selectedOrder.costoTotal.toFixed(2)} (Repuestos: ${descRep} | Servicios: ${descServ}). Esperando confirmación del cliente.`;
+
+    await syncPresupuestoDB(selectedOrder, finalTitulo, finalComentario, true);
+
     handleChangeOrderEstado(
       'PRESUPUESTADO',
-      '📋 Presupuesto Elaborado para Aprobación',
-      `Costos calculados: Total S/ ${selectedOrder.costoTotal.toFixed(2)} (Repuestos: ${descRep} | Servicios: ${descServ}). Esperando confirmación del cliente.`
+      finalTitulo,
+      finalComentario
     );
   };
 
@@ -3089,18 +3109,48 @@ _Por favor responda a este mensaje con SÍ para comenzar o indíquenos si tiene 
                     <div className="p-4 bg-white space-y-3">
                       {/* CASO 1: Aún no presupuestado (RECEPCIONADO o EN_DIAGNOSTICO) */}
                       {(selectedOrder.estado === 'RECEPCIONADO' || selectedOrder.estado === 'EN_DIAGNOSTICO') && (
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-amber-50/70 border border-amber-200 rounded-lg">
-                          <div className="text-xs text-amber-900">
-                            <strong>Paso siguiente:</strong> Una vez agregados los repuestos y mano de obra requeridos, fije el presupuesto para enviar la cotización al cliente.
+                        <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3">
+                          <div className="text-xs text-amber-900 font-medium">
+                            <strong>Paso siguiente:</strong> Ingrese el título del diagnóstico y el comentario técnico que acompañará a este presupuesto, luego presione Fijar Presupuesto para registrarlo en el sistema.
                           </div>
-                          <button
-                            type="button"
-                            onClick={handleFijarPresupuesto}
-                            className="w-full sm:w-auto px-4 py-2.5 bg-[#00346F] hover:bg-[#004A99] text-white rounded-lg font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all whitespace-nowrap"
-                          >
-                            <DollarSign className="w-4 h-4 text-emerald-400" />
-                            Fijar Presupuesto y Pasar a "Presupuestado"
-                          </button>
+
+                          <div className="space-y-2">
+                            <div>
+                              <label className="block text-xs font-bold text-amber-950 mb-1">
+                                Título del Diagnóstico / Presupuesto *
+                              </label>
+                              <input
+                                type="text"
+                                value={presupuestoTitulo}
+                                onChange={(e) => setPresupuestoTitulo(e.target.value)}
+                                placeholder="Ej: Diagnóstico concluyente & Presupuesto de Pantalla"
+                                className="w-full p-2 bg-white border border-amber-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#00346F]"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-amber-950 mb-1">
+                                Comentario Técnico / Hallazgos para Recepción y Cliente *
+                              </label>
+                              <textarea
+                                rows={2}
+                                value={presupuestoComentario}
+                                onChange={(e) => setPresupuestoComentario(e.target.value)}
+                                placeholder="Detalle la falla confirmada, motivo de piezas a sustituir o recomendaciones técnicas..."
+                                className="w-full p-2 bg-white border border-amber-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-[#00346F]"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end pt-1">
+                            <button
+                              type="button"
+                              onClick={handleFijarPresupuesto}
+                              className="w-full sm:w-auto px-5 py-2.5 bg-[#00346F] hover:bg-[#004A99] text-white rounded-lg font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all whitespace-nowrap cursor-pointer"
+                            >
+                              <DollarSign className="w-4 h-4 text-emerald-400" />
+                              Fijar Presupuesto y Pasar a "Presupuestado"
+                            </button>
+                          </div>
                         </div>
                       )}
 

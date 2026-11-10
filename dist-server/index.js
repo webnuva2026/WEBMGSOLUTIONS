@@ -5718,6 +5718,27 @@ var PRIORIDAD_INV_MAP = {
   2: "ALTA",
   3: "URGENTE"
 };
+async function initWorkshopBitacoraTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS orden_bitacora (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        orden_id INT NOT NULL,
+        usuario_id INT NULL,
+        autor_nombre VARCHAR(150) NOT NULL,
+        autor_rol VARCHAR(50) NOT NULL,
+        titulo VARCHAR(255) NOT NULL,
+        descripcion TEXT NULL,
+        estado_nuevo VARCHAR(50) NOT NULL,
+        fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_orden_bitacora_orden (orden_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+  } catch (err) {
+    console.warn("initWorkshopBitacoraTable fallback:", err);
+  }
+}
+initWorkshopBitacoraTable();
 async function getOrdenes(req, res) {
   try {
     const { estado, search, sucursal_id } = req.query;
@@ -5817,6 +5838,34 @@ async function getOrdenes(req, res) {
         precio: Number(s.precio) || 0
       });
     }
+    const orderIds = rows.map((r) => r.id);
+    const bitacorasMap = /* @__PURE__ */ new Map();
+    if (orderIds.length > 0) {
+      try {
+        const [bitacoraRows] = await pool.query(
+          `SELECT id, orden_id, autor_nombre AS autorNombre, autor_rol AS autorRol,
+                  titulo, descripcion, estado_nuevo AS estadoNuevo, fecha
+           FROM orden_bitacora
+           WHERE orden_id IN (?)
+           ORDER BY fecha DESC, id DESC`,
+          [orderIds]
+        );
+        for (const b of bitacoraRows) {
+          if (!bitacorasMap.has(b.orden_id)) bitacorasMap.set(b.orden_id, []);
+          bitacorasMap.get(b.orden_id).push({
+            id: `b-${b.id}`,
+            fecha: new Date(b.fecha).toLocaleString("es-PE", { hour12: false }),
+            autorNombre: b.autorNombre || "Taller",
+            autorRol: b.autorRol || "TECNICO",
+            titulo: b.titulo || "Avance",
+            descripcion: b.descripcion || "",
+            estadoNuevo: b.estadoNuevo
+          });
+        }
+      } catch (err) {
+        console.warn("Bitacora table query error or not created yet:", err);
+      }
+    }
     const ordenes = rows.map((r) => {
       const accesoriosArr = r.accesorios ? typeof r.accesorios === "string" && r.accesorios.includes(",") ? r.accesorios.split(",").map((a) => a.trim()) : [r.accesorios] : ["Solo equipo"];
       const repuestos = repuestosMap.get(r.id) || [];
@@ -5824,6 +5873,18 @@ async function getOrdenes(req, res) {
       const costoTotalRepuestos = repuestos.reduce((sum, x) => sum + (Number(x.total) || 0), 0);
       const costoTotalManoObra = serviciosManoObra.reduce((sum, x) => sum + (Number(x.precio) || 0), 0);
       const costoTotal = Number(r.costoTotal) || costoTotalRepuestos + costoTotalManoObra;
+      const dbBitacora = bitacorasMap.get(r.id) || [];
+      const bitacoraFinal = dbBitacora.length > 0 ? dbBitacora : [
+        {
+          id: `b-${r.id}-init`,
+          fecha: new Date(r.fechaIngreso).toLocaleString("es-PE", { hour12: false }),
+          autorNombre: r.recepcionadoPorNombre || "Recepci\xF3n",
+          autorRol: "RECEPCION",
+          titulo: "Ingreso al Taller",
+          descripcion: `Equipo ingresado con falla: "${r.fallaReportada}". Asignado a: ${r.tecnicoNombre || "Laboratorio"}.`,
+          estadoNuevo: ESTADO_INV_MAP[r.estadoOrdenId] || "RECEPCIONADO"
+        }
+      ];
       return {
         id: r.id,
         codigo: r.codigo,
@@ -5857,17 +5918,7 @@ async function getOrdenes(req, res) {
         costoTotal,
         adelantoPagado: 0,
         saldoPendiente: costoTotal,
-        bitacora: [
-          {
-            id: `b-${r.id}-init`,
-            fecha: new Date(r.fechaIngreso).toLocaleString("es-PE", { hour12: false }),
-            autorNombre: r.recepcionadoPorNombre || "Recepci\xF3n",
-            autorRol: "RECEPCION",
-            titulo: "Ingreso al Taller",
-            descripcion: `Equipo ingresado con falla: "${r.fallaReportada}". Asignado a: ${r.tecnicoNombre || "Laboratorio"}.`,
-            estadoNuevo: ESTADO_INV_MAP[r.estadoOrdenId] || "RECEPCIONADO"
-          }
-        ],
+        bitacora: bitacoraFinal,
         comunicaciones: [],
         garantiaDias: r.codigo.startsWith("GAR") ? 180 : 90
       };
@@ -5968,6 +6019,21 @@ async function createOrden(req, res) {
         observaciones ? String(observaciones).trim() : null
       ]
     );
+    try {
+      const autorInit = req.user?.nombreCompleto || "Recepci\xF3n";
+      await connection.query(
+        `INSERT INTO orden_bitacora (orden_id, usuario_id, autor_nombre, autor_rol, titulo, descripcion, estado_nuevo, fecha)
+         VALUES (?, ?, ?, 'RECEPCION', 'Ingreso al Taller', ?, 'RECEPCIONADO', NOW())`,
+        [
+          ordenRes.insertId,
+          recepcionadoPorId,
+          autorInit,
+          `Equipo ingresado con motivo / falla: "${fallaReportada ? String(fallaReportada).trim() : "Revisi\xF3n general"}".`
+        ]
+      );
+    } catch (bitErr) {
+      console.warn("No se pudo insertar bit\xE1cora inicial (continuando):", bitErr);
+    }
     await connection.commit();
     res.status(201).json({
       success: true,
@@ -6048,7 +6114,16 @@ async function savePresupuestoOrden(req, res) {
   const connection = await pool.getConnection();
   try {
     const ordenId = Number(req.params.id);
-    const { repuestos = [], serviciosManoObra = [], costoTotal } = req.body;
+    const {
+      repuestos = [],
+      serviciosManoObra = [],
+      costoTotal,
+      titulo,
+      comentario,
+      observaciones,
+      pasarAPresupuestado,
+      nuevoEstado
+    } = req.body;
     if (!ordenId || isNaN(ordenId)) {
       res.status(400).json({ success: false, message: "ID de orden inv\xE1lido." });
       return;
@@ -6098,10 +6173,42 @@ async function savePresupuestoOrden(req, res) {
     const totRep = repuestos.reduce((sum, r) => sum + (Number(r.total) || Number(r.cantidad || 1) * Number(r.precioUnitario || 0)), 0);
     const totMo = serviciosManoObra.reduce((sum, s) => sum + (Number(s.precio) || 0), 0);
     const finalCosto = costoTotal !== void 0 ? Number(costoTotal) : totRep + totMo;
-    await connection.query(
-      "UPDATE ordenes_servicio SET costo_servicio = ?, updated_at = NOW() WHERE id = ?",
-      [finalCosto, ordenId]
-    );
+    const shouldPresupuestar = pasarAPresupuestado === true || nuevoEstado === "PRESUPUESTADO";
+    if (shouldPresupuestar) {
+      await connection.query(
+        "UPDATE ordenes_servicio SET costo_servicio = ?, estado_orden_id = 3, updated_at = NOW() WHERE id = ?",
+        [finalCosto, ordenId]
+      );
+    } else {
+      await connection.query(
+        "UPDATE ordenes_servicio SET costo_servicio = ?, updated_at = NOW() WHERE id = ?",
+        [finalCosto, ordenId]
+      );
+    }
+    try {
+      const autorNombre = req.user?.nombreCompleto || "T\xE9cnico Especialista";
+      const autorRol = req.user?.rol || "TECNICO";
+      const descRep = repuestos.map((r) => `${r.descripcion} (S/ ${Number(r.total || 0).toFixed(2)})`).join(", ") || "Sin repuestos de almac\xE9n";
+      const descServ = serviciosManoObra.map((s) => `${s.descripcion} (S/ ${Number(s.precio || 0).toFixed(2)})`).join(", ") || "Revisi\xF3n t\xE9cnica";
+      const defaultDesc = `Costos calculados: Total S/ ${finalCosto.toFixed(2)} (Repuestos: ${descRep} | Servicios: ${descServ}). Esperando confirmaci\xF3n del cliente.`;
+      const bitacoraTitulo = String(titulo || "\u{1F4CB} Presupuesto Elaborado para Aprobaci\xF3n").trim();
+      const bitacoraDesc = String(comentario || observaciones || defaultDesc).trim();
+      await connection.query(
+        `INSERT INTO orden_bitacora (orden_id, usuario_id, autor_nombre, autor_rol, titulo, descripcion, estado_nuevo, fecha)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [
+          ordenId,
+          req.user?.userId || null,
+          autorNombre,
+          autorRol,
+          bitacoraTitulo,
+          bitacoraDesc,
+          shouldPresupuestar ? "PRESUPUESTADO" : ESTADO_INV_MAP[orden.estado_orden_id] || "EN_DIAGNOSTICO"
+        ]
+      );
+    } catch (bitErr) {
+      console.warn("Error al guardar bit\xE1cora en presupuesto (continuando):", bitErr);
+    }
     if (orden.estado_orden_id === 4 || orden.estado_orden_id === 5) {
       await descontarStockRepuestos(connection, ordenId, orden.codigo);
     }
@@ -6122,7 +6229,7 @@ async function savePresupuestoOrden(req, res) {
 async function updateEstadoOrden(req, res) {
   try {
     const ordenId = Number(req.params.id);
-    const { nuevoEstado, diagnostico, solucion, costoServicio, observaciones } = req.body;
+    const { nuevoEstado, diagnostico, solucion, costoServicio, observaciones, titulo, descripcion } = req.body;
     if (!ordenId || isNaN(ordenId)) {
       res.status(400).json({ success: false, message: "ID de orden inv\xE1lido." });
       return;
@@ -6175,6 +6282,19 @@ async function updateEstadoOrden(req, res) {
       await descontarStockRepuestos(pool, ordenId, orden.codigo);
     } else if (estadoId === 9) {
       await restaurarStockRepuestos(pool, ordenId, orden.codigo);
+    }
+    try {
+      const autorNombre = req.user?.nombreCompleto || "Usuario";
+      const autorRol = req.user?.rol || "TECNICO";
+      const bitacoraTitulo = String(titulo || (nuevoEstado === "PRESUPUESTADO" ? "\u{1F4CB} Presupuesto Elaborado para Aprobaci\xF3n" : `Avance: ${nuevoEstado}`)).trim();
+      const bitacoraDesc = String(descripcion || observaciones || diagnostico || solucion || `Avance t\xE9cnico registrado con estado ${nuevoEstado}.`).trim();
+      await pool.query(
+        `INSERT INTO orden_bitacora (orden_id, usuario_id, autor_nombre, autor_rol, titulo, descripcion, estado_nuevo, fecha)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [ordenId, req.user?.userId || null, autorNombre, autorRol, bitacoraTitulo, bitacoraDesc, nuevoEstado]
+      );
+    } catch (bitErr) {
+      console.warn("Error al insertar orden_bitacora en updateEstadoOrden (continuando):", bitErr);
     }
     res.json({
       success: true,
@@ -6338,6 +6458,41 @@ async function getTrackingPublico(req, res) {
     const costoTotal = Number(r.costoTotal) || costoTotalRepuestos + costoTotalManoObra;
     const accesoriosArr = r.accesorios ? typeof r.accesorios === "string" && r.accesorios.includes(",") ? r.accesorios.split(",").map((a) => a.trim()) : [r.accesorios] : ["Solo equipo"];
     const estadoKey = ESTADO_INV_MAP[r.estadoOrdenId] || "RECEPCIONADO";
+    let bitacoraFinal = [];
+    try {
+      const [bitacoraRows] = await pool.query(
+        `SELECT id, autor_nombre AS autorNombre, autor_rol AS autorRol,
+                titulo, descripcion, estado_nuevo AS estadoNuevo, fecha
+         FROM orden_bitacora
+         WHERE orden_id = ?
+         ORDER BY fecha DESC, id DESC`,
+        [r.id]
+      );
+      bitacoraFinal = bitacoraRows.map((b) => ({
+        id: `b-${b.id}`,
+        fecha: new Date(b.fecha).toLocaleString("es-PE", { hour12: false }),
+        autorNombre: b.autorNombre || "Taller",
+        autorRol: b.autorRol || "TECNICO",
+        titulo: b.titulo || "Avance",
+        descripcion: b.descripcion || "",
+        estadoNuevo: b.estadoNuevo
+      }));
+    } catch (err) {
+      console.warn("Bitacora query error in getOrdenById:", err);
+    }
+    if (bitacoraFinal.length === 0) {
+      bitacoraFinal = [
+        {
+          id: `b-${r.id}-curr`,
+          fecha: new Date(r.fechaIngreso).toLocaleString("es-PE", { hour12: false }),
+          autorNombre: r.recepcionadoPorNombre || "Soporte T\xE9cnico",
+          autorRol: "SISTEMA",
+          titulo: estadoKey === "PRESUPUESTADO" ? "\u{1F4CB} Presupuesto Elaborado para Aprobaci\xF3n" : `Estado: ${r.estadoNombre}`,
+          descripcion: r.observaciones || `Equipo en estado actual: ${r.estadoNombre}`,
+          estadoNuevo: estadoKey
+        }
+      ];
+    }
     const orden = {
       id: r.id,
       codigo: r.codigo,
@@ -6369,17 +6524,7 @@ async function getTrackingPublico(req, res) {
       costoTotal,
       adelantoPagado: 0,
       saldoPendiente: costoTotal,
-      bitacora: [
-        {
-          id: `b-${r.id}-curr`,
-          fecha: new Date(r.fechaIngreso).toLocaleString("es-PE", { hour12: false }),
-          autorNombre: r.recepcionadoPorNombre || "Soporte T\xE9cnico",
-          autorRol: "SISTEMA",
-          titulo: estadoKey === "PRESUPUESTADO" ? "\u{1F4CB} Presupuesto Elaborado para Aprobaci\xF3n" : `Estado: ${r.estadoNombre}`,
-          descripcion: r.observaciones || `Equipo en estado actual: ${r.estadoNombre}`,
-          estadoNuevo: estadoKey
-        }
-      ],
+      bitacora: bitacoraFinal,
       comunicaciones: [],
       garantiaDias: r.codigo.startsWith("GAR") ? 180 : 90
     };

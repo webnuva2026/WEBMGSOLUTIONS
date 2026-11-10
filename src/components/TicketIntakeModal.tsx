@@ -287,7 +287,6 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
   const effectiveFalla = fallaPorSelector ? impresoraFalla : newOrderFalla;
   const [monitorBase, setMonitorBase] = useState<string>('Con base/pie original');
   const [monitorConector, setMonitorConector] = useState<string>('HDMI');
-  const [customAccesorio, setCustomAccesorio] = useState<string>('');
 
   // Limpiar/ajustar clave de forma automática cuando cambia de tipo de equipo
   React.useEffect(() => {
@@ -297,67 +296,6 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
       setNewOrderPassword('');
     }
   }, [tipoEquipoBehavior]);
-
-  // Presets de accesorios según categoría
-  const ACCESORIOS_PRESETS: Record<'COMPUTO' | 'IMPRESORA' | 'MONITOR' | 'GENERAL', string[]> = {
-    COMPUTO: [
-      'Solo equipo',
-      'Cargador Original',
-      'Cargador Genérico',
-      'Cable de Poder',
-      'Funda / Maletín',
-      'Mouse',
-    ],
-    IMPRESORA: [
-      'Solo equipo',
-      'Cable de Poder',
-      'Transformador / Adaptador',
-      'Cable USB Impresora',
-      'Bandeja de Papel',
-      'Frascos de Tinta',
-    ],
-    MONITOR: [
-      'Solo equipo',
-      'Adaptador 12V/19V',
-      'Cable de Poder Directo',
-      'Cable HDMI',
-      'Cable VGA',
-      'Base de pie incluida',
-    ],
-    GENERAL: [
-      'Solo equipo',
-      'Cable de Poder',
-      'Cargador / Transformador',
-      'Caja original',
-    ],
-  };
-
-  const handleToggleAccesorio = (acc: string) => {
-    setNewOrderAccesorios((prev) => {
-      if (acc === 'Solo equipo') {
-        return prev.includes('Solo equipo') ? [] : ['Solo equipo'];
-      }
-      const sinSoloEquipo = prev.filter((x) => x !== 'Solo equipo');
-      if (sinSoloEquipo.includes(acc)) {
-        return sinSoloEquipo.filter((x) => x !== acc);
-      } else {
-        return [...sinSoloEquipo, acc];
-      }
-    });
-  };
-
-  const handleAddCustomAccesorio = () => {
-    const item = customAccesorio.trim();
-    if (!item) return;
-    setNewOrderAccesorios((prev) => {
-      const sinSoloEquipo = prev.filter((x) => x !== 'Solo equipo');
-      if (!sinSoloEquipo.includes(item)) {
-        return [...sinSoloEquipo, item];
-      }
-      return sinSoloEquipo;
-    });
-    setCustomAccesorio('');
-  };
 
   // Validación de checklist de garantía
   const checklistGarantiaCompleto =
@@ -1229,68 +1167,6 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
                     </div>
                   </div>
                 )}
-
-                {/* ACCESORIOS DEJADOS CONTEXTUALES */}
-                <div className="pt-2 border-t border-slate-100">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1.5">
-                    <label className="block font-bold text-slate-700 text-xs">
-                      Accesorios Recibidos / Dejados por el Cliente
-                    </label>
-                    <span className="text-[10px] text-slate-400">
-                      Haga clic para marcar o desmarcar
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {ACCESORIOS_PRESETS[tipoEquipoBehavior].map((acc) => {
-                      const isSelected = newOrderAccesorios.includes(acc);
-                      return (
-                        <button
-                          key={acc}
-                          type="button"
-                          onClick={() => handleToggleAccesorio(acc)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 ${
-                            isSelected
-                              ? 'bg-[#00346F] text-white border-[#00346F] shadow-2xs'
-                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                          }`}
-                        >
-                          <span
-                            className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] font-bold ${
-                              isSelected ? 'bg-white text-[#00346F]' : 'border border-slate-300 bg-white'
-                            }`}
-                          >
-                            {isSelected ? '✓' : ''}
-                          </span>
-                          <span>{acc}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <div className="flex gap-2 items-center">
-                    <input
-                      type="text"
-                      value={customAccesorio}
-                      onChange={(e) => setCustomAccesorio(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddCustomAccesorio();
-                        }
-                      }}
-                      placeholder="Otro accesorio adicional (ej: Cable especial, Mochila, etc.)..."
-                      className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:border-[#00346F]"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddCustomAccesorio}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs cursor-pointer border border-slate-300 transition-colors"
-                    >
-                      + Añadir
-                    </button>
-                  </div>
-                </div>
               </div>
 
               {/* 5. FALLA REPORTADA Y ACCESORIOS */}
@@ -1298,14 +1174,14 @@ export const TicketIntakeModal: React.FC<TicketIntakeModalProps> = ({
                 {!fallaPorSelector && (
                 <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">
-                    Falla / Motivo de Ingreso Reportado por el Cliente *
+                    Falla / Motivo de Ingreso & Accesorios Dejados *
                   </label>
                   <textarea
                     required
-                    rows={2}
+                    rows={3}
                     value={newOrderFalla}
                     onChange={(e) => setNewOrderFalla(e.target.value)}
-                    placeholder="Detalle exactamente lo que informa el cliente: no enciende, pantalla azul, lentitud, bisagra rota..."
+                    placeholder="Detalle exactamente la falla reportada y accesorios entregados por el cliente (ej: No enciende; deja cargador original y funda)..."
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
                   />
                 </div>

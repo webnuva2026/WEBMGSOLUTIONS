@@ -70,6 +70,8 @@ export const workshopService = {
     ordenId: number,
     payload: {
       nuevoEstado: EstadoOrdenServicio;
+      titulo?: string;
+      descripcion?: string;
       diagnostico?: string;
       solucion?: string;
       costoServicio?: number;
@@ -95,6 +97,10 @@ export const workshopService = {
       repuestos: any[];
       serviciosManoObra: any[];
       costoTotal?: number;
+      titulo?: string;
+      comentario?: string;
+      observaciones?: string;
+      pasarAPresupuestado?: boolean;
     }
   ): Promise<WorkshopResponse> {
     try {

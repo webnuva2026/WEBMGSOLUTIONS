@@ -102,7 +102,6 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
 
   // Checkout State
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('BOLETA');
-  const [isConsumidorFinal, setIsConsumidorFinal] = useState<boolean>(true);
   const [selectedClientId, setSelectedClientId] = useState<number | undefined>(
     () => clientes.find((c) => c.estado === 'ACTIVO')?.id
   );
@@ -322,19 +321,6 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
       );
     });
   }, [cart, productos]);
-
-  // Si entra un producto con garantía (como laptop) y estaba en Consumidor Final, cambiar automáticamente a Buscar Cliente
-  React.useEffect(() => {
-    if (requiresIdentifiedClient && isConsumidorFinal) {
-      setIsConsumidorFinal(false);
-      setIsClientSearchOpen(true);
-      onShowToast(
-        'Cliente Requerido para Garantía',
-        'La venta incluye Laptops o Equipos con garantía. Debe seleccionar o registrar un cliente.',
-        'info'
-      );
-    }
-  }, [requiresIdentifiedClient]);
 
   // Productos habilitados para venta en mostrador POS (incluyendo Repuestos & Pantallas comercializables)
   const posEligibleProducts = useMemo(() => {
@@ -675,7 +661,6 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
   // Client Selection
   const handleSelectClient = (cli: Cliente) => {
     setSelectedClientId(cli.id);
-    setIsConsumidorFinal(false);
     setIsClientSearchOpen(false);
     setClientSearchQuery('');
     if (cli.tipoDocumento === 'RUC') {
@@ -718,24 +703,9 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
       return;
     }
 
-    if (!isConsumidorFinal && !selectedClient) {
-      onShowToast('Cliente requerido', 'Seleccione un cliente o marque Consumidor Final.', 'warning');
-      return;
-    }
-
-    if (requiresIdentifiedClient && (isConsumidorFinal || !selectedClient)) {
-      onShowToast(
-        'Cliente Obligatorio por Garantía',
-        'La compra de una Laptop o equipo con garantía requiere obligatoriamente registrar o asociar un cliente para activar su póliza de cobertura.',
-        'warning'
-      );
-      setIsConsumidorFinal(false);
+    if (!selectedClient) {
+      onShowToast('Cliente requerido', 'Seleccione o registre un cliente para procesar la venta.', 'warning');
       setIsClientSearchOpen(true);
-      return;
-    }
-
-    if (tipoComprobante === 'FACTURA' && isConsumidorFinal) {
-      onShowToast('Factura requiere RUC', 'Para emitir Factura Electrónica debe seleccionar un cliente con RUC.', 'error');
       return;
     }
 
@@ -776,7 +746,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
       const finalSucursalId = targetSuc ? targetSuc.id : (currentUser?.sucursalId || 1);
 
       const salePayload: CreateVentaPayload = {
-        clienteId: isConsumidorFinal ? 0 : (selectedClient?.id || 0),
+        clienteId: selectedClient.id,
         tipoComprobanteId: tipoCompId,
         metodoPagoId: metodoId,
         sucursalId: finalSucursalId,
@@ -806,10 +776,10 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
         id: res.venta?.id || Date.now(),
         codigoComprobante: codigoComprobanteFinal,
         tipoComprobante,
-        clienteId: isConsumidorFinal ? undefined : selectedClient?.id,
-        clienteDocumento: isConsumidorFinal ? '00000000' : selectedClient?.numeroDocumento || '00000000',
-        clienteNombre: isConsumidorFinal ? 'CLIENTES VARIOS / CONSUMIDOR FINAL' : selectedClient?.razonSocial || 'CLIENTE',
-        clienteDireccion: isConsumidorFinal ? 'Chiclayo' : selectedClient?.direccionFiscal,
+        clienteId: selectedClient.id,
+        clienteDocumento: selectedClient.numeroDocumento || '00000000',
+        clienteNombre: selectedClient.razonSocial || 'CLIENTE',
+        clienteDireccion: selectedClient.direccionFiscal,
         vendedorId: currentUser.id,
         vendedorNombre: currentUser.nombreCompleto,
         sucursal: activeSucursalNombre,
@@ -1703,131 +1673,72 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                   </button>
                 </div>
 
-                {/* Alerta de Cliente Requerido para Laptops / Equipos con Garantía */}
-                {requiresIdentifiedClient && (
-                  <div className="mb-2 p-2 bg-amber-50 border border-amber-300 rounded-lg text-[11px] text-amber-900 flex items-start gap-2 shadow-xs animate-in fade-in">
-                    <ShieldAlert className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold text-amber-900">Cliente Obligatorio por Garantía</p>
-                      <p className="text-[10px] text-amber-800 leading-tight mt-0.5">
-                        El carrito contiene laptops o equipos con garantía oficial. Debe seleccionar o registrar un cliente para la emisión de la póliza.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (requiresIdentifiedClient) {
-                        onShowToast(
-                          'No permitido para laptops',
-                          'Las Laptops y equipos requieren asociar un cliente específico para el registro de su garantía.',
-                          'warning'
-                        );
-                        return;
-                      }
-                      setIsConsumidorFinal(true);
-                      setIsClientSearchOpen(false);
-                      if (tipoComprobante === 'FACTURA') setTipoComprobante('BOLETA');
-                    }}
-                    disabled={requiresIdentifiedClient}
-                    title={requiresIdentifiedClient ? 'Deshabilitado: La venta contiene equipos con garantía' : ''}
-                    className={`py-1 px-2 rounded-lg font-bold text-[11px] border transition-all text-center ${requiresIdentifiedClient
-                      ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
-                      : isConsumidorFinal
-                        ? 'bg-[#00346F] text-white border-[#00346F]'
-                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                      }`}
-                  >
-                    Consumidor Final
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsConsumidorFinal(false);
-                      setIsClientSearchOpen(true);
-                    }}
-                    className={`py-1 px-2 rounded-lg font-bold text-[11px] border transition-all text-center ${!isConsumidorFinal
-                      ? 'bg-[#00346F] text-white border-[#00346F]'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                      }`}
-                  >
-                    Buscar Cliente
-                  </button>
-                </div>
-
-
                 {/* Selected Client Card or Search Combobox */}
-                {!isConsumidorFinal && (
-                  <div className="space-y-1.5">
-                    {selectedClient && !isClientSearchOpen ? (
-                      <div className="p-2 bg-white border border-blue-200 rounded-lg flex items-center justify-between">
-                        <div>
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${selectedClient.tipoDocumento === 'RUC'
-                              ? 'bg-blue-100 text-[#00346F]'
-                              : 'bg-emerald-100 text-emerald-800'
-                              }`}
-                          >
-                            {selectedClient.tipoDocumento} {selectedClient.numeroDocumento}
-                          </span>
-                          <p className="font-bold text-slate-800 text-[11px] mt-0.5 line-clamp-1">
-                            {selectedClient.razonSocial}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setIsClientSearchOpen(true)}
-                          className="text-[10px] font-bold text-[#00346F] hover:underline"
+                <div className="space-y-1.5">
+                  {selectedClient && !isClientSearchOpen ? (
+                    <div className="p-2 bg-white border border-blue-200 rounded-lg flex items-center justify-between">
+                      <div>
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${selectedClient.tipoDocumento === 'RUC'
+                            ? 'bg-blue-100 text-[#00346F]'
+                            : 'bg-emerald-100 text-emerald-800'
+                            }`}
                         >
-                          Cambiar
-                        </button>
+                          {selectedClient.tipoDocumento} {selectedClient.numeroDocumento}
+                        </span>
+                        <p className="font-bold text-slate-800 text-[11px] mt-0.5 line-clamp-1">
+                          {selectedClient.razonSocial}
+                        </p>
                       </div>
-                    ) : (
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={clientSearchQuery}
-                          onChange={(e) => setClientSearchQuery(e.target.value)}
-                          placeholder="Buscar por RUC, DNI o razón social..."
-                          className="w-full p-2 bg-white border border-blue-400 rounded-lg text-xs font-medium focus:outline-none"
-                        />
-                        <div className="mt-1 max-h-36 overflow-y-auto border border-slate-200 rounded-lg bg-white divide-y divide-slate-100 shadow-lg">
-                          {clientes
-                            .filter((c) => {
-                              if (c.estado !== 'ACTIVO') return false;
-                              if (!clientSearchQuery.trim()) return true;
-                              const q = clientSearchQuery.toLowerCase();
-                              return (
-                                c.razonSocial.toLowerCase().includes(q) ||
-                                c.numeroDocumento.includes(q)
-                              );
-                            })
-                            .slice(0, 8)
-                            .map((cli) => (
-                              <div
-                                key={cli.id}
-                                onClick={() => handleSelectClient(cli)}
-                                className="p-2 hover:bg-blue-50 cursor-pointer flex justify-between items-center"
-                              >
-                                <div>
-                                  <span className="font-mono text-[9px] font-bold text-slate-500">
-                                    [{cli.tipoDocumento} {cli.numeroDocumento}]
-                                  </span>
-                                  <p className="font-semibold text-slate-800 text-[11px]">
-                                    {cli.razonSocial}
-                                  </p>
-                                </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsClientSearchOpen(true)}
+                        className="text-[10px] font-bold text-[#00346F] hover:underline"
+                      >
+                        Cambiar
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={clientSearchQuery}
+                        onChange={(e) => setClientSearchQuery(e.target.value)}
+                        placeholder="Buscar por RUC, DNI o razón social..."
+                        className="w-full p-2 bg-white border border-blue-400 rounded-lg text-xs font-medium focus:outline-none"
+                      />
+                      <div className="mt-1 max-h-36 overflow-y-auto border border-slate-200 rounded-lg bg-white divide-y divide-slate-100 shadow-lg">
+                        {clientes
+                          .filter((c) => {
+                            if (c.estado !== 'ACTIVO') return false;
+                            if (!clientSearchQuery.trim()) return true;
+                            const q = clientSearchQuery.toLowerCase();
+                            return (
+                              c.razonSocial.toLowerCase().includes(q) ||
+                              c.numeroDocumento.includes(q)
+                            );
+                          })
+                          .slice(0, 8)
+                          .map((cli) => (
+                            <div
+                              key={cli.id}
+                              onClick={() => handleSelectClient(cli)}
+                              className="p-2 hover:bg-blue-50 cursor-pointer flex justify-between items-center"
+                            >
+                              <div>
+                                <span className="font-mono text-[9px] font-bold text-slate-500">
+                                  [{cli.tipoDocumento} {cli.numeroDocumento}]
+                                </span>
+                                <p className="font-semibold text-slate-800 text-[11px]">
+                                  {cli.razonSocial}
+                                </p>
                               </div>
-                            ))}
-                        </div>
+                            </div>
+                          ))}
                       </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Document Type Selector */}

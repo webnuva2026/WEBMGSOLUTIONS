@@ -43,6 +43,29 @@ const PRIORIDAD_INV_MAP: Record<number, 'NORMAL' | 'ALTA' | 'URGENTE'> = {
   3: 'URGENTE',
 };
 
+// Crear tabla de bitácora si no existe para almacenar el historial completo de avances y presupuestos
+async function initWorkshopBitacoraTable(): Promise<void> {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS orden_bitacora (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        orden_id INT NOT NULL,
+        usuario_id INT NULL,
+        autor_nombre VARCHAR(150) NOT NULL,
+        autor_rol VARCHAR(50) NOT NULL,
+        titulo VARCHAR(255) NOT NULL,
+        descripcion TEXT NULL,
+        estado_nuevo VARCHAR(50) NOT NULL,
+        fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_orden_bitacora_orden (orden_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+  } catch (err) {
+    console.warn('initWorkshopBitacoraTable fallback:', err);
+  }
+}
+initWorkshopBitacoraTable();
+
 /**
  * GET /api/taller/ordenes
  * Listado completo de órdenes de trabajo en taller con cliente, equipo, técnico y estado
@@ -157,6 +180,36 @@ export async function getOrdenes(req: Request, res: Response): Promise<void> {
       });
     }
 
+    // Consultar bitácora e historial de todas las órdenes cargadas
+    const orderIds = rows.map((r) => r.id);
+    const bitacorasMap = new Map<number, any[]>();
+    if (orderIds.length > 0) {
+      try {
+        const [bitacoraRows] = await pool.query<RowDataPacket[]>(
+          `SELECT id, orden_id, autor_nombre AS autorNombre, autor_rol AS autorRol,
+                  titulo, descripcion, estado_nuevo AS estadoNuevo, fecha
+           FROM orden_bitacora
+           WHERE orden_id IN (?)
+           ORDER BY fecha DESC, id DESC`,
+          [orderIds]
+        );
+        for (const b of bitacoraRows) {
+          if (!bitacorasMap.has(b.orden_id)) bitacorasMap.set(b.orden_id, []);
+          bitacorasMap.get(b.orden_id)!.push({
+            id: `b-${b.id}`,
+            fecha: new Date(b.fecha).toLocaleString('es-PE', { hour12: false }),
+            autorNombre: b.autorNombre || 'Taller',
+            autorRol: b.autorRol || 'TECNICO',
+            titulo: b.titulo || 'Avance',
+            descripcion: b.descripcion || '',
+            estadoNuevo: b.estadoNuevo,
+          });
+        }
+      } catch (err) {
+        console.warn('Bitacora table query error or not created yet:', err);
+      }
+    }
+
     const ordenes = rows.map((r) => {
       const accesoriosArr = r.accesorios
         ? (typeof r.accesorios === 'string' && r.accesorios.includes(',')
@@ -169,6 +222,19 @@ export async function getOrdenes(req: Request, res: Response): Promise<void> {
       const costoTotalRepuestos = repuestos.reduce((sum: number, x: any) => sum + (Number(x.total) || 0), 0);
       const costoTotalManoObra = serviciosManoObra.reduce((sum: number, x: any) => sum + (Number(x.precio) || 0), 0);
       const costoTotal = Number(r.costoTotal) || (costoTotalRepuestos + costoTotalManoObra);
+
+      const dbBitacora = bitacorasMap.get(r.id) || [];
+      const bitacoraFinal = dbBitacora.length > 0 ? dbBitacora : [
+        {
+          id: `b-${r.id}-init`,
+          fecha: new Date(r.fechaIngreso).toLocaleString('es-PE', { hour12: false }),
+          autorNombre: r.recepcionadoPorNombre || 'Recepción',
+          autorRol: 'RECEPCION',
+          titulo: 'Ingreso al Taller',
+          descripcion: `Equipo ingresado con falla: "${r.fallaReportada}". Asignado a: ${r.tecnicoNombre || 'Laboratorio'}.`,
+          estadoNuevo: (ESTADO_INV_MAP[r.estadoOrdenId] || 'RECEPCIONADO') as any,
+        },
+      ];
 
       return {
         id: r.id,
@@ -205,17 +271,7 @@ export async function getOrdenes(req: Request, res: Response): Promise<void> {
         costoTotal,
         adelantoPagado: 0,
         saldoPendiente: costoTotal,
-        bitacora: [
-          {
-            id: `b-${r.id}-init`,
-            fecha: new Date(r.fechaIngreso).toLocaleString('es-PE', { hour12: false }),
-            autorNombre: r.recepcionadoPorNombre || 'Recepción',
-            autorRol: 'RECEPCION',
-            titulo: 'Ingreso al Taller',
-            descripcion: `Equipo ingresado con falla: "${r.fallaReportada}". Asignado a: ${r.tecnicoNombre || 'Laboratorio'}.`,
-            estadoNuevo: (ESTADO_INV_MAP[r.estadoOrdenId] || 'RECEPCIONADO') as any,
-          },
-        ],
+        bitacora: bitacoraFinal,
         comunicaciones: [],
         garantiaDias: r.codigo.startsWith('GAR') ? 180 : 90,
       };
@@ -344,6 +400,23 @@ export async function createOrden(req: AuthenticatedRequest, res: Response): Pro
       ]
     );
 
+    // 6. Registrar entrada inicial en `orden_bitacora`
+    try {
+      const autorInit = req.user?.nombreCompleto || 'Recepción';
+      await connection.query(
+        `INSERT INTO orden_bitacora (orden_id, usuario_id, autor_nombre, autor_rol, titulo, descripcion, estado_nuevo, fecha)
+         VALUES (?, ?, ?, 'RECEPCION', 'Ingreso al Taller', ?, 'RECEPCIONADO', NOW())`,
+        [
+          ordenRes.insertId,
+          recepcionadoPorId,
+          autorInit,
+          `Equipo ingresado con motivo / falla: "${fallaReportada ? String(fallaReportada).trim() : 'Revisión general'}".`,
+        ]
+      );
+    } catch (bitErr) {
+      console.warn('No se pudo insertar bitácora inicial (continuando):', bitErr);
+    }
+
     await connection.commit();
 
     res.status(201).json({
@@ -453,7 +526,16 @@ export async function savePresupuestoOrden(req: AuthenticatedRequest, res: Respo
   const connection = await pool.getConnection();
   try {
     const ordenId = Number(req.params.id);
-    const { repuestos = [], serviciosManoObra = [], costoTotal } = req.body;
+    const {
+      repuestos = [],
+      serviciosManoObra = [],
+      costoTotal,
+      titulo,
+      comentario,
+      observaciones,
+      pasarAPresupuestado,
+      nuevoEstado,
+    } = req.body;
 
     if (!ordenId || isNaN(ordenId)) {
       res.status(400).json({ success: false, message: 'ID de orden inválido.' });
@@ -517,10 +599,47 @@ export async function savePresupuestoOrden(req: AuthenticatedRequest, res: Respo
     const totMo = serviciosManoObra.reduce((sum: number, s: any) => sum + (Number(s.precio) || 0), 0);
     const finalCosto = costoTotal !== undefined ? Number(costoTotal) : (totRep + totMo);
 
-    await connection.query(
-      'UPDATE ordenes_servicio SET costo_servicio = ?, updated_at = NOW() WHERE id = ?',
-      [finalCosto, ordenId]
-    );
+    const shouldPresupuestar = pasarAPresupuestado === true || nuevoEstado === 'PRESUPUESTADO';
+
+    if (shouldPresupuestar) {
+      await connection.query(
+        'UPDATE ordenes_servicio SET costo_servicio = ?, estado_orden_id = 3, updated_at = NOW() WHERE id = ?',
+        [finalCosto, ordenId]
+      );
+    } else {
+      await connection.query(
+        'UPDATE ordenes_servicio SET costo_servicio = ?, updated_at = NOW() WHERE id = ?',
+        [finalCosto, ordenId]
+      );
+    }
+
+    // Insertar entrada de bitácora con el título y comentario del técnico
+    try {
+      const autorNombre = req.user?.nombreCompleto || 'Técnico Especialista';
+      const autorRol = req.user?.rol || 'TECNICO';
+      const descRep = repuestos.map((r: any) => `${r.descripcion} (S/ ${Number(r.total || 0).toFixed(2)})`).join(', ') || 'Sin repuestos de almacén';
+      const descServ = serviciosManoObra.map((s: any) => `${s.descripcion} (S/ ${Number(s.precio || 0).toFixed(2)})`).join(', ') || 'Revisión técnica';
+      const defaultDesc = `Costos calculados: Total S/ ${finalCosto.toFixed(2)} (Repuestos: ${descRep} | Servicios: ${descServ}). Esperando confirmación del cliente.`;
+      
+      const bitacoraTitulo = String(titulo || '📋 Presupuesto Elaborado para Aprobación').trim();
+      const bitacoraDesc = String(comentario || observaciones || defaultDesc).trim();
+
+      await connection.query(
+        `INSERT INTO orden_bitacora (orden_id, usuario_id, autor_nombre, autor_rol, titulo, descripcion, estado_nuevo, fecha)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [
+          ordenId,
+          req.user?.userId || null,
+          autorNombre,
+          autorRol,
+          bitacoraTitulo,
+          bitacoraDesc,
+          shouldPresupuestar ? 'PRESUPUESTADO' : (ESTADO_INV_MAP[orden.estado_orden_id] || 'EN_DIAGNOSTICO'),
+        ]
+      );
+    } catch (bitErr) {
+      console.warn('Error al guardar bitácora en presupuesto (continuando):', bitErr);
+    }
 
     // Si la orden ya está en APROBADO_EN_REPARACION (4) o ESPERA_REPUESTOS (5), descontar stock de los repuestos (Punto 2)
     if (orden.estado_orden_id === 4 || orden.estado_orden_id === 5) {
@@ -550,7 +669,7 @@ export async function savePresupuestoOrden(req: AuthenticatedRequest, res: Respo
 export async function updateEstadoOrden(req: AuthenticatedRequest, res: Response): Promise<void> {
   try {
     const ordenId = Number(req.params.id);
-    const { nuevoEstado, diagnostico, solucion, costoServicio, observaciones } = req.body;
+    const { nuevoEstado, diagnostico, solucion, costoServicio, observaciones, titulo, descripcion } = req.body;
 
     if (!ordenId || isNaN(ordenId)) {
       res.status(400).json({ success: false, message: 'ID de orden inválido.' });
@@ -616,6 +735,22 @@ export async function updateEstadoOrden(req: AuthenticatedRequest, res: Response
     } else if (estadoId === 9) {
       // RECHAZADO_DEVUELTO -> Devolver stock a la sede
       await restaurarStockRepuestos(pool, ordenId, orden.codigo);
+    }
+
+    // Registrar en `orden_bitacora` para persistir título y comentarios de avances
+    try {
+      const autorNombre = req.user?.nombreCompleto || 'Usuario';
+      const autorRol = req.user?.rol || 'TECNICO';
+      const bitacoraTitulo = String(titulo || (nuevoEstado === 'PRESUPUESTADO' ? '📋 Presupuesto Elaborado para Aprobación' : `Avance: ${nuevoEstado}`)).trim();
+      const bitacoraDesc = String(descripcion || observaciones || diagnostico || solucion || `Avance técnico registrado con estado ${nuevoEstado}.`).trim();
+
+      await pool.query(
+        `INSERT INTO orden_bitacora (orden_id, usuario_id, autor_nombre, autor_rol, titulo, descripcion, estado_nuevo, fecha)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [ordenId, req.user?.userId || null, autorNombre, autorRol, bitacoraTitulo, bitacoraDesc, nuevoEstado]
+      );
+    } catch (bitErr) {
+      console.warn('Error al insertar orden_bitacora en updateEstadoOrden (continuando):', bitErr);
     }
 
     res.json({
@@ -810,6 +945,43 @@ export async function getTrackingPublico(req: Request, res: Response): Promise<v
 
     const estadoKey = (ESTADO_INV_MAP[r.estadoOrdenId] || 'RECEPCIONADO') as any;
 
+    let bitacoraFinal: any[] = [];
+    try {
+      const [bitacoraRows] = await pool.query<RowDataPacket[]>(
+        `SELECT id, autor_nombre AS autorNombre, autor_rol AS autorRol,
+                titulo, descripcion, estado_nuevo AS estadoNuevo, fecha
+         FROM orden_bitacora
+         WHERE orden_id = ?
+         ORDER BY fecha DESC, id DESC`,
+        [r.id]
+      );
+      bitacoraFinal = bitacoraRows.map((b) => ({
+        id: `b-${b.id}`,
+        fecha: new Date(b.fecha).toLocaleString('es-PE', { hour12: false }),
+        autorNombre: b.autorNombre || 'Taller',
+        autorRol: b.autorRol || 'TECNICO',
+        titulo: b.titulo || 'Avance',
+        descripcion: b.descripcion || '',
+        estadoNuevo: b.estadoNuevo,
+      }));
+    } catch (err) {
+      console.warn('Bitacora query error in getOrdenById:', err);
+    }
+
+    if (bitacoraFinal.length === 0) {
+      bitacoraFinal = [
+        {
+          id: `b-${r.id}-curr`,
+          fecha: new Date(r.fechaIngreso).toLocaleString('es-PE', { hour12: false }),
+          autorNombre: r.recepcionadoPorNombre || 'Soporte Técnico',
+          autorRol: 'SISTEMA',
+          titulo: estadoKey === 'PRESUPUESTADO' ? '📋 Presupuesto Elaborado para Aprobación' : `Estado: ${r.estadoNombre}`,
+          descripcion: r.observaciones || `Equipo en estado actual: ${r.estadoNombre}`,
+          estadoNuevo: estadoKey,
+        },
+      ];
+    }
+
     const orden = {
       id: r.id,
       codigo: r.codigo,
@@ -843,17 +1015,7 @@ export async function getTrackingPublico(req: Request, res: Response): Promise<v
       costoTotal,
       adelantoPagado: 0,
       saldoPendiente: costoTotal,
-      bitacora: [
-        {
-          id: `b-${r.id}-curr`,
-          fecha: new Date(r.fechaIngreso).toLocaleString('es-PE', { hour12: false }),
-          autorNombre: r.recepcionadoPorNombre || 'Soporte Técnico',
-          autorRol: 'SISTEMA',
-          titulo: estadoKey === 'PRESUPUESTADO' ? '📋 Presupuesto Elaborado para Aprobación' : `Estado: ${r.estadoNombre}`,
-          descripcion: r.observaciones || `Equipo en estado actual: ${r.estadoNombre}`,
-          estadoNuevo: estadoKey,
-        },
-      ],
+      bitacora: bitacoraFinal,
       comunicaciones: [],
       garantiaDias: r.codigo.startsWith('GAR') ? 180 : 90,
     };
