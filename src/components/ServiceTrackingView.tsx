@@ -639,10 +639,24 @@ export const ServiceTrackingView: React.FC<ServiceTrackingViewProps> = ({
         </div>
       )}
 
-      {/* Footer */}
-      <footer className="border-t border-slate-200/80 bg-white py-2.5 px-6 md:px-10 lg:px-14 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 gap-2">
-        <span className="font-medium">© 2026 MG SOLUTIONS GROUP S.A.C. • Todos los derechos reservados.</span>
-        <span>Chiclayo, Perú • Atención Lun - Sáb</span>
+      {/* Footer con Direcciones de Sedes */}
+      <footer className="border-t border-slate-200/80 bg-white py-3 px-6 md:px-10 lg:px-14 flex flex-col md:flex-row items-center justify-between text-[11px] text-slate-500 gap-3">
+        <div className="flex flex-col sm:flex-row items-center gap-1.5 sm:gap-3 text-center sm:text-left">
+          <span className="font-semibold text-slate-700">© 2026 MG SOLUTIONS GROUP S.A.C.</span>
+          <span className="hidden sm:inline text-slate-300">•</span>
+          <span>Todos los derechos reservados</span>
+        </div>
+        <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 text-center sm:text-right text-[11px]">
+          <span>
+            <strong className="text-slate-700">Sede Principal:</strong> Calle Juan Cuglievan 978 (Cercado)
+          </span>
+          <span className="hidden sm:inline text-slate-300">•</span>
+          <span>
+            <strong className="text-slate-700">Sede Pedro Ruiz:</strong> Av. Pedro Ruiz Gallo 948 Int. 606
+          </span>
+          <span className="hidden sm:inline text-slate-300">•</span>
+          <span className="text-slate-600 font-medium">Atención Lun - Sáb</span>
+        </div>
       </footer>
     </main>
   );

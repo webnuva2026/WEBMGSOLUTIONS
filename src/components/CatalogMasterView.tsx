@@ -1139,83 +1139,16 @@ export const CatalogMasterView: React.FC<CatalogMasterViewProps> = ({
             </div>
           )}
 
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
-            <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  value={searchModelo}
-                  onChange={(e) => setSearchModelo(e.target.value)}
-                  placeholder="Buscar modelo o especificación (ej: 'ThinkPad', 'Core i7', 'SSD 1TB', 'OLED')..."
-                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-[#00346F] focus:bg-white"
-                />
-              </div>
-
-              {!readOnly && (
-                <button
-                  onClick={() =>
-                    handleOpenNewModelo(
-                      selectedBrand
-                        ? selectedBrand.id
-                        : selectedMarcaFilter !== 'ALL'
-                        ? selectedMarcaFilter
-                        : undefined
-                    )
-                  }
-                  className="px-4 py-2 bg-[#00346F] hover:bg-[#004A99] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Nuevo Modelo</span>
-                </button>
-              )}
-            </div>
-
-            {/* Chips de filtro por marca */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 text-xs">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
-                Marca:
-              </span>
-              <button
-                onClick={() => {
-                  setSelectedMarcaFilter('ALL');
-                  setSelectedBrand(null);
-                }}
-                className={`px-3 py-1 rounded-full font-bold transition-all shrink-0 cursor-pointer ${
-                  selectedMarcaFilter === 'ALL'
-                    ? 'bg-[#00346F] text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                Todas ({marcas.length})
-              </button>
-              {marcas.map((m) => {
-                const count = (modelosPorMarca.get(m.id) || []).length;
-                const isSelected = selectedMarcaFilter === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => {
-                      setSelectedMarcaFilter(m.id);
-                      setSelectedBrand(m);
-                    }}
-                    className={`px-3 py-1 rounded-full font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
-                      isSelected
-                        ? 'bg-[#00346F] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    <span>{m.nombre}</span>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                        isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={searchModelo}
+                onChange={(e) => setSearchModelo(e.target.value)}
+                placeholder="Buscar modelo o especificación (ej: 'ThinkPad', 'Core i7', 'SSD 1TB', 'OLED')..."
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-[#00346F] focus:bg-white"
+              />
             </div>
           </div>
 

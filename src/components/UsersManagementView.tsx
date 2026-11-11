@@ -707,9 +707,6 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
             <ShieldCheck className="w-6 h-6 text-[#00346F]" />
             Control de Usuarios & Roles de Sistema
           </h1>
-          <p className="text-slate-500 text-xs mt-0.5">
-            Cree roles personalizados (Cajero, Técnico Nivel 2, etc.), defina sus módulos permitidos y gestione las cuentas del personal.
-          </p>
         </div>
 
         {/* Action Button depending on Tab */}
@@ -807,9 +804,6 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
             <div className="p-4 bg-[#EFF4FF] border-b border-slate-200 flex justify-between items-center">
               <span className="text-xs font-bold text-[#00346F]">
                 Usuarios Registrados en el Sistema ({filteredUsers.length})
-              </span>
-              <span className="text-[11px] text-slate-500 font-medium">
-                Conectado con Base de Datos MySQL
               </span>
             </div>
 
@@ -1209,18 +1203,13 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                       <label className="block font-semibold text-slate-600">
                         Rol Funcional *
                       </label>
-                      {editingUser && (editingUser.rol === 'SUPERADMIN' || editingUser.username === 'superadmin') && (
-                        <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-bold border border-amber-200">
-                          🔒 Protegido
-                        </span>
-                      )}
                     </div>
                     <select
                       value={userForm.rol}
-                      disabled={Boolean(editingUser && (editingUser.rol === 'SUPERADMIN' || editingUser.username === 'superadmin'))}
+                      disabled={Boolean(editingUser && editingUser.username === 'superadmin')}
                       onChange={(e) => handleUserRoleChange(e.target.value)}
                       className={`w-full p-2 border rounded-lg font-bold text-slate-800 focus:outline-none ${
-                        editingUser && (editingUser.rol === 'SUPERADMIN' || editingUser.username === 'superadmin')
+                        editingUser && editingUser.username === 'superadmin'
                           ? 'bg-slate-100 border-slate-200 cursor-not-allowed opacity-90'
                           : 'bg-white border-slate-300 focus:border-[#00346F]'
                       }`}
@@ -1231,11 +1220,6 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                         </option>
                       ))}
                     </select>
-                    {editingUser && (editingUser.rol === 'SUPERADMIN' || editingUser.username === 'superadmin') && (
-                      <p className="text-[10px] text-amber-600 mt-1 font-medium">
-                        La cuenta raíz del sistema no puede cambiar de rol.
-                      </p>
-                    )}
                   </div>
 
                   <div>

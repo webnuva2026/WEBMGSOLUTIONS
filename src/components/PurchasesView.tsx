@@ -751,6 +751,23 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
     );
   }, [productos, searchProductQuery]);
 
+  // Modelos del Catálogo Maestro que coinciden con la búsqueda rápida
+  const availableCatalogModels = useMemo(() => {
+    if (!searchProductQuery.trim()) return [];
+    const q = searchProductQuery.toLowerCase().trim();
+    return catModelos.filter((mo) => {
+      const marca = catMarcas.find((m) => m.id === mo.marcaId);
+      const marcaNombre = marca ? marca.nombre.toLowerCase() : '';
+      const match =
+        mo.nombre.toLowerCase().includes(q) ||
+        marcaNombre.includes(q) ||
+        (mo.descripcion && mo.descripcion.toLowerCase().includes(q));
+      if (!match) return false;
+      const existente = productos.find((p) => p.modeloId === mo.id);
+      return !existente;
+    });
+  }, [catModelos, catMarcas, productos, searchProductQuery]);
+
   const handleExportComprasCSV = () => {
     const csv =
       'data:text/csv;charset=utf-8,' +
@@ -775,12 +792,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
         {/* Header */}
         <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-[#00346F]">
-                <Truck className="h-3.5 w-3.5" />
-                Logística Integrada: Almacén • Proveedores • Taller & Ventas
-              </span>
-              {pedidosEnTransito > 0 && (
+            {pedidosEnTransito > 0 && (
+              <div className="flex flex-wrap items-center gap-2 mb-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -792,13 +805,21 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                   <Clock className="h-3.5 w-3.5" />
                   {pedidosEnTransito} Pedido(s) en Tránsito por Recepcionar en Almacén
                 </button>
-              )}
-            </div>
-            <h1 className="mt-2 text-2xl font-black tracking-tight text-[#0B1C30] md:text-3xl">
-              Pedidos a Proveedores, Recepción en Almacén & Abastecimiento
+              </div>
+            )}
+            <h1 className="mt-1 text-2xl font-black tracking-tight text-[#0B1C30] md:text-3xl">
+              {activeTab === 'proveedores'
+                ? 'Directorio de Proveedores'
+                : activeTab === 'historial'
+                ? 'Órdenes de Compra & Recepción en Almacén'
+                : 'Pedidos a Proveedores, Recepción en Almacén & Abastecimiento'}
             </h1>
             <p className="mt-1 text-xs text-slate-500">
-              Ciclo trazable en 2 etapas: 1° Emisión de Orden de Pedido al Proveedor (En Tránsito) → 2° Recepción Física y Alta de Series en Almacén para Ventas POS y Taller Técnico.
+              {activeTab === 'proveedores'
+                ? 'Empresas proveedoras, mayoristas y canales de abastecimiento homologados.'
+                : activeTab === 'historial'
+                ? 'Historial de compras emitidas y verificación física de series para ingreso a stock.'
+                : 'Ciclo trazable en 2 etapas: 1° Emisión de Orden de Pedido al Proveedor (En Tránsito) → 2° Recepción Física y Alta de Series en Almacén para Ventas POS y Taller Técnico.'}
             </p>
           </div>
 
@@ -947,16 +968,11 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                             <MapPin className="h-3 w-3 text-[#00346F]" /> {selectedProveedorObj.direccion || 'Sin dirección'}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between gap-2 border-t border-slate-200/80 pt-1.5">
-                          <div className="flex items-center gap-1.5 text-slate-700">
-                            <Lock className="h-3 w-3 text-slate-500" />
-                            <span className="font-bold">Correo Oficial del Proveedor:</span>
-                            <span className="font-mono text-[#00346F] font-semibold">
-                              {selectedProveedorObj.email || 'Sin correo en ficha'}
-                            </span>
-                          </div>
-                          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[9px] font-bold text-slate-700">
-                            🔒 Bloqueado por Integridad
+                        <div className="flex items-center gap-1.5 border-t border-slate-200/80 pt-1.5 text-slate-700">
+                          <Lock className="h-3 w-3 text-slate-500" />
+                          <span className="font-bold">Correo Oficial del Proveedor:</span>
+                          <span className="font-mono text-[#00346F] font-semibold">
+                            {selectedProveedorObj.email || 'Sin correo en ficha'}
                           </span>
                         </div>
                       </div>
@@ -1212,17 +1228,17 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                                         </p>
                                       )}
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                      <span
-                                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                                          prod
-                                            ? isSel ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
-                                            : isSel ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-900'
-                                        }`}
-                                      >
-                                        {prod ? `✔ En Almacén • Stock: ${prod.stock}` : '🆕 Modelo Nuevo (Catálogo)'}
-                                      </span>
-                                    </div>
+                                    {prod && (
+                                      <div className="flex items-center gap-2">
+                                        <span
+                                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                            isSel ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                                          }`}
+                                        >
+                                          ✔ En Almacén • Stock: {prod.stock}
+                                        </span>
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               })
@@ -1326,13 +1342,23 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                         </div>
                       </div>
 
-                      <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-1.5 space-y-1">
+                      <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-1.5 space-y-1">
+                        {availableProducts.length === 0 && availableCatalogModels.length === 0 && searchProductQuery.trim() && (
+                          <div className="py-6 text-center text-xs text-slate-400">
+                            No se encontraron productos en almacén ni modelos en el catálogo para "{searchProductQuery}".
+                          </div>
+                        )}
+
+                        {/* Productos ya registrados en Almacén */}
                         {availableProducts.map((prod) => {
                           const isSelected = selectedProductId === prod.id;
                           return (
                             <div
-                              key={prod.id}
-                              onClick={() => handleSelectProduct(prod.id)}
+                              key={`prod-${prod.id}`}
+                              onClick={() => {
+                                handleSelectProduct(prod.id);
+                                setCatModeloSel(null);
+                              }}
                               className={`flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-xs transition-all ${
                                 isSelected
                                   ? 'bg-[#00346F] text-white shadow-xs'
@@ -1340,7 +1366,12 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                               }`}
                             >
                               <div>
-                                <p className="font-bold">{prod.nombre}</p>
+                                <p className="font-bold flex items-center gap-1.5">
+                                  <span>{prod.nombre}</span>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                                    En Almacén
+                                  </span>
+                                </p>
                                 <p className={`text-[10px] ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
                                   Código: {prod.codigo} | Marca: {prod.marcaNombre} | Stock actual: {prod.stock} un.
                                 </p>
@@ -1351,8 +1382,47 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                             </div>
                           );
                         })}
+
+                        {/* Modelos disponibles en el Catálogo Maestro */}
+                        {availableCatalogModels.map((mo) => {
+                          const marca = catMarcas.find((m) => m.id === mo.marcaId);
+                          const isSelected = catModeloSel?.id === mo.id;
+                          const marcaNombre = marca?.nombre || '';
+                          return (
+                            <div
+                              key={`cat-${mo.id}`}
+                              onClick={() => {
+                                handleSelectModeloCatalogo(mo);
+                                setSelectedProductId('');
+                              }}
+                              className={`flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-xs transition-all ${
+                                isSelected
+                                  ? 'bg-[#00346F] text-white shadow-xs'
+                                  : 'hover:bg-white text-slate-800 bg-indigo-50/50 border border-indigo-100'
+                              }`}
+                            >
+                              <div>
+                                <p className="font-bold flex items-center gap-1.5">
+                                  <span>{marcaNombre ? `${marcaNombre} ${mo.nombre}` : mo.nombre}</span>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                    Catálogo Maestro
+                                  </span>
+                                </p>
+                                <p className={`text-[10px] line-clamp-1 ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
+                                  {mo.descripcion || 'Modelo listo para reabastecimiento'}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <span className={`text-[10px] font-bold ${isSelected ? 'text-blue-100' : 'text-indigo-600'}`}>
+                                  Seleccionar ➔
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
 
+                      {/* Producto de Almacén seleccionado */}
                       {selectedProductObj && (
                         <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3">
                           <p className="text-xs font-bold text-[#00346F]">
@@ -1387,6 +1457,56 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                                 onClick={handleAddItemToCart}
                                 className="w-full rounded-lg bg-[#00346F] px-4 py-2 text-xs font-bold text-white hover:bg-[#004A99] shadow-xs cursor-pointer"
                               >
+                                + Agregar al Pedido
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Modelo de Catálogo Maestro seleccionado */}
+                      {catModeloSel && !selectedProductObj && (
+                        <div className="rounded-xl border border-indigo-300 bg-indigo-50/50 p-3.5 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-extrabold text-[#00346F] flex items-center gap-1.5">
+                              <Layers className="h-4 w-4 text-indigo-600" />
+                              <span>Modelo del Catálogo:</span>
+                              <span className="text-indigo-900 underline font-black">
+                                {catMarcas.find((m) => m.id === catModeloSel.marcaId)?.nombre} {catModeloSel.nombre}
+                              </span>
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600">Cantidad a Pedir *</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={itemCantidad}
+                                onChange={(e) => setItemCantidad(Math.max(1, parseInt(e.target.value) || 1))}
+                                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-800"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600">Costo Unit. Compra (S/) *</label>
+                              <input
+                                type="number"
+                                step="any"
+                                min="0"
+                                value={itemPrecioCosto === 0 ? '' : itemPrecioCosto}
+                                onChange={(e) => setItemPrecioCosto(e.target.value)}
+                                placeholder="0.00"
+                                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-800"
+                              />
+                            </div>
+                            <div className="flex items-end">
+                              <button
+                                type="button"
+                                disabled={isCreatingFromCatalog}
+                                onClick={handleCrearProductoDesdeCatalogo}
+                                className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 shadow-xs cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                              >
+                                {isCreatingFromCatalog ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                                 + Agregar al Pedido
                               </button>
                             </div>
@@ -1772,14 +1892,13 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
         {activeTab === 'proveedores' && (
           <div className="space-y-6">
             <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-              <div>
-                <h2 className="text-lg font-bold text-[#0B1C30]">Directorio de Proveedores Mayoristas</h2>
-                <p className="text-xs text-slate-500">Empresas proveedoras de componentes, partes para taller y accesorios</p>
-              </div>
+              <p className="text-xs text-slate-500">
+                Empresas proveedoras registradas de componentes, equipos, partes para taller y accesorios ({proveedores.length})
+              </p>
               <button
                 type="button"
                 onClick={handleOpenNewProveedor}
-                className="flex items-center gap-2 rounded-xl bg-[#00346F] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#004A99]"
+                className="flex items-center gap-2 rounded-xl bg-[#00346F] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#004A99] cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
                 Registrar Nuevo Proveedor
