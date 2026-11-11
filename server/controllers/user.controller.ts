@@ -304,7 +304,10 @@ export async function updateUser(req: AuthenticatedRequest, res: Response): Prom
 
     // Verificar que el usuario exista y obtener datos actuales para detectar cambios
     const [existingRows] = await pool.query<RowDataPacket[]>(
-      'SELECT id, email, nombre_completo, username FROM usuarios WHERE id = ? LIMIT 1',
+      `SELECT u.id, u.email, u.nombre_completo, u.username, r.codigo AS rol_codigo 
+       FROM usuarios u
+       JOIN roles r ON u.rol_id = r.id
+       WHERE u.id = ? LIMIT 1`,
       [userId]
     );
     if (existingRows.length === 0) {
@@ -313,6 +316,7 @@ export async function updateUser(req: AuthenticatedRequest, res: Response): Prom
     }
 
     const currentUserData = existingRows[0];
+    const isRootSuperadmin = currentUserData.username === 'superadmin' || currentUserData.email === 'superadmin@mgsolutions.pe' || currentUserData.rol_codigo === 'SUPERADMIN';
     let emailChanged = false;
     let normalizedNewEmail = '';
 
@@ -354,12 +358,22 @@ export async function updateUser(req: AuthenticatedRequest, res: Response): Prom
       params.push(tipoDocId);
     }
     if (documentoCifrado !== undefined) { updates.push('numero_documento_cifrado = ?'); params.push(documentoCifrado); }
-    if (rolId !== undefined) { updates.push('rol_id = ?'); params.push(rolId); }
-    if (req.body.rol !== undefined && rolId === undefined) {
-      const [rRows] = await pool.query<RowDataPacket[]>('SELECT id FROM roles WHERE codigo = ? LIMIT 1', [req.body.rol]);
-      if (rRows.length > 0) {
+    
+    // Proteger cuenta raíz SUPERADMIN: nunca degradar su rol
+    if (isRootSuperadmin) {
+      const [saRole] = await pool.query<RowDataPacket[]>('SELECT id FROM roles WHERE codigo = "SUPERADMIN" LIMIT 1');
+      if (saRole.length > 0) {
         updates.push('rol_id = ?');
-        params.push(rRows[0].id);
+        params.push(saRole[0].id);
+      }
+    } else {
+      if (rolId !== undefined) { updates.push('rol_id = ?'); params.push(rolId); }
+      if (req.body.rol !== undefined && rolId === undefined) {
+        const [rRows] = await pool.query<RowDataPacket[]>('SELECT id FROM roles WHERE codigo = ? LIMIT 1', [req.body.rol]);
+        if (rRows.length > 0) {
+          updates.push('rol_id = ?');
+          params.push(rRows[0].id);
+        }
       }
     }
     if (sucursalId !== undefined) { updates.push('sucursal_id = ?'); params.push(sucursalId || null); }
@@ -433,6 +447,13 @@ export async function toggleUserStatus(req: AuthenticatedRequest, res: Response)
     // No permitir desactivarse a sí mismo
     if (req.user?.userId === userId && estado === 'INACTIVO') {
       res.status(400).json({ success: false, message: 'No puede desactivar su propia cuenta.' });
+      return;
+    }
+
+    // No permitir desactivar la cuenta raíz SUPERADMIN
+    const [targetUser] = await pool.query<RowDataPacket[]>('SELECT username FROM usuarios WHERE id = ? LIMIT 1', [userId]);
+    if (targetUser[0]?.username === 'superadmin' && estado === 'INACTIVO') {
+      res.status(400).json({ success: false, message: 'La cuenta raíz Super Administrador no puede ser desactivada.' });
       return;
     }
 

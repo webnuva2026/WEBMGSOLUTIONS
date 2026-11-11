@@ -1249,13 +1249,25 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                 {/* Rol Funcional, Sucursal de Trabajo y Estado */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                   <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Rol Funcional *
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block font-semibold text-slate-600">
+                        Rol Funcional *
+                      </label>
+                      {editingUser && (editingUser.rol === 'SUPERADMIN' || editingUser.username === 'superadmin') && (
+                        <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-bold border border-amber-200">
+                          🔒 Protegido
+                        </span>
+                      )}
+                    </div>
                     <select
                       value={userForm.rol}
+                      disabled={Boolean(editingUser && (editingUser.rol === 'SUPERADMIN' || editingUser.username === 'superadmin'))}
                       onChange={(e) => handleUserRoleChange(e.target.value)}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 focus:outline-none focus:border-[#00346F]"
+                      className={`w-full p-2 border rounded-lg font-bold text-slate-800 focus:outline-none ${
+                        editingUser && (editingUser.rol === 'SUPERADMIN' || editingUser.username === 'superadmin')
+                          ? 'bg-slate-100 border-slate-200 cursor-not-allowed opacity-90'
+                          : 'bg-white border-slate-300 focus:border-[#00346F]'
+                      }`}
                     >
                       {roles.map((r) => (
                         <option key={r.id} value={r.codigo}>
@@ -1263,6 +1275,11 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                         </option>
                       ))}
                     </select>
+                    {editingUser && (editingUser.rol === 'SUPERADMIN' || editingUser.username === 'superadmin') && (
+                      <p className="text-[10px] text-amber-600 mt-1 font-medium">
+                        La cuenta raíz del sistema no puede cambiar de rol.
+                      </p>
+                    )}
                   </div>
 
                   <div>

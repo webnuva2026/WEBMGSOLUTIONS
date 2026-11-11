@@ -13,18 +13,35 @@ export async function restablecerSuperadminEmergencia(req: Request, res: Respons
     const defaultPassword = process.env.SUPERADMIN_PASSWORD || 'CambiarEsto2026!';
     const passwordHash = await hashPassword(defaultPassword);
 
-    await pool.query(
-      `UPDATE usuarios 
-       SET password_hash = ?, 
-           intentos_fallidos = 0, 
-           bloqueado_hasta = NULL, 
-           requiere_cambio_password = FALSE 
-       WHERE username = 'superadmin' OR email = 'superadmin@mgsolutions.pe'`
-    );
+    const [roles] = await pool.query<RowDataPacket[]>('SELECT id FROM roles WHERE codigo = "SUPERADMIN" LIMIT 1');
+    const superadminRoleId = roles[0]?.id;
+
+    if (superadminRoleId) {
+      await pool.query(
+        `UPDATE usuarios 
+         SET password_hash = ?, 
+             rol_id = ?,
+             intentos_fallidos = 0, 
+             bloqueado_hasta = NULL, 
+             requiere_cambio_password = FALSE 
+         WHERE username = 'superadmin' OR email = 'superadmin@mgsolutions.pe'`,
+        [passwordHash, superadminRoleId]
+      );
+    } else {
+      await pool.query(
+        `UPDATE usuarios 
+         SET password_hash = ?, 
+             intentos_fallidos = 0, 
+             bloqueado_hasta = NULL, 
+             requiere_cambio_password = FALSE 
+         WHERE username = 'superadmin' OR email = 'superadmin@mgsolutions.pe'`,
+        [passwordHash]
+      );
+    }
 
     res.json({
       success: true,
-      message: 'Contraseña del Superadministrador restablecida con éxito e intentos fallidos reiniciados.',
+      message: 'Cuenta Super Administrador restablecida con éxito: rol SUPERADMIN restaurado, clave y bloqueo reiniciados.',
       email: 'superadmin@mgsolutions.pe',
       clave: defaultPassword,
     });

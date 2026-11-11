@@ -2214,7 +2214,10 @@ async function updateUser(req, res) {
       sucursalId
     } = req.body;
     const [existingRows] = await pool.query(
-      "SELECT id, email, nombre_completo, username FROM usuarios WHERE id = ? LIMIT 1",
+      `SELECT u.id, u.email, u.nombre_completo, u.username, r.codigo AS rol_codigo 
+       FROM usuarios u
+       JOIN roles r ON u.rol_id = r.id
+       WHERE u.id = ? LIMIT 1`,
       [userId]
     );
     if (existingRows.length === 0) {
@@ -2222,6 +2225,7 @@ async function updateUser(req, res) {
       return;
     }
     const currentUserData = existingRows[0];
+    const isRootSuperadmin = currentUserData.username === "superadmin" || currentUserData.email === "superadmin@mgsolutions.pe" || currentUserData.rol_codigo === "SUPERADMIN";
     let emailChanged = false;
     let normalizedNewEmail = "";
     if (email) {
@@ -2263,15 +2267,23 @@ async function updateUser(req, res) {
       updates.push("numero_documento_cifrado = ?");
       params.push(documentoCifrado);
     }
-    if (rolId !== void 0) {
-      updates.push("rol_id = ?");
-      params.push(rolId);
-    }
-    if (req.body.rol !== void 0 && rolId === void 0) {
-      const [rRows] = await pool.query("SELECT id FROM roles WHERE codigo = ? LIMIT 1", [req.body.rol]);
-      if (rRows.length > 0) {
+    if (isRootSuperadmin) {
+      const [saRole] = await pool.query('SELECT id FROM roles WHERE codigo = "SUPERADMIN" LIMIT 1');
+      if (saRole.length > 0) {
         updates.push("rol_id = ?");
-        params.push(rRows[0].id);
+        params.push(saRole[0].id);
+      }
+    } else {
+      if (rolId !== void 0) {
+        updates.push("rol_id = ?");
+        params.push(rolId);
+      }
+      if (req.body.rol !== void 0 && rolId === void 0) {
+        const [rRows] = await pool.query("SELECT id FROM roles WHERE codigo = ? LIMIT 1", [req.body.rol]);
+        if (rRows.length > 0) {
+          updates.push("rol_id = ?");
+          params.push(rRows[0].id);
+        }
       }
     }
     if (sucursalId !== void 0) {
@@ -2335,6 +2347,11 @@ async function toggleUserStatus(req, res) {
     }
     if (req.user?.userId === userId && estado === "INACTIVO") {
       res.status(400).json({ success: false, message: "No puede desactivar su propia cuenta." });
+      return;
+    }
+    const [targetUser] = await pool.query("SELECT username FROM usuarios WHERE id = ? LIMIT 1", [userId]);
+    if (targetUser[0]?.username === "superadmin" && estado === "INACTIVO") {
+      res.status(400).json({ success: false, message: "La cuenta ra\xEDz Super Administrador no puede ser desactivada." });
       return;
     }
     const [result] = await pool.query(
@@ -7836,17 +7853,33 @@ async function restablecerSuperadminEmergencia(req, res) {
     const { hashPassword: hashPassword2 } = await Promise.resolve().then(() => (init_security(), security_exports));
     const defaultPassword = process.env.SUPERADMIN_PASSWORD || "CambiarEsto2026!";
     const passwordHash = await hashPassword2(defaultPassword);
-    await pool.query(
-      `UPDATE usuarios 
-       SET password_hash = ?, 
-           intentos_fallidos = 0, 
-           bloqueado_hasta = NULL, 
-           requiere_cambio_password = FALSE 
-       WHERE username = 'superadmin' OR email = 'superadmin@mgsolutions.pe'`
-    );
+    const [roles] = await pool.query('SELECT id FROM roles WHERE codigo = "SUPERADMIN" LIMIT 1');
+    const superadminRoleId = roles[0]?.id;
+    if (superadminRoleId) {
+      await pool.query(
+        `UPDATE usuarios 
+         SET password_hash = ?, 
+             rol_id = ?,
+             intentos_fallidos = 0, 
+             bloqueado_hasta = NULL, 
+             requiere_cambio_password = FALSE 
+         WHERE username = 'superadmin' OR email = 'superadmin@mgsolutions.pe'`,
+        [passwordHash, superadminRoleId]
+      );
+    } else {
+      await pool.query(
+        `UPDATE usuarios 
+         SET password_hash = ?, 
+             intentos_fallidos = 0, 
+             bloqueado_hasta = NULL, 
+             requiere_cambio_password = FALSE 
+         WHERE username = 'superadmin' OR email = 'superadmin@mgsolutions.pe'`,
+        [passwordHash]
+      );
+    }
     res.json({
       success: true,
-      message: "Contrase\xF1a del Superadministrador restablecida con \xE9xito e intentos fallidos reiniciados.",
+      message: "Cuenta Super Administrador restablecida con \xE9xito: rol SUPERADMIN restaurado, clave y bloqueo reiniciados.",
       email: "superadmin@mgsolutions.pe",
       clave: defaultPassword
     });
@@ -8053,13 +8086,14 @@ async function seedSuperAdmin() {
       await pool.query(
         `UPDATE usuarios 
          SET password_hash = ?, 
+             rol_id = ?,
              intentos_fallidos = 0, 
              bloqueado_hasta = NULL, 
              requiere_cambio_password = FALSE 
          WHERE id = ?`,
-        [passwordHash2, u.id]
+        [passwordHash2, superadminRoleId, u.id]
       );
-      console.log(`\u2705 Contrase\xF1a de Superadmin garantizada: '${superadminPassword}' e intentos fallidos restablecidos a 0.`);
+      console.log(`\u2705 Contrase\xF1a de Superadmin garantizada: '${superadminPassword}', rol SUPERADMIN restablecido e intentos fallidos a 0.`);
       return;
     }
     console.log(`\u{1F331} Sembrando cuenta SUPERADMIN inicial: ${superadminUsername} (${superadminEmail})...`);

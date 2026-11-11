@@ -81,13 +81,14 @@ export async function seedSuperAdmin(): Promise<void> {
       await pool.query(
         `UPDATE usuarios 
          SET password_hash = ?, 
+             rol_id = ?,
              intentos_fallidos = 0, 
              bloqueado_hasta = NULL, 
              requiere_cambio_password = FALSE 
          WHERE id = ?`,
-        [passwordHash, u.id]
+        [passwordHash, superadminRoleId, u.id]
       );
-      console.log(`✅ Contraseña de Superadmin garantizada: '${superadminPassword}' e intentos fallidos restablecidos a 0.`);
+      console.log(`✅ Contraseña de Superadmin garantizada: '${superadminPassword}', rol SUPERADMIN restablecido e intentos fallidos a 0.`);
       return;
     }
 
