@@ -352,17 +352,26 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
   useEffect(() => {
     if (preselectedProductId) {
       setActiveTab('nueva');
-      handleSelectProduct(preselectedProductId);
+      setProductSelectionMode('almacen');
       const found = productos.find((p) => p.id === preselectedProductId);
       if (found) {
-        setSearchProductQuery(found.codigo || found.nombre);
+        const linkedModel = found.modeloId ? catModelos.find((m) => m.id === found.modeloId) : null;
+        if (linkedModel) {
+          handleSelectModeloCatalogo(linkedModel);
+          setSearchProductQuery(linkedModel.nombre);
+        } else {
+          handleSelectProduct(preselectedProductId);
+          setSearchProductQuery(found.codigo || found.nombre);
+        }
         setItemCantidad(found.stock <= 3 ? 5 : 2);
+      } else {
+        handleSelectProduct(preselectedProductId);
       }
       if (onClearPreselectedProduct) {
         onClearPreselectedProduct();
       }
     }
-  }, [preselectedProductId, productos]);
+  }, [preselectedProductId, productos, catModelos]);
 
   const handleAddItemToCart = () => {
     if (!selectedProductObj) {
@@ -739,34 +748,25 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
     .filter((c) => c.estado === 'REGISTRADA')
     .reduce((sum, c) => sum + c.items.reduce((acc, it) => acc + it.cantidad, 0), 0);
 
-  // Products filtered for the purchase selector
-  const availableProducts = useMemo(() => {
-    if (!searchProductQuery.trim()) return productos.slice(0, 10);
-    const q = searchProductQuery.toLowerCase();
-    return productos.filter(
-      (p) =>
-        p.nombre.toLowerCase().includes(q) ||
-        p.codigo.toLowerCase().includes(q) ||
-        p.marcaNombre.toLowerCase().includes(q)
-    );
-  }, [productos, searchProductQuery]);
-
   // Modelos del Catálogo Maestro que coinciden con la búsqueda rápida
   const availableCatalogModels = useMemo(() => {
-    if (!searchProductQuery.trim()) return [];
     const q = searchProductQuery.toLowerCase().trim();
+    if (!q) return catModelos.slice(0, 30);
+    const tokens = q.split(/\s+/).filter(Boolean);
     return catModelos.filter((mo) => {
       const marca = catMarcas.find((m) => m.id === mo.marcaId);
-      const marcaNombre = marca ? marca.nombre.toLowerCase() : '';
-      const match =
-        mo.nombre.toLowerCase().includes(q) ||
-        marcaNombre.includes(q) ||
-        (mo.descripcion && mo.descripcion.toLowerCase().includes(q));
-      if (!match) return false;
-      const existente = productos.find((p) => p.modeloId === mo.id);
-      return !existente;
+      const categoria = catCategorias.find((c) => c.id === marca?.categoriaId);
+      const searchable = [
+        categoria?.nombre || '',
+        marca?.nombre || '',
+        mo.nombre || '',
+        mo.descripcion || '',
+      ]
+        .join(' ')
+        .toLowerCase();
+      return tokens.every((tok) => searchable.includes(tok));
     });
-  }, [catModelos, catMarcas, productos, searchProductQuery]);
+  }, [catModelos, catMarcas, catCategorias, searchProductQuery]);
 
   const handleExportComprasCSV = () => {
     const csv =
@@ -1088,7 +1088,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                       }`}
                     >
                       <Search className="h-4 w-4" />
-                      2. Búsqueda Rápida en Almacén
+                      2. Búsqueda Rápida en Catálogo Maestro
                     </button>
                   </div>
 
@@ -1246,184 +1246,103 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                           </div>
                         </div>
                       )}
-
-                      {/* PASO 4: FORMULARIO DE CANTIDAD Y COSTO PACTADO */}
-                      {catModeloSel && (
-                        <div className="rounded-xl border border-indigo-300 bg-white p-4 shadow-xs space-y-3">
-                          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                            <div>
-                              <span className="text-[10px] font-black uppercase text-indigo-600">Paso 4: Cantidad y Costo Pactado</span>
-                              <h4 className="text-xs font-black text-slate-900">
-                                {catMarcas.find((m) => m.id === catModeloSel.marcaId)?.nombre} {catModeloSel.nombre}
-                              </h4>
-                            </div>
-                            <span className="text-[11px] text-slate-400">
-                              * El precio de venta se fijará al recepcionar la mercadería
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-                            <div>
-                              <label className="block text-[11px] font-bold text-slate-700">Cantidad a Pedir *</label>
-                              <input
-                                type="number"
-                                min="1"
-                                value={itemCantidad}
-                                onChange={(e) => setItemCantidad(Math.max(1, parseInt(e.target.value) || 1))}
-                                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-black text-slate-900 outline-none focus:border-indigo-600"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[11px] font-bold text-slate-700">Costo Unit. Compra (S/) *</label>
-                              <input
-                                type="number"
-                                step="any"
-                                min="0"
-                                value={itemPrecioCosto === 0 ? '' : itemPrecioCosto}
-                                onChange={(e) => setItemPrecioCosto(e.target.value)}
-                                placeholder="0.00"
-                                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-black text-slate-900 outline-none focus:border-indigo-600"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[11px] font-bold text-slate-700">Destino</label>
-                              <select
-                                value={catDestino}
-                                onChange={(e) => setCatDestino(e.target.value as any)}
-                                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-800 outline-none"
-                              >
-                                <option value="VENTA">Venta Comercial Directa (POS)</option>
-                                <option value="SERVICIO_TALLER">Uso Interno / Taller</option>
-                                <option value="MIXTO">Mixto / Repuestos</option>
-                              </select>
-                            </div>
-                            <div className="flex items-end">
-                              <button
-                                type="button"
-                                disabled={isCreatingFromCatalog}
-                                onClick={handleAddModeloToOrder}
-                                className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-black text-white hover:bg-indigo-700 disabled:opacity-50 shadow-xs cursor-pointer"
-                              >
-                                {isCreatingFromCatalog ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                                Agregar al Pedido
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2 pt-1 text-[11px] text-slate-600">
-                            <input
-                              type="checkbox"
-                              id="checkReqSerieCat"
-                              checked={catRequiereSerie}
-                              onChange={(e) => setCatRequiereSerie(e.target.checked)}
-                              className="h-3.5 w-3.5 cursor-pointer"
-                            />
-                            <label htmlFor="checkReqSerieCat" className="cursor-pointer font-medium">
-                              Exigir ingreso de números de serie físicos al recibir en almacén (Laptops, Impresoras, Monitores)
-                            </label>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   ) : (
-                    /* ─── MODO 2: BÚSQUEDA RÁPIDA EN ALMACÉN EXISTENTE ─── */
+                    /* ─── MODO 2: BÚSQUEDA RÁPIDA EN CATÁLOGO MAESTRO ─── */
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-xs font-bold text-slate-700">Buscar producto en Almacén</label>
+                        <label className="block text-xs font-bold text-slate-700">
+                          Buscar en Catálogo Maestro (Categoría, Marca o Modelo)
+                        </label>
                         <div className="relative mt-1">
                           <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                           <input
                             type="text"
                             value={searchProductQuery}
                             onChange={(e) => setSearchProductQuery(e.target.value)}
-                            placeholder="Escribe el nombre, código o marca del producto..."
+                            placeholder="Ej: Epson L3250, HP Smart Tank, ThinkPad, Monitor..."
                             className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-xs text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
                           />
                         </div>
                       </div>
 
-                      <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-1.5 space-y-1">
-                        {availableProducts.length === 0 && availableCatalogModels.length === 0 && searchProductQuery.trim() && (
+                      <div className="max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-1.5 space-y-1">
+                        {availableCatalogModels.length === 0 ? (
                           <div className="py-6 text-center text-xs text-slate-400">
-                            No se encontraron productos en almacén ni modelos en el catálogo para "{searchProductQuery}".
+                            {searchProductQuery.trim()
+                              ? `No se encontraron modelos en Catálogo Maestro para "${searchProductQuery}".`
+                              : 'No hay modelos activos registrados en el Catálogo Maestro.'}
                           </div>
+                        ) : (
+                          availableCatalogModels.map((mo) => {
+                            const marca = catMarcas.find((m) => m.id === mo.marcaId);
+                            const categoria = catCategorias.find((c) => c.id === marca?.categoriaId);
+                            const existente = getProductoDeModelo(mo.id);
+                            const isSelected = catModeloSel?.id === mo.id;
+                            const marcaNombre = marca?.nombre || '';
+                            return (
+                              <div
+                                key={`cat-${mo.id}`}
+                                onClick={() => handleSelectModeloCatalogo(mo)}
+                                className={`flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-xs transition-all ${
+                                  isSelected
+                                    ? 'bg-[#00346F] text-white shadow-xs'
+                                    : 'bg-white hover:bg-indigo-50/60 text-slate-800 border border-slate-100'
+                                }`}
+                              >
+                                <div className="pr-3">
+                                  <p className="font-bold flex flex-wrap items-center gap-1.5">
+                                    <span>{marcaNombre ? `${marcaNombre} ${mo.nombre}` : mo.nombre}</span>
+                                    {categoria && (
+                                      <span
+                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                          isSelected
+                                            ? 'bg-blue-500/30 text-white'
+                                            : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                        }`}
+                                      >
+                                        {categoria.nombre}
+                                      </span>
+                                    )}
+                                    {existente ? (
+                                      <span
+                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                          isSelected
+                                            ? 'bg-emerald-500/30 text-emerald-100'
+                                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                        }`}
+                                      >
+                                        En almacén: {existente.stock} un.
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                          isSelected
+                                            ? 'bg-white/20 text-white'
+                                            : 'bg-slate-100 text-slate-600'
+                                        }`}
+                                      >
+                                        Catálogo Maestro
+                                      </span>
+                                    )}
+                                  </p>
+                                  <p className={`text-[10px] line-clamp-1 ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
+                                    {mo.descripcion || 'Modelo registrado en Catálogo Maestro'}
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className={`text-[10px] font-bold ${isSelected ? 'text-blue-100' : 'text-indigo-600'}`}>
+                                    Seleccionar ➔
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })
                         )}
-
-                        {/* Productos ya registrados en Almacén */}
-                        {availableProducts.map((prod) => {
-                          const isSelected = selectedProductId === prod.id;
-                          return (
-                            <div
-                              key={`prod-${prod.id}`}
-                              onClick={() => {
-                                handleSelectProduct(prod.id);
-                                setCatModeloSel(null);
-                              }}
-                              className={`flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-xs transition-all ${
-                                isSelected
-                                  ? 'bg-[#00346F] text-white shadow-xs'
-                                  : 'hover:bg-white text-slate-800'
-                              }`}
-                            >
-                              <div>
-                                <p className="font-bold flex items-center gap-1.5">
-                                  <span>{prod.nombre}</span>
-                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                                    En Almacén
-                                  </span>
-                                </p>
-                                <p className={`text-[10px] ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
-                                  Código: {prod.codigo} | Marca: {prod.marcaNombre} | Stock actual: {prod.stock} un.
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <span className="font-black text-xs">Costo act: S/ {prod.precioCosto.toFixed(2)}</span>
-                              </div>
-                            </div>
-                          );
-                        })}
-
-                        {/* Modelos disponibles en el Catálogo Maestro */}
-                        {availableCatalogModels.map((mo) => {
-                          const marca = catMarcas.find((m) => m.id === mo.marcaId);
-                          const isSelected = catModeloSel?.id === mo.id;
-                          const marcaNombre = marca?.nombre || '';
-                          return (
-                            <div
-                              key={`cat-${mo.id}`}
-                              onClick={() => {
-                                handleSelectModeloCatalogo(mo);
-                                setSelectedProductId('');
-                              }}
-                              className={`flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-xs transition-all ${
-                                isSelected
-                                  ? 'bg-[#00346F] text-white shadow-xs'
-                                  : 'hover:bg-white text-slate-800 bg-indigo-50/50 border border-indigo-100'
-                              }`}
-                            >
-                              <div>
-                                <p className="font-bold flex items-center gap-1.5">
-                                  <span>{marcaNombre ? `${marcaNombre} ${mo.nombre}` : mo.nombre}</span>
-                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
-                                    Catálogo Maestro
-                                  </span>
-                                </p>
-                                <p className={`text-[10px] line-clamp-1 ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
-                                  {mo.descripcion || 'Modelo listo para reabastecimiento'}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <span className={`text-[10px] font-bold ${isSelected ? 'text-blue-100' : 'text-indigo-600'}`}>
-                                  Seleccionar ➔
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
                       </div>
 
-                      {/* Producto de Almacén seleccionado */}
-                      {selectedProductObj && (
+                      {/* Producto heredado preseleccionado sin vínculo al catálogo */}
+                      {selectedProductObj && !catModeloSel && (
                         <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3">
                           <p className="text-xs font-bold text-[#00346F]">
                             Producto seleccionado: {selectedProductObj.nombre}
@@ -1464,55 +1383,86 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                         </div>
                       )}
 
-                      {/* Modelo de Catálogo Maestro seleccionado */}
-                      {catModeloSel && !selectedProductObj && (
-                        <div className="rounded-xl border border-indigo-300 bg-indigo-50/50 p-3.5 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs font-extrabold text-[#00346F] flex items-center gap-1.5">
-                              <Layers className="h-4 w-4 text-indigo-600" />
-                              <span>Modelo del Catálogo:</span>
-                              <span className="text-indigo-900 underline font-black">
-                                {catMarcas.find((m) => m.id === catModeloSel.marcaId)?.nombre} {catModeloSel.nombre}
-                              </span>
-                            </p>
-                          </div>
-                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                            <div>
-                              <label className="block text-[11px] font-bold text-slate-600">Cantidad a Pedir *</label>
-                              <input
-                                type="number"
-                                min="1"
-                                value={itemCantidad}
-                                onChange={(e) => setItemCantidad(Math.max(1, parseInt(e.target.value) || 1))}
-                                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-800"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[11px] font-bold text-slate-600">Costo Unit. Compra (S/) *</label>
-                              <input
-                                type="number"
-                                step="any"
-                                min="0"
-                                value={itemPrecioCosto === 0 ? '' : itemPrecioCosto}
-                                onChange={(e) => setItemPrecioCosto(e.target.value)}
-                                placeholder="0.00"
-                                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-800"
-                              />
-                            </div>
-                            <div className="flex items-end">
-                              <button
-                                type="button"
-                                disabled={isCreatingFromCatalog}
-                                onClick={handleCrearProductoDesdeCatalogo}
-                                className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 shadow-xs cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
-                              >
-                                {isCreatingFromCatalog ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                                + Agregar al Pedido
-                              </button>
-                            </div>
-                          </div>
+                    </div>
+                  )}
+
+                  {/* PASO 4 COMPARTIDO: CANTIDAD Y COSTO PACTADO DEL MODELO SELECCIONADO */}
+                  {catModeloSel && (
+                    <div className="rounded-xl border border-indigo-300 bg-white p-4 shadow-xs space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <div>
+                          <span className="text-[10px] font-black uppercase text-indigo-600">
+                            Cantidad y Costo Pactado
+                          </span>
+                          <h4 className="text-xs font-black text-slate-900">
+                            {catMarcas.find((m) => m.id === catModeloSel.marcaId)?.nombre} {catModeloSel.nombre}
+                          </h4>
                         </div>
-                      )}
+                        <span className="text-[11px] text-slate-400">
+                          * El precio de venta se fijará al recepcionar la mercadería
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700">Cantidad a Pedir *</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={itemCantidad}
+                            onChange={(e) => setItemCantidad(Math.max(1, parseInt(e.target.value) || 1))}
+                            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-black text-slate-900 outline-none focus:border-indigo-600"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700">Costo Unit. Compra (S/) *</label>
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            value={itemPrecioCosto === 0 ? '' : itemPrecioCosto}
+                            onChange={(e) => setItemPrecioCosto(e.target.value)}
+                            placeholder="0.00"
+                            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-black text-slate-900 outline-none focus:border-indigo-600"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700">Destino</label>
+                          <select
+                            value={catDestino}
+                            onChange={(e) => setCatDestino(e.target.value as any)}
+                            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-800 outline-none"
+                          >
+                            <option value="VENTA">Venta Comercial Directa (POS)</option>
+                            <option value="SERVICIO_TALLER">Uso Interno / Taller</option>
+                            <option value="MIXTO">Mixto / Repuestos</option>
+                          </select>
+                        </div>
+                        <div className="flex items-end">
+                          <button
+                            type="button"
+                            disabled={isCreatingFromCatalog}
+                            onClick={handleAddModeloToOrder}
+                            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-black text-white hover:bg-indigo-700 disabled:opacity-50 shadow-xs cursor-pointer"
+                          >
+                            {isCreatingFromCatalog ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                            Agregar al Pedido
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1 text-[11px] text-slate-600">
+                        <input
+                          type="checkbox"
+                          id="checkReqSerieCat"
+                          checked={catRequiereSerie}
+                          onChange={(e) => setCatRequiereSerie(e.target.checked)}
+                          className="h-3.5 w-3.5 cursor-pointer"
+                        />
+                        <label htmlFor="checkReqSerieCat" className="cursor-pointer font-medium">
+                          Exigir ingreso de números de serie físicos al recibir en almacén (Laptops, Impresoras, Monitores)
+                        </label>
+                      </div>
                     </div>
                   )}
                 </div>
