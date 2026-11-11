@@ -3751,100 +3751,6 @@ var company_routes_default = router4;
 import { Router as Router5 } from "express";
 
 // server/controllers/brandModel.controller.ts
-async function ensureSeedMarcasYModelos() {
-  try {
-    const [countRows] = await pool.query("SELECT COUNT(*) as total FROM marcas");
-    if (countRows[0].total === 0) {
-      console.log("\u{1F331} Sembrando marcas y modelos iniciales en MySQL...");
-      const marcasIniciales = [
-        ["LENOVO", "Equipos port\xE1tiles, desktops y servidores", 1],
-        ["HP", "Laptops, impresoras y workstations empresariales", 1],
-        ["DELL", "Port\xE1tiles Inspiron, Latitude y Alienware", 1],
-        ["ASUS", "Laptops para productividad y serie gamer ROG / TUF", 1],
-        ["APPLE", "MacBook, Mac Mini, iMac y dispositivos Apple", 1],
-        ["EPSON", "Impresoras EcoTank, matriciales y proyectores", 1],
-        ["ACER", "Laptops Aspire, Nitro y Predator", 1],
-        ["SAMSUNG", "Monitores, almacenamiento y tablets", 1]
-      ];
-      for (const m of marcasIniciales) {
-        await pool.query("INSERT INTO marcas (nombre, descripcion, estado_id) VALUES (?, ?, ?)", m);
-      }
-      const [lenovoRows] = await pool.query('SELECT id FROM marcas WHERE nombre = "LENOVO"');
-      const [hpRows] = await pool.query('SELECT id FROM marcas WHERE nombre = "HP"');
-      if (lenovoRows.length > 0) {
-        const lenovoId = lenovoRows[0].id;
-        const [m1] = await pool.query(
-          "INSERT INTO modelos (marca_id, nombre, descripcion, estado_id) VALUES (?, ?, ?, 1)",
-          [lenovoId, 'ThinkPad X1 Carbon Gen 14 Aura Edition (14" Intel)', "Ultrabook corporativo de gama ultra premium con IA integrada"]
-        );
-        const m1Id = m1.insertId;
-        const caracsM1 = [
-          ["Procesador", "Intel Core Ultra 7 258V con NPU IA"],
-          ["Memoria RAM", "32 GB LPDDR5x 8533MHz"],
-          ["Almacenamiento", "1 TB SSD M.2 PCIe Gen4 NVMe"],
-          ["Pantalla", '14" 2.8K (2880 x 1800) OLED, 120Hz, HDR500 True Black'],
-          ["Tarjeta Gr\xE1fica", "Intel Arc Graphics integrada"],
-          ["Peso", "0.98 kg"]
-        ];
-        for (const [attr, val] of caracsM1) {
-          await pool.query("INSERT INTO detalle_modelo (modelo_id, atributo, valor) VALUES (?, ?, ?)", [m1Id, attr, val]);
-        }
-        const [m2] = await pool.query(
-          "INSERT INTO modelos (marca_id, nombre, descripcion, estado_id) VALUES (?, ?, ?, 1)",
-          [lenovoId, "Lenovo Googlebook 15", "Port\xE1til vers\xE1til para trabajo en la nube y productividad educativa"]
-        );
-        const m2Id = m2.insertId;
-        const caracsM2 = [
-          ["Procesador", "Intel Core i5-1335U 10 n\xFAcleos"],
-          ["Memoria RAM", "16 GB DDR5 5200MHz"],
-          ["Almacenamiento", "512 GB SSD NVMe M.2"],
-          ["Pantalla", '15.6" FHD (1920 x 1080) Antirreflejo IPS'],
-          ["Bater\xEDa", "Hasta 11 horas de autonom\xEDa"]
-        ];
-        for (const [attr, val] of caracsM2) {
-          await pool.query("INSERT INTO detalle_modelo (modelo_id, atributo, valor) VALUES (?, ?, ?)", [m2Id, attr, val]);
-        }
-        const [m3] = await pool.query(
-          "INSERT INTO modelos (marca_id, nombre, descripcion, estado_id) VALUES (?, ?, ?, 1)",
-          [lenovoId, 'ThinkPad T14 Gen 7 (14" Intel)', "Caballo de batalla corporativo con resistencia militar MIL-STD-810H"]
-        );
-        const m3Id = m3.insertId;
-        const caracsM3 = [
-          ["Procesador", "Intel Core Ultra 5 125U"],
-          ["Memoria RAM", "16 GB DDR5 expandible a 64GB"],
-          ["Almacenamiento", "512 GB SSD M.2 PCIe Gen4"],
-          ["Pantalla", '14" WUXGA (1920 x 1200) IPS 400 nits Low Power'],
-          ["Puertos", "2x Thunderbolt 4 / USB-C, 2x USB-A, HDMI 2.1, RJ-45 Ethernet"]
-        ];
-        for (const [attr, val] of caracsM3) {
-          await pool.query("INSERT INTO detalle_modelo (modelo_id, atributo, valor) VALUES (?, ?, ?)", [m3Id, attr, val]);
-        }
-      }
-      if (hpRows.length > 0) {
-        const hpId = hpRows[0].id;
-        const [mHp] = await pool.query(
-          "INSERT INTO modelos (marca_id, nombre, descripcion, estado_id) VALUES (?, ?, ?, 1)",
-          [hpId, "HP Pavilion 15-eg0021la", "Port\xE1til balanceado para oficina y estudiantes avanzados"]
-        );
-        const mHpId = mHp.insertId;
-        const caracsHp = [
-          ["Procesador", "Intel Core i5-1235U"],
-          ["Memoria RAM", "16 GB DDR4 3200MHz"],
-          ["Almacenamiento", "512 GB SSD PCIe NVMe"],
-          ["Pantalla", '15.6" Full HD Micro-Edge'],
-          ["Audio", "B&O con doble altavoz"]
-        ];
-        for (const [attr, val] of caracsHp) {
-          await pool.query("INSERT INTO detalle_modelo (modelo_id, atributo, valor) VALUES (?, ?, ?)", [mHpId, attr, val]);
-        }
-      }
-      console.log("\u2705 Semilla de Marcas, Modelos y Caracter\xEDsticas completada con \xE9xito.");
-    }
-  } catch (error) {
-    console.error("Error al asegurar semilla de marcas y modelos:", error);
-  }
-}
-ensureSeedMarcasYModelos();
 async function getMarcas(_req, res) {
   try {
     const [rows] = await pool.query(
@@ -4245,33 +4151,6 @@ var brandModel_routes_default = router5;
 import { Router as Router6 } from "express";
 
 // server/controllers/category.controller.ts
-async function ensureSeedCategorias() {
-  try {
-    const [rows] = await pool.query("SELECT COUNT(*) as total FROM categorias");
-    if (rows[0].total === 0) {
-      console.log("\u{1F331} Sembrando categor\xEDas maestras en MySQL...");
-      const categoriasIniciales = [
-        ["LAPTOPS & NOTEBOOKS", "Laptops de oficina, gaming, ultrabooks y estaciones de trabajo", 1],
-        ["IMPRESORAS & MULTIFUNCIONALES", "Impresoras EcoTank, l\xE1ser monocrom\xE1ticas y multifuncionales", 1],
-        ["MONITORES & PANTALLAS", "Monitores de oficina, gaming alta tasa de refresco y dise\xF1o", 1],
-        ["PERIF\xC9RICOS & ACCESORIOS", "Teclados, mouses, auriculares, webcams y almohadillas", 1],
-        ["COMPONENTES & HARDWARE", "Memorias RAM, discos SSD NVMe, fuentes de poder y tarjetas de video", 1],
-        ["REPUESTOS DE TALLER", "Pantallas, teclados de reemplazo, bater\xEDas, cargadores y ventiladores", 1],
-        ["SUMINISTROS & TINTAS", "Botellas de tinta original, t\xF3ner, cables de poder y adaptadores", 1]
-      ];
-      for (const cat of categoriasIniciales) {
-        await pool.query(
-          "INSERT INTO categorias (nombre, descripcion, estado_id) VALUES (?, ?, ?)",
-          cat
-        );
-      }
-      console.log("\u2705 Categor\xEDas maestras sembradas con \xE9xito.");
-    }
-  } catch (error) {
-    console.error("Error sembrando categor\xEDas:", error);
-  }
-}
-ensureSeedCategorias();
 async function getCategorias(req, res) {
   try {
     const { ambito } = req.query;
@@ -7976,6 +7855,47 @@ async function restablecerSuperadminEmergencia(req, res) {
     res.status(500).json({ success: false, message: "Error al restablecer contrase\xF1a." });
   }
 }
+async function vaciarCatalogos(req, res) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.query("SET FOREIGN_KEY_CHECKS = 0");
+    const tables = [
+      "producto_series_garantia",
+      "producto_unidades",
+      "producto_stock_sede",
+      "producto_detalle",
+      "productos",
+      "detalle_modelo",
+      "modelos",
+      "marcas",
+      "categorias"
+    ];
+    for (const t of tables) {
+      try {
+        await connection.query(`TRUNCATE TABLE \`${t}\``);
+      } catch {
+        try {
+          await connection.query(`DELETE FROM \`${t}\``);
+        } catch {
+        }
+      }
+    }
+    await connection.query("SET FOREIGN_KEY_CHECKS = 1");
+    res.json({
+      success: true,
+      message: "Categor\xEDas, marcas, modelos y productos eliminados completamente."
+    });
+  } catch (err) {
+    try {
+      await connection.query("SET FOREIGN_KEY_CHECKS = 1");
+    } catch {
+    }
+    console.error("Error vaciando cat\xE1logos:", err);
+    res.status(500).json({ success: false, message: "Error al vaciar cat\xE1logos." });
+  } finally {
+    connection.release();
+  }
+}
 async function resetDatabase(req, res) {
   const connection = await pool.getConnection();
   try {
@@ -8059,6 +7979,7 @@ async function resetDatabase(req, res) {
 // server/routes/maintenance.routes.ts
 var router14 = Router14();
 router14.post("/mantenimiento/restablecer-superadmin", restablecerSuperadminEmergencia);
+router14.post("/mantenimiento/vaciar-catalogos", vaciarCatalogos);
 router14.post("/mantenimiento/reset-bd", authenticateToken, requireRoles("SUPERADMIN"), resetDatabase);
 var maintenance_routes_default = router14;
 

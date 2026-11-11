@@ -2,37 +2,6 @@ import { Request, Response } from 'express';
 import { pool } from '../config/db';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 
-// Semilla inicial si la tabla categorias está vacía
-async function ensureSeedCategorias() {
-  try {
-    const [rows] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) as total FROM categorias');
-    if (rows[0].total === 0) {
-      console.log('🌱 Sembrando categorías maestras en MySQL...');
-      const categoriasIniciales = [
-        ['LAPTOPS & NOTEBOOKS', 'Laptops de oficina, gaming, ultrabooks y estaciones de trabajo', 1],
-        ['IMPRESORAS & MULTIFUNCIONALES', 'Impresoras EcoTank, láser monocromáticas y multifuncionales', 1],
-        ['MONITORES & PANTALLAS', 'Monitores de oficina, gaming alta tasa de refresco y diseño', 1],
-        ['PERIFÉRICOS & ACCESORIOS', 'Teclados, mouses, auriculares, webcams y almohadillas', 1],
-        ['COMPONENTES & HARDWARE', 'Memorias RAM, discos SSD NVMe, fuentes de poder y tarjetas de video', 1],
-        ['REPUESTOS DE TALLER', 'Pantallas, teclados de reemplazo, baterías, cargadores y ventiladores', 1],
-        ['SUMINISTROS & TINTAS', 'Botellas de tinta original, tóner, cables de poder y adaptadores', 1],
-      ];
-
-      for (const cat of categoriasIniciales) {
-        await pool.query(
-          'INSERT INTO categorias (nombre, descripcion, estado_id) VALUES (?, ?, ?)',
-          cat
-        );
-      }
-      console.log('✅ Categorías maestras sembradas con éxito.');
-    }
-  } catch (error) {
-    console.error('Error sembrando categorías:', error);
-  }
-}
-
-ensureSeedCategorias();
-
 /**
  * GET /api/categorias
  * Lista todas las categorías con cantidad de productos registrados y sus ámbitos de uso

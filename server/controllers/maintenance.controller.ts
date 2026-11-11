@@ -35,6 +35,50 @@ export async function restablecerSuperadminEmergencia(req: Request, res: Respons
 }
 
 /**
+ * POST /api/mantenimiento/vaciar-catalogos
+ * Vacía categorías, marcas, modelos y productos
+ */
+export async function vaciarCatalogos(req: Request, res: Response): Promise<void> {
+  const connection = await pool.getConnection();
+  try {
+    await connection.query('SET FOREIGN_KEY_CHECKS = 0');
+    const tables = [
+      'producto_series_garantia',
+      'producto_unidades',
+      'producto_stock_sede',
+      'producto_detalle',
+      'productos',
+      'detalle_modelo',
+      'modelos',
+      'marcas',
+      'categorias'
+    ];
+    for (const t of tables) {
+      try {
+        await connection.query(`TRUNCATE TABLE \`${t}\``);
+      } catch {
+        try {
+          await connection.query(`DELETE FROM \`${t}\``);
+        } catch {}
+      }
+    }
+    await connection.query('SET FOREIGN_KEY_CHECKS = 1');
+    res.json({
+      success: true,
+      message: 'Categorías, marcas, modelos y productos eliminados completamente.',
+    });
+  } catch (err: any) {
+    try {
+      await connection.query('SET FOREIGN_KEY_CHECKS = 1');
+    } catch {}
+    console.error('Error vaciando catálogos:', err);
+    res.status(500).json({ success: false, message: 'Error al vaciar catálogos.' });
+  } finally {
+    connection.release();
+  }
+}
+
+/**
  * POST /api/mantenimiento/reset-bd
  * Vacía completamente la base de datos (productos, catálogo maestro, clientes, sucursales, ventas, compras, etc.)
  * Manteniendo de forma exclusiva al usuario SUPERADMIN.
