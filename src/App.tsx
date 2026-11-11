@@ -1207,6 +1207,8 @@ export function App() {
               currentUserName={currentUser.nombreCompleto}
               currentUserRole={currentUser.rol}
               currentUserSucursalId={currentUser.sucursalId ?? null}
+              currentUserSucursalNombre={currentUser.sucursalNombre ?? null}
+              onRefreshMovimientos={() => loadDatabaseData(selectedSedeId)}
               prefillRequest={transferPrefill}
               onClearPrefill={() => setTransferPrefill(null)}
             />

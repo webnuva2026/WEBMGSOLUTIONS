@@ -17,6 +17,7 @@ import {
   Check,
   Send,
   Building2,
+  RefreshCw,
 } from 'lucide-react';
 import { MovimientoInventario, Producto, Sucursal, UserRole, EstadoMovimientoInventario, TransferPrefill } from '../types';
 import { transferService, SerieDisponible } from '../services/transfer.service';
@@ -31,6 +32,8 @@ interface InventoryTransfersViewProps {
   currentUserName: string;
   currentUserRole: UserRole;
   currentUserSucursalId?: number | null;
+  currentUserSucursalNombre?: string | null;
+  onRefreshMovimientos?: () => void;
   prefillRequest?: TransferPrefill | null;
   onClearPrefill?: () => void;
 }
@@ -54,6 +57,8 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
   currentUserName,
   currentUserRole,
   currentUserSucursalId = null,
+  currentUserSucursalNombre = null,
+  onRefreshMovimientos,
   prefillRequest = null,
   onClearPrefill,
 }) => {
@@ -82,17 +87,52 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
   const [seriesSeleccionadas, setSeriesSeleccionadas] = useState<string[]>([]);
   const [loadingSeries, setLoadingSeries] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const isAdminOrAlmacen =
-    currentUserRole === 'ADMIN' || currentUserRole === 'SUPERADMIN' || currentUserRole === 'ALMACEN';
+  const normalizedRole = String(currentUserRole || '').toUpperCase();
+  const isSuperAdmin = normalizedRole === 'SUPERADMIN';
+  const isAdminOrAlmacenGlobalRole = [
+    'SUPERADMIN',
+    'ADMIN',
+    'ADMINISTRADOR',
+    'ALMACEN',
+    'ALMACEN_Y_LOGISTICA',
+  ].includes(normalizedRole);
+
+  const matchesUserBranch = (movSedeId?: number, movSedeNombre?: string): boolean => {
+    if (currentUserSucursalId && movSedeId && Number(currentUserSucursalId) === Number(movSedeId)) {
+      return true;
+    }
+    if (currentUserSucursalNombre && movSedeNombre) {
+      return (
+        currentUserSucursalNombre.trim().toLowerCase() === movSedeNombre.trim().toLowerCase()
+      );
+    }
+    return false;
+  };
+
+  const hasAssignedBranch = Boolean(currentUserSucursalId || currentUserSucursalNombre);
 
   const canActOrigin = (m: MovimientoInventario) =>
-    isAdminOrAlmacen || Boolean(currentUserSucursalId && m.sedeOrigenId === currentUserSucursalId);
+    isSuperAdmin ||
+    (!hasAssignedBranch && isAdminOrAlmacenGlobalRole) ||
+    matchesUserBranch(m.sedeOrigenId, m.sedeOrigen);
 
   const canActDestino = (m: MovimientoInventario) =>
-    isAdminOrAlmacen || Boolean(currentUserSucursalId && m.sedeDestinoId === currentUserSucursalId);
+    isSuperAdmin ||
+    (!hasAssignedBranch && isAdminOrAlmacenGlobalRole) ||
+    matchesUserBranch(m.sedeDestinoId, m.sedeDestino);
 
   const canActReturn = (m: MovimientoInventario) => canActOrigin(m) || canActDestino(m);
+
+  // Actualizar automáticamente movimientos cada 15s mientras está abierto el panel
+  useEffect(() => {
+    if (!onRefreshMovimientos) return;
+    const interval = setInterval(() => {
+      onRefreshMovimientos();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [onRefreshMovimientos]);
 
   // Prellenar modal cuando se solicita préstamo directo desde el POS
   useEffect(() => {
@@ -260,6 +300,14 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
   const totalDevueltos = movimientos.filter((m) => m.estado === 'DEVUELTO').length;
   const totalPendientesAprobacion = movimientos.filter((m) => m.estado === 'SOLICITADO').length;
 
+  const pendingMyOriginActions = movimientos.filter(
+    (m) => (m.estado === 'SOLICITADO' || m.estado === 'APROBADO') && canActOrigin(m)
+  ).length;
+  const pendingMyDestActions = movimientos.filter(
+    (m) => m.estado === 'EN_TRANSITO' && canActDestino(m)
+  ).length;
+  const totalMyPendingActions = pendingMyOriginActions + pendingMyDestActions;
+
   return (
     <div className="flex-1 overflow-y-auto bg-[#F8F9FF] p-6 md:p-8">
       <div className="mx-auto w-full max-w-7xl space-y-6">
@@ -279,20 +327,66 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (productos.length > 0 && !selectedProductoId) {
-                setSelectedProductoId(productos[0].id);
-              }
-              setIsModalOpen(true);
-            }}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#00346F] px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-900/10 transition-all hover:bg-[#002652] active:scale-95"
-          >
-            <Plus className="h-4 w-4" />
-            Nuevo Traslado o Préstamo
-          </button>
+          <div className="flex items-center gap-2">
+            {onRefreshMovimientos && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRefreshing(true);
+                  onRefreshMovimientos();
+                  setTimeout(() => setRefreshing(false), 600);
+                }}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-xs transition-all hover:bg-slate-50 active:scale-95"
+                title="Actualizar solicitudes entre sedes"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin text-[#00346F]' : ''}`} />
+                Actualizar
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                if (productos.length > 0 && !selectedProductoId) {
+                  setSelectedProductoId(productos[0].id);
+                }
+                setIsModalOpen(true);
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#00346F] px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-900/10 transition-all hover:bg-[#002652] active:scale-95"
+            >
+              <Plus className="h-4 w-4" />
+              Nuevo Traslado o Préstamo
+            </button>
+          </div>
         </div>
+
+        {/* Banner de Acciones Pendientes para la Sede del Usuario */}
+        {totalMyPendingActions > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-xs text-amber-900 shadow-xs">
+            <div className="flex items-start sm:items-center gap-2.5">
+              <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
+              <div>
+                <span className="font-extrabold">
+                  Tienes {totalMyPendingActions} movimiento(s) pendiente(s) de tu sede
+                  {currentUserSucursalNombre ? ` (${currentUserSucursalNombre})` : ''}:
+                </span>{' '}
+                <span>
+                  {pendingMyOriginActions > 0 &&
+                    `${pendingMyOriginActions} por aprobar/despachar (en Acciones: Aprobar → Despachar). `}
+                  {pendingMyDestActions > 0 &&
+                    `${pendingMyDestActions} en camino para confirmar con "Recibir en Destino".`}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFilterTab('PENDIENTES')}
+              className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-amber-700 transition-colors self-start sm:self-auto"
+            >
+              Ver Pendientes
+            </button>
+          </div>
+        )}
 
         {/* Tarjetas de Métricas Operativas */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
