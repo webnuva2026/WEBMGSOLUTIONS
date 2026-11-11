@@ -7885,6 +7885,95 @@ router13.get("/consultas/ruc/:ruc", authenticateToken, consultarRuc);
 router13.get("/consultas/dni/:dni", authenticateToken, consultarDni);
 var consulta_routes_default = router13;
 
+// server/routes/maintenance.routes.ts
+import { Router as Router14 } from "express";
+
+// server/controllers/maintenance.controller.ts
+async function resetDatabase(req, res) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.query("SET FOREIGN_KEY_CHECKS = 0");
+    const tablesToClear = [
+      "orden_bitacora",
+      "orden_servicios_mano_obra",
+      "orden_repuestos",
+      "ordenes_servicio",
+      "equipos",
+      "detalle_ventas",
+      "ventas",
+      "detalle_compras",
+      "compras",
+      "movimientos_inventario",
+      "producto_series_garantia",
+      "producto_unidades",
+      "producto_stock_sede",
+      "producto_detalle",
+      "productos",
+      "detalle_modelo",
+      "modelos",
+      "marcas",
+      "categorias",
+      "proveedores",
+      "clientes",
+      "vendedores",
+      "tecnicos",
+      "sucursales",
+      "sesiones_tokens",
+      "presencia_usuarios",
+      "codigos_recuperacion"
+    ];
+    for (const table of tablesToClear) {
+      try {
+        await connection.query(`TRUNCATE TABLE \`${table}\``);
+      } catch (err) {
+        try {
+          await connection.query(`DELETE FROM \`${table}\``);
+        } catch (delErr) {
+          console.warn(`No se pudo vaciar tabla ${table}:`, delErr);
+        }
+      }
+    }
+    const [saRows] = await connection.query(`
+      SELECT u.id, u.username, u.persona_id 
+      FROM usuarios u
+      JOIN roles r ON u.rol_id = r.id
+      WHERE r.codigo = 'SUPERADMIN' OR u.username = 'superadmin'
+      LIMIT 1
+    `);
+    if (saRows.length > 0) {
+      const saId = saRows[0].id;
+      const saPersonaId = saRows[0].persona_id;
+      await connection.query("DELETE FROM usuarios WHERE id != ?", [saId]);
+      await connection.query("UPDATE usuarios SET sucursal_id = NULL WHERE id = ?", [saId]);
+      await connection.query("DELETE FROM usuario_permisos WHERE usuario_id != ?", [saId]);
+      if (saPersonaId) {
+        await connection.query("DELETE FROM personas WHERE id_persona != ?", [saPersonaId]);
+      } else {
+        await connection.query("DELETE FROM personas");
+      }
+    }
+    await connection.query("SET FOREIGN_KEY_CHECKS = 1");
+    res.json({
+      success: true,
+      message: "Base de datos vaciada con \xE9xito. Cat\xE1logos, inventario, ventas, compras, sucursales y clientes eliminados. Solo se mantiene la cuenta Superadministrador."
+    });
+  } catch (error) {
+    try {
+      await connection.query("SET FOREIGN_KEY_CHECKS = 1");
+    } catch {
+    }
+    console.error("Error al resetear base de datos:", error);
+    res.status(500).json({ success: false, message: "Error interno al vaciar la base de datos." });
+  } finally {
+    connection.release();
+  }
+}
+
+// server/routes/maintenance.routes.ts
+var router14 = Router14();
+router14.post("/mantenimiento/reset-bd", authenticateToken, requireRoles("SUPERADMIN"), resetDatabase);
+var maintenance_routes_default = router14;
+
 // server/utils/seed-superadmin.ts
 import dotenv5 from "dotenv";
 init_security();
@@ -8025,6 +8114,7 @@ app.use("/api", purchase_routes_default);
 app.use("/api", sale_routes_default);
 app.use("/api", workshop_routes_default);
 app.use("/api", consulta_routes_default);
+app.use("/api", maintenance_routes_default);
 app.get("/api/health", (_req, res) => {
   res.json({
     success: true,

@@ -26,6 +26,7 @@ import workshopRoutes from './routes/workshop.routes';
 import transferRoutes from './routes/transfer.routes';
 import purchaseRoutes from './routes/purchase.routes';
 import consultaRoutes from './routes/consulta.routes';
+import maintenanceRoutes from './routes/maintenance.routes';
 import { seedSuperAdmin } from './utils/seed-superadmin';
 
 dotenv.config();
@@ -62,6 +63,7 @@ app.use('/api', purchaseRoutes);
 app.use('/api', saleRoutes);
 app.use('/api', workshopRoutes);
 app.use('/api', consultaRoutes);
+app.use('/api', maintenanceRoutes);
 
 
 // ─── HEALTH CHECK ───

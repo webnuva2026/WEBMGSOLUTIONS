@@ -315,9 +315,9 @@ export function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Limpiar cachés viejos de localStorage para sincronizar estrictamente con la base de datos real
+  // Limpiar cachés de localStorage para sincronizar con el vaciado total de la base de datos
   useEffect(() => {
-    const legacyPurged = localStorage.getItem('mg_legacy_purged_v5');
+    const legacyPurged = localStorage.getItem('mg_db_reset_v2026_clean');
     if (!legacyPurged) {
       localStorage.removeItem('mg_productos');
       localStorage.removeItem('mg_ordenes_servicio');
@@ -329,7 +329,12 @@ export function App() {
       localStorage.removeItem('mg_cajas_turnos');
       localStorage.removeItem('mg_movimientos_caja');
       localStorage.removeItem('mg_movimientos_inventario');
-      localStorage.setItem('mg_legacy_purged_v5', 'true');
+      localStorage.removeItem('mg_categorias');
+      localStorage.removeItem('mg_marcas');
+      localStorage.removeItem('mg_modelos');
+      localStorage.removeItem('mg_sucursales');
+      localStorage.removeItem('mg_usuarios');
+      localStorage.setItem('mg_db_reset_v2026_clean', 'true');
       setProductos([]);
       setOrdenes([]);
       setEquipos([]);
@@ -338,6 +343,9 @@ export function App() {
       setProveedores([]);
       setClientes([]);
       setCajasTurnos([]);
+      setCategorias([]);
+      setMarcas([]);
+      setSucursales([]);
     }
   }, []);
 
