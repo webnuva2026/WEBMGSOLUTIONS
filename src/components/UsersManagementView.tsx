@@ -163,8 +163,6 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
 
   // Consulta RENIEC / SUNAT State
   const [isQueryingDoc, setIsQueryingDoc] = useState(false);
-  const [consultaUserBadge, setConsultaUserBadge] = useState<string | null>(null);
-  const [isDocVerified, setIsDocVerified] = useState(false);
 
   // Role Form
   const [roleForm, setRoleForm] = useState<CreateRoleData>({
@@ -284,8 +282,6 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
       modulosPermitidos: defaultRol?.modulosPredeterminados || ['ventas'],
     });
     setIsUserModalOpen(true);
-    setConsultaUserBadge(null);
-    setIsDocVerified(false);
   };
 
   // Open Edit User Modal
@@ -305,8 +301,6 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
       estado: u.estado,
       modulosPermitidos: u.modulosPermitidos || userRole?.modulosPredeterminados || ['ventas'],
     });
-    setConsultaUserBadge(null);
-    setIsDocVerified(false);
     setIsUserModalOpen(true);
   };
 
@@ -331,8 +325,6 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
     }
 
     setIsQueryingDoc(true);
-    setConsultaUserBadge(null);
-    setIsDocVerified(false);
 
     try {
       if (tipo === 'DNI') {
@@ -342,11 +334,8 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
             ...prev,
             nombreCompleto: res.data!.nombreCompleto,
           }));
-          setIsDocVerified(true);
-          setConsultaUserBadge('RENIEC: Identidad Verificada');
-          onShowToast('RENIEC: Identidad Verificada', res.data.nombreCompleto, 'success');
+          onShowToast('DNI Consultado', res.data.nombreCompleto, 'success');
         } else {
-          setIsDocVerified(false);
           onShowToast('No encontrado', res.message || 'No se encontró el DNI en RENIEC.', 'warning');
         }
       } else if (tipo === 'RUC') {
@@ -356,16 +345,12 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
             ...prev,
             nombreCompleto: res.data!.razonSocial,
           }));
-          setIsDocVerified(true);
-          setConsultaUserBadge(`SUNAT: ${res.data.estado} - ${res.data.condicion}`);
-          onShowToast('SUNAT: RUC Consultado', res.data.razonSocial, 'success');
+          onShowToast('RUC Consultado', res.data.razonSocial, 'success');
         } else {
-          setIsDocVerified(false);
           onShowToast('No encontrado', res.message || 'No se encontró el RUC en SUNAT.', 'warning');
         }
       }
     } catch (err: any) {
-      setIsDocVerified(false);
       console.error('Error al consultar documento de usuario:', err);
       onShowToast('Error', 'Fallo de conexión al consultar el documento.', 'error');
     } finally {
@@ -1083,8 +1068,6 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                       value={userForm.tipoDocumento}
                       onChange={(e) => {
                         setUserForm({ ...userForm, tipoDocumento: e.target.value, numeroDocumento: '' });
-                        setConsultaUserBadge(null);
-                        setIsDocVerified(false);
                       }}
                       className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-[#00346F]"
                     >
@@ -1113,10 +1096,6 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                             val = val.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12).toUpperCase();
                           }
                           setUserForm({ ...userForm, numeroDocumento: val });
-                          if (isDocVerified) {
-                            setIsDocVerified(false);
-                            setConsultaUserBadge(null);
-                          }
                         }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && (userForm.tipoDocumento === 'DNI' || userForm.tipoDocumento === 'RUC')) {
@@ -1124,7 +1103,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                             handleQueryDocument();
                           }
                         }}
-                        className={`w-full p-2 bg-white border rounded-lg font-mono focus:outline-none focus:border-[#00346F] ${isDocVerified ? 'border-emerald-500 ring-1 ring-emerald-200' : 'border-slate-300'}`}
+                        className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono focus:outline-none focus:border-[#00346F]"
                         placeholder={userForm.tipoDocumento === 'RUC' ? '20481928371' : (userForm.tipoDocumento === 'DNI' ? '72345678' : '001234567')}
                       />
                       {(userForm.tipoDocumento === 'DNI' || userForm.tipoDocumento === 'RUC') && (
@@ -1162,57 +1141,23 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                   </div>
                 </div>
 
-                {/* 2. Nombres (obtenidos de RENIEC) y Correo Electrónico */}
+                {/* 2. Nombres y Correo Electrónico */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block font-semibold text-slate-600 flex items-center gap-1">
-                        Nombre Completo *
-                        {isDocVerified && (
-                          <Lock className="w-3.5 h-3.5 text-emerald-600" title="Bloqueado por verificación oficial en RENIEC" />
-                        )}
-                      </label>
-                      {consultaUserBadge ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded text-[10px] text-emerald-800 flex items-center gap-1 font-semibold">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600 flex-shrink-0" />
-                            {consultaUserBadge}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setIsDocVerified(false)}
-                            title="Desbloquear para editar nombre manualmente"
-                            className="text-[10px] text-slate-400 hover:text-slate-600 underline cursor-pointer"
-                          >
-                            Modificar
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        required
-                        readOnly={isDocVerified}
-                        value={userForm.nombreCompleto}
-                        onChange={(e) => {
-                          if (isDocVerified) return;
-                          const val = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑäëïöüÄËÏÖÜ\s]/g, '');
-                          setUserForm({ ...userForm, nombreCompleto: val });
-                        }}
-                        className={`w-full p-2 rounded-lg transition-colors focus:outline-none ${
-                          isDocVerified
-                            ? 'bg-slate-100 text-slate-700 font-semibold border border-emerald-400 cursor-not-allowed select-none pr-8'
-                            : 'bg-white border border-slate-300 focus:border-[#00346F]'
-                        }`}
-                        placeholder="Ej: Carlos Mendoza Ramos"
-                      />
-                      {isDocVerified && (
-                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" title="Nombre validado ante RENIEC">
-                          <Lock className="w-4 h-4" />
-                        </div>
-                      )}
-                    </div>
+                    <label className="block font-semibold text-slate-600 mb-1">
+                      Nombre Completo *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={userForm.nombreCompleto}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑäëïöüÄËÏÖÜ\s]/g, '');
+                        setUserForm({ ...userForm, nombreCompleto: val });
+                      }}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-[#00346F]"
+                      placeholder="Ej: Carlos Mendoza Ramos"
+                    />
                   </div>
 
                   <div>
