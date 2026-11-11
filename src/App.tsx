@@ -452,6 +452,33 @@ export function App() {
   useEffect(() => {
     if (
       currentUser &&
+      currentUser.rol !== 'SUPERADMIN' &&
+      currentUser.rol !== 'ADMIN'
+    ) {
+      const targetSede = currentUser.sucursalId ?? null;
+      if (selectedSedeId !== targetSede) {
+        setSelectedSedeId(targetSede);
+      }
+    }
+  }, [currentUser?.id, currentUser?.rol, currentUser?.sucursalId]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const syncProfile = () => {
+      if (!authService.getToken()) return;
+      authService.getProfile().then((res) => {
+        if (res.success && res.user) {
+          setCurrentUser((prev) => (prev ? { ...prev, ...res.user } : res.user));
+        }
+      });
+    };
+    window.addEventListener('focus', syncProfile);
+    return () => window.removeEventListener('focus', syncProfile);
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (
+      currentUser &&
       currentUser.rol !== 'ADMIN' &&
       currentUser.rol !== 'SUPERADMIN' &&
       !hasModuleAccess(currentUser.modulosPermitidos, activeView)
@@ -506,7 +533,12 @@ export function App() {
   // Handlers
   const handleLoginSuccess = (user: Usuario) => {
     setCurrentUser(user);
-    loadDatabaseData();
+    const isAdminUser = user.rol === 'ADMIN' || user.rol === 'SUPERADMIN';
+    const initialSede = isAdminUser ? selectedSedeId : user.sucursalId ?? null;
+    if (!isAdminUser) {
+      handleSelectSede(user.sucursalId ?? null);
+    }
+    loadDatabaseData(initialSede);
     // Si requiere cambio de contraseña, mostrar modal bloqueante
     if (user.requiereCambioPassword) {
       setShowForceChangePassword(true);
@@ -520,7 +552,6 @@ export function App() {
         : user.rol === 'ALMACEN'
         ? 'panel-almacen'
         : 'ventas';
-    const isAdminUser = user.rol === 'ADMIN' || user.rol === 'SUPERADMIN';
     const normalized = normalizeModuleIds(user.modulosPermitidos);
     const fallbackView = normalized[0] === 'compras' ? 'panel-almacen' : normalized[0] || 'ventas';
     setActiveView(isAdminUser || hasModuleAccess(user.modulosPermitidos, preferredView) ? preferredView : fallbackView);
@@ -892,6 +923,12 @@ export function App() {
       }
       return [user, ...prev];
     });
+    if (currentUser && user.id === currentUser.id) {
+      setCurrentUser((prev) => (prev ? { ...prev, ...user } : prev));
+      if (user.rol !== 'SUPERADMIN' && user.rol !== 'ADMIN') {
+        handleSelectSede(user.sucursalId ?? null);
+      }
+    }
   };
 
   const handleToggleUsuarioStatus = (id: number) => {

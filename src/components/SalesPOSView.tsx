@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ShoppingCart,
   Search,
@@ -93,9 +93,31 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
   const [searchProductQuery, setSearchProductQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('DEPARTAMENTOS');
   const [selectedBrand, setSelectedBrand] = useState<string>('TODAS');
+  const isAdminRole = currentUser.rol === 'SUPERADMIN' || currentUser.rol === 'ADMIN';
+  const assignedSucursal = useMemo(() => {
+    return (
+      sucursales.find((s) => s.id === currentUser?.sucursalId) ||
+      (currentUser?.sucursalNombre
+        ? sucursales.find((s) => s.nombre === currentUser.sucursalNombre)
+        : undefined)
+    );
+  }, [sucursales, currentUser?.sucursalId, currentUser?.sucursalNombre]);
+
   const [activeSucursalNombre, setActiveSucursalNombre] = useState<string>(
-    sucursales[0]?.nombre || 'Principal - Chiclayo Centro'
+    () =>
+      assignedSucursal?.nombre ||
+      currentUser?.sucursalNombre ||
+      sucursales[0]?.nombre ||
+      'Principal - Chiclayo Centro'
   );
+
+  useEffect(() => {
+    if (assignedSucursal) {
+      setActiveSucursalNombre(assignedSucursal.nombre);
+    } else if (currentUser?.sucursalNombre) {
+      setActiveSucursalNombre(currentUser.sucursalNombre);
+    }
+  }, [assignedSucursal, currentUser?.sucursalNombre]);
 
   // Cart State
   const [cart, setCart] = useState<ItemVenta[]>([]);
@@ -1025,8 +1047,12 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
 
           <select
             value={activeSucursalNombre}
+            disabled={!isAdminRole && Boolean(assignedSucursal)}
             onChange={(e) => setActiveSucursalNombre(e.target.value)}
-            className="p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#00346F]"
+            title={!isAdminRole && assignedSucursal ? 'Sede asignada a su usuario' : 'Seleccionar sucursal'}
+            className={`p-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#00346F] ${
+              !isAdminRole && assignedSucursal ? 'bg-slate-100 cursor-not-allowed' : 'bg-white'
+            }`}
           >
             {sucursales.map((s) => (
               <option key={s.id} value={s.nombre}>

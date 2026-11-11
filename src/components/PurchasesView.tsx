@@ -113,9 +113,30 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
   const [selectedProveedorId, setSelectedProveedorId] = useState<number | ''>(proveedores[0]?.id || '');
   const [tipoComprobante, setTipoComprobante] = useState<'FACTURA' | 'BOLETA' | 'GUIA_REMISION'>('FACTURA');
   const [serieNumero, setSerieNumero] = useState('');
+  const assignedUserSucursal = useMemo(() => {
+    return (
+      sucursales.find((s) => s.id === currentUser?.sucursalId) ||
+      (currentUser?.sucursalNombre
+        ? sucursales.find((s) => s.nombre === currentUser.sucursalNombre)
+        : undefined)
+    );
+  }, [sucursales, currentUser?.sucursalId, currentUser?.sucursalNombre]);
+
   const [sucursalDestino, setSucursalDestino] = useState<string>(
-    sucursales[0]?.nombre || 'Principal - Chiclayo Centro'
+    () =>
+      assignedUserSucursal?.nombre ||
+      currentUser?.sucursalNombre ||
+      sucursales[0]?.nombre ||
+      'Principal - Chiclayo Centro'
   );
+
+  useEffect(() => {
+    if (assignedUserSucursal) {
+      setSucursalDestino(assignedUserSucursal.nombre);
+    } else if (currentUser?.sucursalNombre) {
+      setSucursalDestino(currentUser.sucursalNombre);
+    }
+  }, [assignedUserSucursal, currentUser?.sucursalNombre]);
   const [fechaCompra, setFechaCompra] = useState<string>(new Date().toISOString().slice(0, 10));
   const [observaciones, setObservaciones] = useState('');
   const [cartItems, setCartItems] = useState<ItemCompra[]>([]);

@@ -31,7 +31,7 @@ import {
   Check,
   LayoutGrid,
 } from 'lucide-react';
-import { Usuario, OrdenServicio, Producto, Cliente, Sucursal } from '../types';
+import { Usuario, OrdenServicio, Producto, Cliente, Sucursal, hasModuleAccess } from '../types';
 
 interface ModuleMeta {
   title: string;
@@ -169,15 +169,20 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
 
   const isSuperAdmin = currentUser?.rol === 'SUPERADMIN' || currentUser?.rol === 'ADMIN';
   const canAccessUsuarios =
-    isSuperAdmin || Boolean(currentUser?.modulosPermitidos?.includes('usuarios'));
+    isSuperAdmin || hasModuleAccess(currentUser?.modulosPermitidos, 'usuarios');
   const canAccessEmpresa =
-    isSuperAdmin || Boolean(currentUser?.modulosPermitidos?.includes('config-empresa'));
+    isSuperAdmin || hasModuleAccess(currentUser?.modulosPermitidos, 'sucursales');
 
-  const currentSedeNombre = selectedSedeId
-    ? sucursales.find((s) => s.id === selectedSedeId)?.nombre.replace(/^[0-9]+ - /, '') || 'Sede Seleccionada'
-    : isSuperAdmin
-    ? 'Todas las Sedes (Consolidado)'
-    : currentUser?.sucursal?.replace(/^[0-9]+ - /, '') || 'Sede Principal';
+  const assignedUserSede =
+    sucursales.find((s) => s.id === currentUser?.sucursalId)?.nombre ||
+    currentUser?.sucursalNombre ||
+    '';
+
+  const currentSedeNombre = isSuperAdmin
+    ? selectedSedeId
+      ? sucursales.find((s) => s.id === selectedSedeId)?.nombre.replace(/^[0-9]+ - /, '') || 'Sede Seleccionada'
+      : 'Todas las Sedes (Consolidado)'
+    : assignedUserSede.replace(/^[0-9]+ - /, '') || 'Sede Principal';
 
   const currentMeta =
     MODULE_METADATA[activeView] ||
