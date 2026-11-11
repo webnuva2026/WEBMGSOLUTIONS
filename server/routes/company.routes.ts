@@ -7,6 +7,7 @@ import {
   createSucursal,
   updateSucursal,
   toggleSucursalEstado,
+  setSucursalPrincipal,
 } from '../controllers/company.controller';
 import { dispatchEmail, setRuntimeMailBridgeUrl, getRuntimeMailBridgeUrl } from '../utils/mailer';
 
@@ -53,6 +54,7 @@ router.get('/sucursales', authenticateToken, getSucursales);
 // Creación, edición y cambio de estado: solo SUPERADMIN o ADMIN
 router.post('/sucursales', authenticateToken, requireRoles('SUPERADMIN', 'ADMIN'), createSucursal);
 router.put('/sucursales/:id', authenticateToken, requireRoles('SUPERADMIN', 'ADMIN'), updateSucursal);
+router.patch('/sucursales/:id/principal', authenticateToken, requireRoles('SUPERADMIN', 'ADMIN'), setSucursalPrincipal);
 router.patch('/sucursales/:id/estado', authenticateToken, requireRoles('SUPERADMIN', 'ADMIN'), toggleSucursalEstado);
 
 export default router;

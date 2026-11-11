@@ -14,6 +14,7 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
+  Star,
 } from 'lucide-react';
 import { EmpresaConfig, Sucursal, EstadoRegistro } from '../types';
 import { companyService } from '../services/company.service';
@@ -104,14 +105,23 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
     setIsSavingSucursal(true);
     try {
       if (editingSucursal) {
-        // Actualizar en el Backend
+        // Actualizar en el Backend (incluyendo estado de Sede Principal)
         const res = await companyService.updateSucursal(editingSucursal.id, {
           nombre: sucursalForm.nombre.trim(),
           direccion: sucursalForm.direccion.trim(),
           telefono: sucursalForm.telefono.trim(),
+          esPrincipal: sucursalForm.esPrincipal,
         });
 
         if (res.success && res.sucursal) {
+          // Si se estableció como principal, reflejar en las demás del estado
+          if (sucursalForm.esPrincipal) {
+            sucursales.forEach((s) => {
+              if (s.id !== res.sucursal!.id && s.esPrincipal) {
+                onSaveSucursal({ ...s, esPrincipal: false });
+              }
+            });
+          }
           onSaveSucursal(res.sucursal);
           setIsSucursalModalOpen(false);
           onShowToast('Sucursal actualizada', res.message, 'success');
@@ -124,9 +134,17 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
           nombre: sucursalForm.nombre.trim(),
           direccion: sucursalForm.direccion.trim(),
           telefono: sucursalForm.telefono.trim(),
+          esPrincipal: sucursalForm.esPrincipal,
         });
 
         if (res.success && res.sucursal) {
+          if (sucursalForm.esPrincipal) {
+            sucursales.forEach((s) => {
+              if (s.id !== res.sucursal!.id && s.esPrincipal) {
+                onSaveSucursal({ ...s, esPrincipal: false });
+              }
+            });
+          }
           onSaveSucursal(res.sucursal);
           setIsSucursalModalOpen(false);
           onShowToast('Sucursal creada', res.message, 'success');
@@ -139,6 +157,27 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
       onShowToast('Error', 'Ocurrió un problema de comunicación con el servidor.', 'error');
     } finally {
       setIsSavingSucursal(false);
+    }
+  };
+
+  const handleSetPrincipal = async (suc: Sucursal) => {
+    try {
+      const res = await companyService.setSucursalPrincipal(suc.id);
+      if (res.success) {
+        if (res.sucursales && res.sucursales.length > 0) {
+          res.sucursales.forEach((s) => onSaveSucursal(s));
+        } else {
+          sucursales.forEach((s) => {
+            onSaveSucursal({ ...s, esPrincipal: s.id === suc.id });
+          });
+        }
+        onShowToast('Sede Principal actualizada', res.message, 'success');
+      } else {
+        onShowToast('Operación no permitida', res.message || 'No se pudo cambiar la sede principal.', 'warning');
+      }
+    } catch (err) {
+      console.error(err);
+      onShowToast('Error', 'No se pudo comunicar con el servidor.', 'error');
     }
   };
 
@@ -275,7 +314,17 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                   ) : (
                     sucursales.map((suc) => (
                       <tr key={suc.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-2.5 px-3 font-semibold text-slate-800">{suc.nombre}</td>
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-slate-800">{suc.nombre}</span>
+                            {suc.esPrincipal && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                                Sede Principal
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-2.5 px-3 text-slate-600">{suc.direccion || '—'}</td>
                         <td className="py-2.5 px-3 text-slate-500">{suc.telefono || '—'}</td>
                         <td className="py-2.5 px-3 text-center">
@@ -296,6 +345,19 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                         </td>
                         <td className="py-2.5 px-3 text-center">
                           <div className="flex items-center justify-center gap-1.5">
+                            {/* Botón Asignar como Sede Principal (1-clic) */}
+                            {!suc.esPrincipal && suc.estado === 'ACTIVO' && (
+                              <button
+                                type="button"
+                                title="Establecer como Sede Principal (Matriz)"
+                                onClick={() => handleSetPrincipal(suc)}
+                                className="p-1.5 text-slate-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg border border-slate-200 transition-colors flex items-center gap-1 text-[10px] font-bold cursor-pointer"
+                              >
+                                <Star className="w-3.5 h-3.5 text-amber-500" />
+                                <span className="hidden xl:inline">Hacer Principal</span>
+                              </button>
+                            )}
+
                             {/* Botón Lápiz de Editar */}
                             <button
                               type="button"
@@ -417,6 +479,36 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                         className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
                         placeholder="Av. Ramón Castilla 450, Chiclayo"
                       />
+                    </div>
+
+                    {/* Opción de Sede Principal (Matriz) */}
+                    <div className="pt-2 border-t border-slate-100">
+                      <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border transition-all ${
+                        sucursalForm.esPrincipal
+                          ? 'bg-amber-50/70 border-amber-300 text-amber-950'
+                          : 'bg-white border-slate-200 hover:bg-slate-50 cursor-pointer text-slate-700'
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={sucursalForm.esPrincipal}
+                          disabled={Boolean(editingSucursal?.esPrincipal)}
+                          onChange={(e) => setSucursalForm({ ...sucursalForm, esPrincipal: e.target.checked })}
+                          className="w-4 h-4 mt-0.5 text-[#00346F] rounded border-slate-300 focus:ring-blue-500 cursor-pointer disabled:opacity-50"
+                        />
+                        <div className="select-none flex-1">
+                          <span className="font-bold text-xs flex items-center gap-1.5">
+                            <Star className={`w-3.5 h-3.5 ${sucursalForm.esPrincipal ? 'fill-amber-500 text-amber-500' : 'text-slate-400'}`} />
+                            {sucursalForm.esPrincipal
+                              ? 'Sede Principal (Casa Matriz Actual)'
+                              : 'Establecer como Sede Principal'}
+                          </span>
+                          <span className="text-[10px] text-slate-500 block mt-0.5">
+                            {sucursalForm.esPrincipal
+                              ? 'Esta sucursal opera actualmente como la sede matriz central de la empresa.'
+                              : 'Al guardar, esta sucursal pasará a ser la Sede Principal y la anterior quedará como sucursal secundaria (anexo).'}
+                          </span>
+                        </div>
+                      </label>
                     </div>
 
                     <div className="pt-4 border-t border-slate-200 flex justify-end gap-2">

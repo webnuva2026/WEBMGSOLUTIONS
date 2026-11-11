@@ -3651,6 +3651,55 @@ async function toggleSucursalEstado(req, res) {
     });
   }
 }
+async function setSucursalPrincipal(req, res) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const sucursalId = parseInt(req.params.id, 10);
+    if (isNaN(sucursalId)) {
+      res.status(400).json({ success: false, message: "ID de sucursal inv\xE1lido." });
+      return;
+    }
+    const [existing] = await connection.query(
+      "SELECT id, nombre FROM sucursales WHERE id = ? LIMIT 1",
+      [sucursalId]
+    );
+    if (existing.length === 0) {
+      res.status(404).json({ success: false, message: "Sucursal no encontrada." });
+      return;
+    }
+    await connection.query("UPDATE sucursales SET es_principal = 0");
+    await connection.query("UPDATE sucursales SET es_principal = 1 WHERE id = ?", [sucursalId]);
+    await connection.commit();
+    const [allBranches] = await pool.query(
+      `SELECT s.id, s.codigo, s.nombre, s.direccion, s.telefono, s.es_principal, s.estado_id,
+              COALESCE(e.nombre, 'ACTIVO') AS estado
+       FROM sucursales s
+       LEFT JOIN estados e ON s.estado_id = e.id
+       ORDER BY s.es_principal DESC, s.id ASC`
+    );
+    const sucursales = allBranches.map((row) => ({
+      id: row.id,
+      codigo: row.codigo,
+      nombre: row.nombre,
+      direccion: row.direccion,
+      telefono: row.telefono || "",
+      esPrincipal: Boolean(row.es_principal),
+      estado: Number(row.estado_id) === 2 || String(row.estado).toUpperCase() === "INACTIVO" ? "INACTIVO" : "ACTIVO"
+    }));
+    res.json({
+      success: true,
+      message: `"${existing[0].nombre}" ha sido establecida como la Sede Principal de la empresa.`,
+      sucursales
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error("Error al cambiar sede principal:", error);
+    res.status(500).json({ success: false, message: "Error interno al cambiar la sede principal." });
+  } finally {
+    connection.release();
+  }
+}
 
 // server/routes/company.routes.ts
 init_mailer();
@@ -3687,6 +3736,7 @@ router4.put("/empresa", authenticateToken, requireRoles("SUPERADMIN", "ADMIN"), 
 router4.get("/sucursales", authenticateToken, getSucursales);
 router4.post("/sucursales", authenticateToken, requireRoles("SUPERADMIN", "ADMIN"), createSucursal);
 router4.put("/sucursales/:id", authenticateToken, requireRoles("SUPERADMIN", "ADMIN"), updateSucursal);
+router4.patch("/sucursales/:id/principal", authenticateToken, requireRoles("SUPERADMIN", "ADMIN"), setSucursalPrincipal);
 router4.patch("/sucursales/:id/estado", authenticateToken, requireRoles("SUPERADMIN", "ADMIN"), toggleSucursalEstado);
 var company_routes_default = router4;
 

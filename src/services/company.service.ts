@@ -122,4 +122,20 @@ export const companyService = {
       return { success: false, message: 'Error de conexión al alternar estado de la sucursal.' };
     }
   },
+
+  /**
+   * Establece una sucursal como la Sede Principal (Matriz) de la empresa
+   */
+  async setSucursalPrincipal(id: number): Promise<{ success: boolean; message: string; sucursales?: Sucursal[] }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/sucursales/${id}/principal`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+      });
+      return await response.json();
+    } catch (error: any) {
+      console.error('Error al cambiar sede principal:', error);
+      return { success: false, message: 'Error de conexión al cambiar la sede principal.' };
+    }
+  },
 };
