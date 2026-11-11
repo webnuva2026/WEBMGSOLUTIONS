@@ -29,6 +29,7 @@ import {
   ChevronDown,
   Globe,
   Check,
+  LayoutGrid,
 } from 'lucide-react';
 import { Usuario, OrdenServicio, Producto, Cliente, Sucursal } from '../types';
 
@@ -193,173 +194,174 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   const CurrentModuleIcon = currentMeta.icon;
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 md:px-6 h-16 bg-white border-b border-slate-200 shadow-sm w-full md:pl-[285px] transition-all">
-      {/* Left section: mobile hamburger & dynamic module title */}
-      <div className="flex items-center gap-3 min-w-0">
+    <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 md:px-6 h-16 bg-gradient-to-r from-[#07193B] via-[#0B224D] to-[#081C42] text-white border-b border-blue-950/60 shadow-md w-full transition-all font-sans">
+      {/* Decorative subtle curved waves matching reference design */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="hidden md:block absolute -top-12 right-52 w-72 h-36 rounded-full bg-[#15459B]/30 blur-xl" />
+        <div className="hidden md:block absolute -bottom-16 right-16 w-80 h-32 rounded-full bg-[#1E5BBF]/20 blur-lg" />
+      </div>
+
+      {/* Left section: mobile hamburger, brand logo & sede/module selector */}
+      <div className="relative z-10 flex items-center gap-3 min-w-0">
         <button
           onClick={onToggleSidebar}
-          className="md:hidden text-slate-600 hover:text-[#00346F] p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0 cursor-pointer"
+          className="md:hidden text-white/85 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors shrink-0 cursor-pointer"
           title="Abrir Menú"
         >
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* Dynamic Module Identity */}
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-[#00346F]/10 text-[#00346F] flex items-center justify-center shrink-0 border border-[#00346F]/15 shadow-2xs">
-            <CurrentModuleIcon className="w-5 h-5" />
+        {/* Brand Identity */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shadow-sm shrink-0">
+            <span className="font-black text-[#07193B] text-base tracking-tight">MG</span>
           </div>
+          <div className="hidden xs:block sm:block">
+            <p className="font-bold text-sm text-white tracking-wide leading-tight">MG SOLUTIONS</p>
+            <p className="text-[10px] font-semibold text-blue-200/75 uppercase tracking-widest leading-tight">
+              ERP SYSTEM
+            </p>
+          </div>
+        </div>
 
-          <div className="min-w-0">
-            {/* Breadcrumb superior sutil */}
-            <div className="flex items-center gap-1 text-[11px] font-medium text-slate-500 leading-tight">
-              <span className="font-bold text-slate-700 hidden sm:inline">MG SOLUTIONS</span>
-              <ChevronRight className="w-3 h-3 text-slate-400 hidden sm:inline" />
-              <span className="text-[#00346F] font-bold truncate">
-                {currentMeta.title}
+        {/* Vertical divider */}
+        <div className="hidden sm:block h-7 w-px bg-white/15 mx-1.5 shrink-0" />
+
+        {/* Selector / Indicador de Sede Activa + Módulo actual */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="relative">
+            {isSuperAdmin && onSelectSede ? (
+              <button
+                type="button"
+                onClick={() => setShowSedeDropdown(!showSedeDropdown)}
+                className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-lg text-xs font-medium bg-[#102E66]/85 hover:bg-[#173F8A] text-white border border-blue-400/25 transition-all cursor-pointer shadow-xs"
+                title="Haga clic para cambiar de sede de visualización"
+              >
+                {selectedSedeId ? (
+                  <Store className="w-4 h-4 text-blue-200 shrink-0" strokeWidth={1.75} />
+                ) : (
+                  <LayoutGrid className="w-4 h-4 text-blue-200 shrink-0" strokeWidth={1.75} />
+                )}
+                <span className="max-w-[130px] sm:max-w-[200px] truncate">{currentSedeNombre}</span>
+                <ChevronDown className="w-3.5 h-3.5 text-blue-200/80 shrink-0" />
+              </button>
+            ) : (
+              <span className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium bg-[#102E66]/75 text-white border border-blue-400/20">
+                <Store className="w-4 h-4 text-blue-200 shrink-0" strokeWidth={1.75} />
+                <span className="max-w-[130px] sm:max-w-[200px] truncate">{currentSedeNombre}</span>
               </span>
-              {currentMeta.badge && (
-                <span className="hidden md:inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-50 text-[#00346F] border border-blue-200 ml-1">
-                  {currentMeta.badge}
-                </span>
-              )}
-            </div>
+            )}
 
-            {/* Título y Sede activa */}
-            <div className="flex items-center gap-2 mt-0.5">
-              <h1 className="text-sm sm:text-base font-black text-[#0B1C30] tracking-tight truncate leading-tight">
-                {currentMeta.title}
-              </h1>
+            {/* Dropdown Menu para SuperAdmin */}
+            {isSuperAdmin && showSedeDropdown && onSelectSede && (
+              <>
+                <div
+                  className="fixed inset-0 z-50"
+                  onClick={() => setShowSedeDropdown(false)}
+                />
+                <div className="absolute left-0 mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-3 py-1.5 border-b border-slate-100">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Filtrar por Sucursal
+                    </p>
+                  </div>
 
-              {/* Selector / Indicador de Sede Activa */}
-              <div className="relative">
-                {isSuperAdmin && onSelectSede ? (
                   <button
                     type="button"
-                    onClick={() => setShowSedeDropdown(!showSedeDropdown)}
-                    className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#EFF4FF] hover:bg-blue-100 text-[#00346F] border border-blue-200 transition-all cursor-pointer shadow-2xs"
-                    title="Haga clic para cambiar de sede de visualización"
+                    onClick={() => {
+                      onSelectSede(null);
+                      setShowSedeDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 text-xs font-semibold flex items-center justify-between transition-colors ${
+                      selectedSedeId === null
+                        ? 'bg-[#EFF4FF] text-[#00346F] font-bold'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
                   >
-                    {selectedSedeId ? (
-                      <Store className="w-3 h-3 text-[#00346F]" />
-                    ) : (
-                      <Globe className="w-3 h-3 text-[#00346F]" />
-                    )}
-                    <span className="max-w-[140px] truncate">{currentSedeNombre}</span>
-                    <ChevronDown className="w-3 h-3 text-[#00346F]/70" />
-                  </button>
-                ) : (
-                  <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                    <Store className="w-3 h-3 text-[#00346F]" />
-                    <span className="max-w-[140px] truncate">{currentSedeNombre}</span>
-                  </span>
-                )}
-
-                {/* Dropdown Menu para SuperAdmin */}
-                {isSuperAdmin && showSedeDropdown && onSelectSede && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-50"
-                      onClick={() => setShowSedeDropdown(false)}
-                    />
-                    <div className="absolute left-0 mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
-                      <div className="px-3 py-1.5 border-b border-slate-100">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                          Filtrar por Sucursal
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onSelectSede(null);
-                          setShowSedeDropdown(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 text-xs font-semibold flex items-center justify-between transition-colors ${
-                          selectedSedeId === null
-                            ? 'bg-[#EFF4FF] text-[#00346F] font-bold'
-                            : 'text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Globe className="w-3.5 h-3.5 text-blue-600" />
-                          <span>🌐 Todas las Sedes (Consolidado)</span>
-                        </div>
-                        {selectedSedeId === null && <Check className="w-3.5 h-3.5 text-[#00346F]" />}
-                      </button>
-
-                      <div className="my-1 border-t border-slate-100" />
-
-                      {sucursales
-                        .filter((suc) => suc.estado === 'ACTIVO')
-                        .map((suc) => {
-                        const isSelected = selectedSedeId === suc.id;
-                        return (
-                          <button
-                            key={suc.id}
-                            type="button"
-                            onClick={() => {
-                              onSelectSede(suc.id);
-                              setShowSedeDropdown(false);
-                            }}
-                            className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors ${
-                              isSelected
-                                ? 'bg-[#EFF4FF] text-[#00346F] font-bold'
-                                : 'text-slate-700 hover:bg-slate-50 font-medium'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 truncate">
-                              <Store className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                              <span className="truncate">{suc.nombre.replace(/^[0-9]+ - /, '')}</span>
-                              {suc.esPrincipal && (
-                                <span className="text-[9px] px-1 bg-amber-100 text-amber-800 rounded font-bold shrink-0">
-                                  Central
-                                </span>
-                              )}
-                            </div>
-                            {isSelected && <Check className="w-3.5 h-3.5 text-[#00346F] shrink-0" />}
-                          </button>
-                        );
-                      })}
+                    <div className="flex items-center gap-2">
+                      <Globe className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Todas las Sedes (Consolidado)</span>
                     </div>
-                  </>
-                )}
-              </div>
-            </div>
+                    {selectedSedeId === null && <Check className="w-3.5 h-3.5 text-[#00346F]" />}
+                  </button>
+
+                  <div className="my-1 border-t border-slate-100" />
+
+                  {sucursales
+                    .filter((suc) => suc.estado === 'ACTIVO')
+                    .map((suc) => {
+                      const isSelected = selectedSedeId === suc.id;
+                      return (
+                        <button
+                          key={suc.id}
+                          type="button"
+                          onClick={() => {
+                            onSelectSede(suc.id);
+                            setShowSedeDropdown(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors ${
+                            isSelected
+                              ? 'bg-[#EFF4FF] text-[#00346F] font-bold'
+                              : 'text-slate-700 hover:bg-slate-50 font-medium'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <Store className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                            <span className="truncate">{suc.nombre.replace(/^[0-9]+ - /, '')}</span>
+                            {suc.esPrincipal && (
+                              <span className="text-[9px] px-1 bg-amber-100 text-amber-800 rounded font-bold shrink-0">
+                                Central
+                              </span>
+                            )}
+                          </div>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-[#00346F] shrink-0" />}
+                        </button>
+                      );
+                    })}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Active Module Pill on larger screens */}
+          <div className="hidden lg:inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-medium text-blue-100/90 truncate">
+            <CurrentModuleIcon className="w-3.5 h-3.5 text-blue-300 shrink-0" strokeWidth={1.75} />
+            <span className="truncate max-w-[220px]">{currentMeta.title}</span>
           </div>
         </div>
       </div>
 
-      {/* Right section: notifications, system links & profile */}
-      <div className="flex items-center gap-2 sm:gap-4">
+      {/* Right section: profile */}
+      <div className="relative z-10 flex items-center gap-2 sm:gap-4">
         {/* User Pill / Dropdown */}
-        <div className="relative pl-3 border-l border-slate-200">
+        <div className="relative pl-3 border-l border-white/15">
           <button
             onClick={() => {
               setShowUserMenu(!showUserMenu);
               setShowNotifications(false);
             }}
-            className="flex items-center gap-2.5 p-1 rounded-full hover:bg-slate-100 transition-colors text-left cursor-pointer"
+            className="flex items-center gap-2.5 px-2 py-1 rounded-xl hover:bg-white/10 transition-colors text-left cursor-pointer"
           >
-            <div className="text-right hidden md:block">
-              <p className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[170px]">
+            <div className="relative shrink-0">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#1D4ED8] to-[#0A3075] text-white flex items-center justify-center font-bold text-xs shadow-xs ring-2 ring-blue-300/35">
+                {currentUser?.avatar || currentUser?.nombreCompleto?.slice(0, 2).toUpperCase() || 'SA'}
+              </div>
+              <span
+                className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-[#081C42] bg-emerald-400"
+                title="Usuario activo"
+              />
+            </div>
+            <div className="text-left hidden md:block">
+              <p className="text-xs font-semibold text-white leading-tight truncate max-w-[170px]">
                 {currentUser?.nombreCompleto || 'Usuario del Sistema'}
               </p>
-              <p className="text-[10px] font-medium text-slate-500 tracking-normal truncate max-w-[170px]">
+              <p className="text-[11px] font-normal text-blue-200/75 tracking-normal truncate max-w-[170px]">
                 {currentUser?.nombreCompleto?.trim().toUpperCase() === (currentUser?.rolNombre || currentUser?.rol || '').trim().toUpperCase()
                   ? (currentUser?.email || 'Cuenta Raíz')
                   : (currentUser?.rolNombre || (currentUser?.rol === 'ADMIN' ? 'Administrador' : currentUser?.rol || 'Personal'))}
               </p>
             </div>
-            <div className="relative">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#00346F] to-[#001D40] text-white flex items-center justify-center font-black text-xs shadow-xs ring-2 ring-blue-100">
-                {currentUser?.avatar || currentUser?.nombreCompleto?.slice(0, 2).toUpperCase() || 'SA'}
-              </div>
-              <span
-                className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white bg-emerald-500"
-                title="Usuario activo"
-              />
-            </div>
+            <ChevronDown className="w-4 h-4 text-blue-200/80 hidden sm:block shrink-0" />
           </button>
 
           {showUserMenu && (

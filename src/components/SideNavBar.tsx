@@ -102,10 +102,10 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
         key={effectiveId}
         type="button"
         onClick={() => handleNavClick(effectiveId)}
-        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-left text-[13px] leading-tight font-medium tracking-normal cursor-pointer border ${
+        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-left font-sans text-[13px] leading-tight font-medium tracking-normal cursor-pointer border ${
           isActive
-            ? 'bg-[#0A4DA8] text-white border-[#3B82F6]/70 shadow-[0_2px_10px_rgba(10,77,168,0.55)]'
-            : 'text-slate-100/90 border-transparent hover:bg-white/10 hover:text-white'
+            ? 'bg-gradient-to-r from-[#1356B8] to-[#0D469B] text-white border-blue-400/40 shadow-[0_2px_10px_rgba(19,86,184,0.45)]'
+            : 'text-slate-200/90 border-transparent hover:bg-white/10 hover:text-white'
         }`}
       >
         {info.icon}
@@ -175,32 +175,32 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 w-[285px] bg-gradient-to-b from-[#00306B] to-[#001F4D] text-white z-50 flex flex-col shadow-2xl transition-transform duration-300 md:translate-x-0 ${
+        className={`fixed top-0 md:top-16 bottom-0 left-0 w-[260px] bg-gradient-to-b from-[#071A3C] to-[#04122B] text-white z-50 md:z-40 flex flex-col border-r border-blue-950/60 shadow-2xl transition-transform duration-300 md:translate-x-0 font-sans ${
           isOpenMobile ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
-        {/* Company Header */}
-        <div className="p-5 border-b border-blue-900/40 flex flex-col items-center justify-center text-center relative">
+        {/* Mobile-only Company Header (desktop brand is in TopNavBar) */}
+        <div className="md:hidden p-5 border-b border-blue-900/40 flex flex-col items-center justify-center text-center relative">
           <button
             onClick={onCloseMobile}
-            className="md:hidden absolute top-4 right-4 text-white/70 hover:text-white p-1 cursor-pointer"
+            className="absolute top-4 right-4 text-white/70 hover:text-white p-1 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
 
-          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center mb-2 shadow-md">
-            <span className="font-black text-[#00346F] text-xl tracking-tight">MG</span>
+          <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center mb-2 shadow-md">
+            <span className="font-black text-[#071A3C] text-lg tracking-tight">MG</span>
           </div>
-          <h2 className="font-black text-sm text-white tracking-wide">MG SOLUTIONS GROUP</h2>
-          <p className="text-[10px] font-bold text-blue-200/80 uppercase tracking-widest mt-0.5">
-            ERP System • Chiclayo
+          <h2 className="font-bold text-sm text-white tracking-wide">MG SOLUTIONS</h2>
+          <p className="text-[10px] font-semibold text-blue-200/80 uppercase tracking-widest mt-0.5">
+            ERP System
           </p>
         </div>
 
-        {/* Navigation list: Formato plano "MÓDULOS HABILITADOS" tal como estaba antes */}
-        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-4 text-sm">
+        {/* Navigation list: Formato plano "MÓDULOS HABILITADOS" */}
+        <div className="flex-1 overflow-y-auto py-5 px-3 space-y-4">
           <div>
-            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-blue-100/80">
+            <p className="px-3 pb-2.5 text-[11px] font-semibold uppercase tracking-wider text-blue-200/60">
               Módulos Habilitados
             </p>
             <div className="space-y-1">
@@ -210,15 +210,15 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
         </div>
 
         {/* User / Logout Footer */}
-        <div className="p-3 border-t border-blue-900/40 bg-transparent">
+        <div className="p-3 border-t border-white/10 bg-transparent">
           {onLogout ? (
             <button
               type="button"
               onClick={onLogout}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/15 text-white border border-blue-300/50 font-medium text-[13px] transition-all cursor-pointer group"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/15 text-white border border-blue-300/35 font-medium text-[13px] transition-all cursor-pointer group"
               title="Cerrar sesión de forma segura"
             >
-              <LogOut className="w-4 h-4 text-white" />
+              <LogOut className="w-4 h-4 text-white" strokeWidth={1.75} />
               <span>Cerrar Sesión</span>
             </button>
           ) : (

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Home, ChevronRight } from 'lucide-react';
 import {
   INITIAL_EMPRESA,
   INITIAL_SUCURSALES,
@@ -968,8 +969,29 @@ export function App() {
 
   const sucursalesActivas = sucursales.filter((s) => s.estado === 'ACTIVO');
 
+  const BREADCRUMB_LABELS: Record<string, string> = {
+    ventas: 'Punto de Venta (POS)',
+    dashboard: 'Dashboard Operativo',
+    'panel-recepcion': 'Panel de Recepción',
+    'panel-almacen': 'Almacén, Pedidos & Proveedores',
+    productos: 'Almacén, Pedidos & Proveedores',
+    compras: 'Pedidos a Proveedores',
+    taller: 'Taller & Órdenes de Servicio',
+    equipos: 'Equipos de Clientes',
+    clientes: 'Directorio de Clientes',
+    movimientos: 'Movimientos entre Sedes',
+    catalogo: 'Catálogo de Productos',
+    categorias: 'Catálogo de Productos',
+    marcas: 'Catálogo de Productos',
+    'repuestos-catalogo': 'Catálogo de Repuestos',
+    usuarios: 'Usuarios & Permisos',
+    sucursales: 'Sucursales',
+    'config-empresa': 'Sucursales',
+    caja: 'Caja & Finanzas',
+  };
+
   return (
-    <div className="min-h-screen bg-[#F8F9FF] font-sans antialiased flex flex-col">
+    <div className="min-h-screen bg-[#F4F7FC] font-sans antialiased flex flex-col">
       {/* Top Navigation Bar */}
       <TopNavBar
         currentUser={currentUser}
@@ -1000,7 +1022,17 @@ export function App() {
         />
 
         {/* View Switcher Container */}
-        <main className="flex-1 min-w-0 flex flex-col md:pl-[285px] transition-all min-h-[calc(100vh-4rem)]">
+        <main className="flex-1 min-w-0 flex flex-col md:pl-[260px] transition-all min-h-[calc(100vh-4rem)] bg-[#F4F7FC]">
+          {activeView !== 'ventas' && (
+            <div className="w-full max-w-7xl mx-auto px-6 md:px-8 pt-4 -mb-3 flex items-center gap-1.5 text-xs font-medium text-slate-500">
+              <Home className="w-3.5 h-3.5 text-[#0A4DA8]" strokeWidth={2} />
+              <span>Inicio</span>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-slate-700 font-semibold">
+                {BREADCRUMB_LABELS[activeView] || activeView}
+              </span>
+            </div>
+          )}
           {activeView === 'ventas' && (
             <SalesPOSView
               currentUser={currentUser}
