@@ -218,23 +218,23 @@ export const CatalogMasterView: React.FC<CatalogMasterViewProps> = ({
   }, [marcas, searchMarca, selectedCatFilterInMarcas]);
 
   const filteredModelos = useMemo(() => {
-    return marcas.filter((marca) => {
-      if (selectedMarcaFilter !== 'ALL' && marca.id !== selectedMarcaFilter) return false;
-      if (!searchModelo.trim()) return true;
+    const q = searchModelo.toLowerCase().trim();
+    return modelos.filter((mod) => {
+      if (selectedMarcaFilter !== 'ALL' && mod.marcaId !== selectedMarcaFilter) {
+        return false;
+      }
+      if (!q) return true;
 
-      const q = searchModelo.toLowerCase();
-      if (marca.nombre.toLowerCase().includes(q)) return true;
-
-      const lista = modelosPorMarca.get(marca.id) || [];
-      return lista.some(
-        (mod) =>
-          mod.nombre.toLowerCase().includes(q) ||
-          mod.caracteristicas?.some(
-            (c) => c.atributo.toLowerCase().includes(q) || c.valor.toLowerCase().includes(q)
-          )
+      const matchNombre = mod.nombre.toLowerCase().includes(q);
+      const matchMarca = (mod.marcaNombre || '').toLowerCase().includes(q);
+      const matchDesc = (mod.descripcion || '').toLowerCase().includes(q);
+      const matchCaract = mod.caracteristicas?.some(
+        (c) => c.atributo.toLowerCase().includes(q) || c.valor.toLowerCase().includes(q)
       );
+
+      return matchNombre || matchMarca || matchDesc || matchCaract;
     });
-  }, [marcas, selectedMarcaFilter, searchModelo, modelosPorMarca]);
+  }, [modelos, selectedMarcaFilter, searchModelo]);
 
   // ─── ACCIONES CATEGORÍAS ───
   const handleOpenNewCat = () => {
@@ -1203,7 +1203,7 @@ export const CatalogMasterView: React.FC<CatalogMasterViewProps> = ({
             </div>
           </div>
 
-          {/* Listado jerárquico */}
+          {/* Listado directo de modelos */}
           {loading ? (
             <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-400">
               <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-[#00346F]" />
@@ -1216,156 +1216,109 @@ export const CatalogMasterView: React.FC<CatalogMasterViewProps> = ({
               <p className="text-xs text-slate-500 mt-1">Pruebe ajustando el filtro de búsqueda o registre uno nuevo.</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {filteredModelos.map((marca) => {
-                const mods = modelosPorMarca.get(marca.id) || [];
-                const isExpanded = Boolean(expandedMarcas[marca.id]);
-
-                return (
-                  <div
-                    key={marca.id}
-                    className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden"
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs text-slate-500 px-1">
+                <span>
+                  Mostrando <strong className="text-slate-800">{filteredModelos.length}</strong> de <strong className="text-slate-800">{modelos.length}</strong> modelos registrados
+                </span>
+                {selectedMarcaFilter !== 'ALL' && (
+                  <button
+                    onClick={() => setSelectedMarcaFilter('ALL')}
+                    className="text-[#00346F] hover:underline font-bold cursor-pointer"
                   >
-                    {/* Encabezado Marca */}
-                    <div className="p-4 bg-slate-50/70 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => setExpandedMarcas((prev) => ({ ...prev, [marca.id]: !prev[marca.id] }))}
-                          className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:border-slate-300 cursor-pointer"
-                        >
-                          {isExpanded ? (
-                            <ChevronUp className="w-4 h-4 text-[#00346F]" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4 text-slate-500" />
-                          )}
-                        </button>
+                    Ver todas las marcas
+                  </button>
+                )}
+              </div>
 
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#00346F] to-[#001D40] text-white font-black text-sm flex items-center justify-center shadow-xs">
-                          {marca.nombre.slice(0, 2).toUpperCase()}
+              <div className="grid grid-cols-1 gap-3">
+                {filteredModelos.map((mod) => {
+                  const marcaObj = marcas.find((m) => m.id === mod.marcaId);
+                  const marcaLabel = mod.marcaNombre || marcaObj?.nombre || 'MARCA';
+
+                  return (
+                    <div
+                      key={mod.id}
+                      className="p-4 rounded-xl border border-slate-200 hover:border-blue-300 bg-white shadow-xs transition-all flex flex-col md:flex-row md:items-start justify-between gap-4"
+                    >
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Insignia de Marca */}
+                          <span className="px-2.5 py-1 bg-[#00346F] text-white rounded-lg text-xs font-black tracking-wide shadow-2xs">
+                            {marcaLabel}
+                          </span>
+
+                          <h4 className="text-sm font-black text-slate-900">{mod.nombre}</h4>
+
+                          <button
+                            onClick={() => handleToggleModelo(mod)}
+                            className={`px-2 py-0.5 rounded-full text-[9px] font-bold cursor-pointer transition-transform hover:scale-105 ${
+                              mod.estado === 'ACTIVO'
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                : 'bg-red-50 text-red-800 border border-red-200'
+                            }`}
+                            title="Clic para alternar estado del modelo"
+                          >
+                            {mod.estado}
+                          </button>
                         </div>
 
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-base font-black text-slate-900">{marca.nombre}</span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#00346F] border border-blue-200 font-mono">
-                              {mods.length} {mods.length === 1 ? 'modelo' : 'modelos'}
-                            </span>
-                          </div>
-                          {marca.descripcion && (
-                            <p className="text-[11px] text-slate-500 mt-0.5">{marca.descripcion}</p>
-                          )}
-                        </div>
-                      </div>
+                        {mod.descripcion && (
+                          <p className="text-xs text-slate-600 leading-relaxed">
+                            {mod.descripcion}
+                          </p>
+                        )}
 
-                      {!readOnly && (
-                        <button
-                          onClick={() => handleOpenNewModelo(marca.id)}
-                          className="px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-[#00346F] rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer self-end sm:self-center"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Añadir Modelo</span>
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Modelos */}
-                    {isExpanded && (
-                      <div className="p-4 bg-white">
-                        {mods.length === 0 ? (
-                          <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-                            <p className="text-xs text-slate-500">Sin modelos registrados para {marca.nombre}.</p>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-1 gap-3">
-                            {mods.map((mod) => (
+                        {/* Ficha técnica y características */}
+                        {mod.caracteristicas && mod.caracteristicas.length > 0 && (
+                          <div className="flex items-center gap-2 flex-wrap pt-1">
+                            {mod.caracteristicas.map((c, idx) => (
                               <div
-                                key={mod.id}
-                                className="p-4 rounded-xl border border-slate-200 hover:border-blue-300 bg-slate-50/40 transition-all flex flex-col md:flex-row md:items-start justify-between gap-4"
+                                key={idx}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs shadow-2xs"
                               >
-                                <div className="flex-1 space-y-2">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="p-1.5 bg-blue-100 text-[#00346F] rounded-md">
-                                      <Laptop className="w-4 h-4" />
-                                    </span>
-                                    <h4 className="text-sm font-bold text-slate-900">{mod.nombre}</h4>
-                                    <button
-                                      onClick={() => handleToggleModelo(mod)}
-                                      className={`px-2 py-0.5 rounded-full text-[9px] font-bold cursor-pointer ${
-                                        mod.estado === 'ACTIVO'
-                                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                          : 'bg-red-50 text-red-800 border border-red-200'
-                                      }`}
-                                    >
-                                      {mod.estado}
-                                    </button>
-                                  </div>
-
-                                  {mod.descripcion && (
-                                    <p className="text-[11px] text-slate-500 pl-7 leading-relaxed">
-                                      {mod.descripcion}
-                                    </p>
-                                  )}
-
-                                  {/* Ficha técnica */}
-                                  <div className="pl-0 sm:pl-7 pt-1">
-                                    {mod.caracteristicas && mod.caracteristicas.length > 0 ? (
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        {mod.caracteristicas.map((c, idx) => (
-                                          <div
-                                            key={idx}
-                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs shadow-2xs"
-                                          >
-                                            {getAttributeIcon(c.atributo)}
-                                            <span className="font-semibold text-slate-500 text-[10px]">
-                                              {c.atributo}:
-                                            </span>
-                                            <span className="font-bold text-slate-800 text-[11px]">
-                                              {c.valor}
-                                            </span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <span className="text-[11px] text-slate-400 italic">
-                                        Sin características técnicas especificadas.
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {!readOnly && (
-                                  <div className="flex items-center gap-1.5 self-end md:self-start">
-                                    {setActiveView && (
-                                      <button
-                                        onClick={() => {
-                                          setActiveView('panel-almacen');
-                                          onShowToast('Realizar Pedido', `Abriendo módulo de pedidos para ${mod.nombre}.`, 'info');
-                                        }}
-                                        className="px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer shadow-2xs"
-                                        title="Crear o agregar a una orden de compra en Almacén"
-                                      >
-                                        <ShoppingCart className="w-3.5 h-3.5" />
-                                        <span>Pedir</span>
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={() => handleOpenEditModelo(mod)}
-                                      className="px-2.5 py-1.5 bg-white border border-slate-200 hover:border-blue-300 hover:text-[#00346F] text-slate-600 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shadow-2xs"
-                                    >
-                                      <Edit2 className="w-3.5 h-3.5" />
-                                      <span>Editar</span>
-                                    </button>
-                                  </div>
-                                )}
+                                {getAttributeIcon(c.atributo)}
+                                <span className="font-semibold text-slate-500 text-[10px]">
+                                  {c.atributo}:
+                                </span>
+                                <span className="font-bold text-slate-800 text-[11px]">
+                                  {c.valor}
+                                </span>
                               </div>
                             ))}
                           </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+
+                      {!readOnly && (
+                        <div className="flex items-center gap-1.5 self-end md:self-start shrink-0">
+                          {setActiveView && (
+                            <button
+                              onClick={() => {
+                                setActiveView('panel-almacen');
+                                onShowToast('Realizar Pedido', `Abriendo módulo de pedidos para ${mod.nombre}.`, 'info');
+                              }}
+                              className="px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-colors"
+                              title="Crear o agregar a una orden de compra en Almacén"
+                            >
+                              <ShoppingCart className="w-3.5 h-3.5" />
+                              <span>Pedir</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleOpenEditModelo(mod)}
+                            className="px-2.5 py-1.5 bg-white border border-slate-200 hover:border-[#00346F] hover:text-[#00346F] text-slate-700 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-colors"
+                            title="Editar Ficha Técnica del Modelo"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                            <span>Editar</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
