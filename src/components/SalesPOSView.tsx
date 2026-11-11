@@ -1665,8 +1665,9 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                   </label>
                   <button
                     type="button"
-                    onClick={() => setIsQuickClientOpen(true)}
-                    className="text-[10px] font-bold text-[#00346F] hover:underline flex items-center gap-0.5"
+                    onClick={() => setActiveView('clientes')}
+                    className="text-[10px] font-bold text-[#00346F] hover:underline flex items-center gap-0.5 cursor-pointer"
+                    title="Ir al Directorio de Clientes para registrar o gestionar clientes"
                   >
                     <UserPlus className="w-3 h-3" />
                     + Nuevo
