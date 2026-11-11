@@ -235,19 +235,27 @@ export async function createSucursal(req: Request, res: Response): Promise<void>
     const cleanNombre = String(nombre).trim();
     const cleanDireccion = direccion ? String(direccion).trim() : 'Dirección pendiente';
     const cleanTelefono = telefono ? String(telefono).trim() : null;
-    const esPrinc = Boolean(esPrincipal);
 
     // Obtener empresa_id
     const [empresaRows] = await connection.query<RowDataPacket[]>('SELECT id FROM empresas LIMIT 1');
     const empresaId = empresaRows.length > 0 ? empresaRows[0].id : 1;
 
-    // Determinar código (si no se envía, autogenerar siguiente correlativo)
+    // Determinar código internamente de forma automática si no se proporciona
     let cleanCodigo = codigo ? String(codigo).trim() : '';
     if (!cleanCodigo) {
-      const [countRows] = await connection.query<RowDataPacket[]>('SELECT COUNT(*) AS total FROM sucursales');
-      const total = countRows[0].total || 0;
-      cleanCodigo = `000${total}`.slice(-4);
+      const [allRows] = await connection.query<RowDataPacket[]>('SELECT codigo FROM sucursales');
+      const usedCodes = new Set(allRows.map((r: any) => String(r.codigo)));
+      let nextNum = 0;
+      while (usedCodes.has(String(nextNum).padStart(4, '0'))) {
+        nextNum++;
+      }
+      cleanCodigo = String(nextNum).padStart(4, '0');
     }
+
+    // Verificar si es la primera sucursal para asignarla internamente como principal
+    const [existingCountRows] = await connection.query<RowDataPacket[]>('SELECT COUNT(*) as total FROM sucursales');
+    const isFirst = (existingCountRows[0]?.total || 0) === 0;
+    const esPrinc = isFirst || Boolean(esPrincipal);
 
     // Verificar si el código ya existe
     const [existingCode] = await connection.query<RowDataPacket[]>(

@@ -69,10 +69,9 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
   });
 
   const handleOpenAddSucursal = () => {
-    const nextCode = `000${sucursales.length}`.slice(-4);
     setEditingSucursal(null);
     setSucursalForm({
-      codigo: nextCode,
+      codigo: '',
       nombre: '',
       direccion: '',
       telefono: '',
@@ -107,11 +106,9 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
       if (editingSucursal) {
         // Actualizar en el Backend
         const res = await companyService.updateSucursal(editingSucursal.id, {
-          codigo: sucursalForm.codigo.trim() || undefined,
           nombre: sucursalForm.nombre.trim(),
           direccion: sucursalForm.direccion.trim(),
           telefono: sucursalForm.telefono.trim(),
-          esPrincipal: sucursalForm.esPrincipal,
         });
 
         if (res.success && res.sucursal) {
@@ -122,13 +119,11 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
           onShowToast('Error al actualizar', res.message || 'No se pudo actualizar la sucursal.', 'error');
         }
       } else {
-        // Crear en el Backend
+        // Crear en el Backend (código generado internamente)
         const res = await companyService.createSucursal({
-          codigo: sucursalForm.codigo.trim() || undefined,
           nombre: sucursalForm.nombre.trim(),
           direccion: sucursalForm.direccion.trim(),
           telefono: sucursalForm.telefono.trim(),
-          esPrincipal: sucursalForm.esPrincipal,
         });
 
         if (res.success && res.sucursal) {
@@ -263,11 +258,9 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
               <table className="w-full text-xs text-left">
                 <thead className="bg-[#EFF4FF] font-bold text-slate-600 border-b border-slate-200">
                   <tr>
-                    <th className="py-2.5 px-3">Código</th>
                     <th className="py-2.5 px-3">Nombre</th>
                     <th className="py-2.5 px-3">Dirección</th>
                     <th className="py-2.5 px-3">Teléfono</th>
-                    <th className="py-2.5 px-3 text-center">Tipo</th>
                     <th className="py-2.5 px-3 text-center">Estado</th>
                     <th className="py-2.5 px-3 text-center">Acciones</th>
                   </tr>
@@ -275,28 +268,16 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                 <tbody className="divide-y divide-slate-100">
                   {sucursales.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
                         No hay sucursales registradas.
                       </td>
                     </tr>
                   ) : (
                     sucursales.map((suc) => (
                       <tr key={suc.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-2.5 px-3 font-mono font-bold text-[#00346F]">{suc.codigo}</td>
                         <td className="py-2.5 px-3 font-semibold text-slate-800">{suc.nombre}</td>
                         <td className="py-2.5 px-3 text-slate-600">{suc.direccion || '—'}</td>
                         <td className="py-2.5 px-3 text-slate-500">{suc.telefono || '—'}</td>
-                        <td className="py-2.5 px-3 text-center">
-                          {suc.esPrincipal ? (
-                            <span className="px-2 py-0.5 bg-blue-100 text-[#00346F] font-bold rounded text-[10px]">
-                              Principal
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px]">
-                              Anexo
-                            </span>
-                          )}
-                        </td>
                         <td className="py-2.5 px-3 text-center">
                           <span
                             className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide ${
@@ -375,18 +356,33 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                   </div>
 
                   <form onSubmit={handleSaveSucursalForm} className="p-5 space-y-4 text-xs">
+                    <div>
+                      <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Nombre de la Sucursal *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={sucursalForm.nombre}
+                        onChange={(e) => setSucursalForm({ ...sucursalForm, nombre: e.target.value })}
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
+                        placeholder="Ej: Sucursal Lambayeque Norte"
+                      />
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                          Código SUNAT *
+                          Teléfono de Contacto
                         </label>
                         <input
                           type="text"
-                          required
-                          value={sucursalForm.codigo}
-                          onChange={(e) => setSucursalForm({ ...sucursalForm, codigo: e.target.value })}
-                          className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-[#00346F] focus:outline-none focus:border-[#00346F]"
-                          placeholder="0001"
+                          inputMode="numeric"
+                          maxLength={12}
+                          value={sucursalForm.telefono}
+                          onChange={(e) => setSucursalForm({ ...sucursalForm, telefono: e.target.value })}
+                          className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
+                          placeholder="074-281190"
                         />
                       </div>
 
@@ -412,20 +408,6 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
 
                     <div>
                       <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                        Nombre de la Sucursal *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={sucursalForm.nombre}
-                        onChange={(e) => setSucursalForm({ ...sucursalForm, nombre: e.target.value })}
-                        className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
-                        placeholder="Ej: Sucursal Lambayeque Norte"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
                         Dirección Completa
                       </label>
                       <input
@@ -435,35 +417,6 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                         className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
                         placeholder="Av. Ramón Castilla 450, Chiclayo"
                       />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                          Teléfono de Contacto
-                        </label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={12}
-                          value={sucursalForm.telefono}
-                          onChange={(e) => setSucursalForm({ ...sucursalForm, telefono: e.target.value })}
-                          className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
-                          placeholder="074-281190"
-                        />
-                      </div>
-
-                      <div className="flex items-center pt-5">
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={sucursalForm.esPrincipal}
-                            onChange={(e) => setSucursalForm({ ...sucursalForm, esPrincipal: e.target.checked })}
-                            className="w-4 h-4 text-[#00346F] rounded border-slate-300 focus:ring-blue-500"
-                          />
-                          <span className="font-bold text-slate-700">Sucursal Principal (Matriz)</span>
-                        </label>
-                      </div>
                     </div>
 
                     <div className="pt-4 border-t border-slate-200 flex justify-end gap-2">

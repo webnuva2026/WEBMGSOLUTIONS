@@ -3466,15 +3466,21 @@ async function createSucursal(req, res) {
     const cleanNombre = String(nombre).trim();
     const cleanDireccion = direccion ? String(direccion).trim() : "Direcci\xF3n pendiente";
     const cleanTelefono = telefono ? String(telefono).trim() : null;
-    const esPrinc = Boolean(esPrincipal);
     const [empresaRows] = await connection.query("SELECT id FROM empresas LIMIT 1");
     const empresaId = empresaRows.length > 0 ? empresaRows[0].id : 1;
     let cleanCodigo = codigo ? String(codigo).trim() : "";
     if (!cleanCodigo) {
-      const [countRows] = await connection.query("SELECT COUNT(*) AS total FROM sucursales");
-      const total = countRows[0].total || 0;
-      cleanCodigo = `000${total}`.slice(-4);
+      const [allRows] = await connection.query("SELECT codigo FROM sucursales");
+      const usedCodes = new Set(allRows.map((r) => String(r.codigo)));
+      let nextNum = 0;
+      while (usedCodes.has(String(nextNum).padStart(4, "0"))) {
+        nextNum++;
+      }
+      cleanCodigo = String(nextNum).padStart(4, "0");
     }
+    const [existingCountRows] = await connection.query("SELECT COUNT(*) as total FROM sucursales");
+    const isFirst = (existingCountRows[0]?.total || 0) === 0;
+    const esPrinc = isFirst || Boolean(esPrincipal);
     const [existingCode] = await connection.query(
       "SELECT id FROM sucursales WHERE codigo = ? LIMIT 1",
       [cleanCodigo]
