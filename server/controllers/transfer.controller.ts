@@ -343,9 +343,9 @@ export async function updateEstadoMovimiento(req: Request, res: Response): Promi
 
     // ── Transición: RECIBIDO ──
     if (estadoCodigo === 'RECIBIDO' && estadoActual !== 'RECIBIDO') {
-      // 1. Descontar stock de sede origen
+      // 1. Verificar y bloquear stock en sede origen
       const [stockOrigenRows] = await connection.query<RowDataPacket[]>(
-        'SELECT stock FROM producto_stock_sede WHERE producto_id = ? AND sucursal_id = ?',
+        'SELECT stock FROM producto_stock_sede WHERE producto_id = ? AND sucursal_id = ? FOR UPDATE',
         [mov.producto_id, mov.sede_origen_id]
       );
       const stockOrigen = stockOrigenRows.length > 0 ? Number(stockOrigenRows[0].stock) : 0;
@@ -356,6 +356,46 @@ export async function updateEstadoMovimiento(req: Request, res: Response): Promi
           message: `Stock insuficiente en sede origen para concretar la recepción. (Disponible: ${stockOrigen}, Necesario: ${mov.cantidad})`,
         });
         return;
+      }
+
+      // 1.5 Verificar si el producto requiere series y asegurar trazabilidad de unidades
+      const [prodInfoRows] = await connection.query<RowDataPacket[]>(
+        'SELECT requiere_serie FROM productos WHERE id = ?',
+        [mov.producto_id]
+      );
+      const requiereSerie = Boolean(prodInfoRows[0]?.requiere_serie);
+
+      if (seriesList.length > 0) {
+        const [seriesCheck] = await connection.query<RowDataPacket[]>(
+          `SELECT numero_serie FROM producto_unidades
+           WHERE producto_id = ? AND sucursal_id = ? AND estado_unidad_id = 1 AND numero_serie IN (?)
+           FOR UPDATE`,
+          [mov.producto_id, mov.sede_origen_id, seriesList]
+        );
+        if (seriesCheck.length !== seriesList.length) {
+          await connection.rollback();
+          res.status(400).json({
+            success: false,
+            message: 'Una o más series seleccionadas ya fueron vendidas o ya no están disponibles en la sede origen.',
+          });
+          return;
+        }
+      } else if (requiereSerie) {
+        const [autoSeries] = await connection.query<RowDataPacket[]>(
+          `SELECT numero_serie FROM producto_unidades
+           WHERE producto_id = ? AND sucursal_id = ? AND estado_unidad_id = 1 AND disponible_venta = 1
+           ORDER BY id ASC LIMIT ? FOR UPDATE`,
+          [mov.producto_id, mov.sede_origen_id, Number(mov.cantidad)]
+        );
+        if (autoSeries.length < Number(mov.cantidad)) {
+          await connection.rollback();
+          res.status(400).json({
+            success: false,
+            message: `No hay suficientes unidades disponibles con N° de serie en la sede origen. (Disponibles: ${autoSeries.length}, Necesarias: ${mov.cantidad})`,
+          });
+          return;
+        }
+        seriesList = autoSeries.map((r) => String(r.numero_serie));
       }
 
       await connection.query(
@@ -384,24 +424,56 @@ export async function updateEstadoMovimiento(req: Request, res: Response): Promi
       // 3. Trasladar series físicas a la nueva sucursal si aplican
       if (seriesList.length > 0) {
         await connection.query(
-          'UPDATE producto_unidades SET sucursal_id = ? WHERE producto_id = ? AND numero_serie IN (?)',
-          [mov.sede_destino_id, mov.producto_id, seriesList]
+          'UPDATE producto_unidades SET sucursal_id = ?, updated_at = NOW() WHERE producto_id = ? AND sucursal_id = ? AND estado_unidad_id = 1 AND numero_serie IN (?)',
+          [mov.sede_destino_id, mov.producto_id, mov.sede_origen_id, seriesList]
         );
       }
 
-      // Actualizar registro de movimiento
+      // Actualizar registro de movimiento (y persistir series asignadas si hubo auto-asignación)
       await connection.query(
         `UPDATE movimientos_inventario 
-         SET estado_movimiento_id = ?, recibido_por = ?, fecha_recepcion = NOW(), updated_at = NOW()
+         SET estado_movimiento_id = ?, recibido_por = ?, series = COALESCE(series, ?), fecha_recepcion = NOW(), updated_at = NOW()
          WHERE id = ?`,
-        [nuevoEstadoId, usuarioNombre, movimientoId]
+        [nuevoEstadoId, usuarioNombre, seriesList.length > 0 ? JSON.stringify(seriesList) : null, movimientoId]
       );
     }
     // ── Transición: DEVUELTO (Solo para Préstamos que ya fueron RECIBIDOS) ──
     else if (estadoCodigo === 'DEVUELTO' && estadoActual === 'RECIBIDO' && mov.tipo === 'PRESTAMO') {
+      const [stockDestinoRows] = await connection.query<RowDataPacket[]>(
+        'SELECT stock FROM producto_stock_sede WHERE producto_id = ? AND sucursal_id = ? FOR UPDATE',
+        [mov.producto_id, mov.sede_destino_id]
+      );
+      const stockDestino = stockDestinoRows.length > 0 ? Number(stockDestinoRows[0].stock) : 0;
+      if (stockDestino < mov.cantidad) {
+        await connection.rollback();
+        res.status(400).json({
+          success: false,
+          message: `No se puede devolver el préstamo: la sede destino solo cuenta con ${stockDestino} unidad(es) en stock (posiblemente ya se vendió).`,
+        });
+        return;
+      }
+
+      // Verificar si las series siguen disponibles en destino cuando aplica
+      if (seriesList.length > 0) {
+        const [seriesCheckDest] = await connection.query<RowDataPacket[]>(
+          `SELECT numero_serie FROM producto_unidades
+           WHERE producto_id = ? AND sucursal_id = ? AND estado_unidad_id = 1 AND numero_serie IN (?)
+           FOR UPDATE`,
+          [mov.producto_id, mov.sede_destino_id, seriesList]
+        );
+        if (seriesCheckDest.length !== seriesList.length) {
+          await connection.rollback();
+          res.status(400).json({
+            success: false,
+            message: 'No se puede devolver el préstamo porque una o más series ya fueron vendidas o movidas de la sede destino.',
+          });
+          return;
+        }
+      }
+
       // 1. Revertir stock: Descontar de destino (quien lo tomó prestado)
       await connection.query(
-        'UPDATE producto_stock_sede SET stock = GREATEST(0, stock - ?), updated_at = NOW() WHERE producto_id = ? AND sucursal_id = ?',
+        'UPDATE producto_stock_sede SET stock = stock - ?, updated_at = NOW() WHERE producto_id = ? AND sucursal_id = ?',
         [mov.cantidad, mov.producto_id, mov.sede_destino_id]
       );
 
@@ -414,8 +486,8 @@ export async function updateEstadoMovimiento(req: Request, res: Response): Promi
       // 3. Retornar series físicas a la sede origen
       if (seriesList.length > 0) {
         await connection.query(
-          'UPDATE producto_unidades SET sucursal_id = ? WHERE producto_id = ? AND numero_serie IN (?)',
-          [mov.sede_origen_id, mov.producto_id, seriesList]
+          'UPDATE producto_unidades SET sucursal_id = ?, updated_at = NOW() WHERE producto_id = ? AND sucursal_id = ? AND estado_unidad_id = 1 AND numero_serie IN (?)',
+          [mov.sede_origen_id, mov.producto_id, mov.sede_destino_id, seriesList]
         );
       }
 

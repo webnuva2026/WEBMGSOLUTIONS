@@ -18,7 +18,7 @@ import {
   Send,
   Building2,
 } from 'lucide-react';
-import { MovimientoInventario, Producto, Sucursal, UserRole, EstadoMovimientoInventario } from '../types';
+import { MovimientoInventario, Producto, Sucursal, UserRole, EstadoMovimientoInventario, TransferPrefill } from '../types';
 import { transferService, SerieDisponible } from '../services/transfer.service';
 
 interface InventoryTransfersViewProps {
@@ -30,6 +30,9 @@ interface InventoryTransfersViewProps {
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   currentUserName: string;
   currentUserRole: UserRole;
+  currentUserSucursalId?: number | null;
+  prefillRequest?: TransferPrefill | null;
+  onClearPrefill?: () => void;
 }
 
 const STATUS_CONFIG: Record<EstadoMovimientoInventario, { label: string; bg: string; text: string; icon: any }> = {
@@ -50,6 +53,9 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
   onShowToast,
   currentUserName,
   currentUserRole,
+  currentUserSucursalId = null,
+  prefillRequest = null,
+  onClearPrefill,
 }) => {
   const activeBranches = sucursales.filter((b) => b.estado === 'ACTIVO');
 
@@ -62,7 +68,11 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
   const [tipoMovimiento, setTipoMovimiento] = useState<'TRASLADO' | 'PRESTAMO'>('PRESTAMO');
   const [selectedProductoId, setSelectedProductoId] = useState<number>(productos[0]?.id || 0);
   const [sedeOrigenId, setSedeOrigenId] = useState<number>(activeBranches[0]?.id || 1);
-  const [sedeDestinoId, setSedeDestinoId] = useState<number>(activeBranches[1]?.id || (activeBranches[0]?.id ? activeBranches[0]?.id + 1 : 2));
+  const [sedeDestinoId, setSedeDestinoId] = useState<number>(
+    currentUserSucursalId && activeBranches.some((b) => b.id === currentUserSucursalId && b.id !== (activeBranches[0]?.id || 1))
+      ? currentUserSucursalId
+      : activeBranches[1]?.id || (activeBranches[0]?.id ? activeBranches[0]?.id + 1 : 2)
+  );
   const [cantidad, setCantidad] = useState<number>(1);
   const [motivo, setMotivo] = useState<string>('');
   const [observaciones, setObservaciones] = useState<string>('');
@@ -73,7 +83,30 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
   const [loadingSeries, setLoadingSeries] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<number | null>(null);
 
-  const canManage = currentUserRole === 'ADMIN' || currentUserRole === 'SUPERADMIN' || currentUserRole === 'ALMACEN';
+  const isAdminOrAlmacen =
+    currentUserRole === 'ADMIN' || currentUserRole === 'SUPERADMIN' || currentUserRole === 'ALMACEN';
+
+  const canActOrigin = (m: MovimientoInventario) =>
+    isAdminOrAlmacen || Boolean(currentUserSucursalId && m.sedeOrigenId === currentUserSucursalId);
+
+  const canActDestino = (m: MovimientoInventario) =>
+    isAdminOrAlmacen || Boolean(currentUserSucursalId && m.sedeDestinoId === currentUserSucursalId);
+
+  const canActReturn = (m: MovimientoInventario) => canActOrigin(m) || canActDestino(m);
+
+  // Prellenar modal cuando se solicita préstamo directo desde el POS
+  useEffect(() => {
+    if (!prefillRequest) return;
+    setTipoMovimiento(prefillRequest.tipo || 'PRESTAMO');
+    setSelectedProductoId(prefillRequest.productoId);
+    setSedeOrigenId(prefillRequest.sedeOrigenId);
+    setSedeDestinoId(prefillRequest.sedeDestinoId);
+    setCantidad(prefillRequest.cantidad || 1);
+    setMotivo(prefillRequest.motivo || 'Préstamo solicitado desde Punto de Venta (POS)');
+    setSeriesSeleccionadas([]);
+    setIsModalOpen(true);
+    onClearPrefill?.();
+  }, [prefillRequest]);
 
   // Obtener producto seleccionado
   const selectedProd = productos.find((p) => p.id === selectedProductoId);
@@ -81,10 +114,13 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
   // Obtener stock del producto en la sede origen elegida
   const getBranchStock = (prod: Producto | undefined, branchId: number): number => {
     if (!prod) return 0;
+    if (prod.stockPorSedeId && branchId in prod.stockPorSedeId) {
+      return Number(prod.stockPorSedeId[branchId]) || 0;
+    }
     const branchObj = sucursales.find((s) => s.id === branchId);
     const branchName = branchObj ? branchObj.nombre : '';
-    const stockMap = prod.stockPorSede || { [prod.sucursal]: prod.stock };
-    return stockMap[branchName] ?? (branchName.toLowerCase().includes('principal') ? (stockMap['Principal'] ?? stockMap['Principal - Chiclayo Centro'] ?? 0) : 0);
+    const stockMap = prod.stockPorSede || {};
+    return Number(stockMap[branchName] ?? 0);
   };
 
   const stockDisponibleEnOrigen = getBranchStock(selectedProd, sedeOrigenId);
@@ -493,80 +529,93 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
 
                         {/* Acciones */}
                         <td className="px-5 py-4 text-right align-top">
-                          {canManage && (
-                            <div className="flex items-center justify-end gap-1.5">
-                              {/* Estado SOLICITADO -> Botón Aprobar y Cancelar */}
-                              {m.estado === 'SOLICITADO' && (
-                                <>
-                                  <button
-                                    type="button"
-                                    disabled={isProcessing}
-                                    onClick={() => handleCambiarEstado(m.id, 'APROBADO')}
-                                    className="rounded-lg bg-blue-600 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-blue-700 transition-colors"
-                                  >
-                                    Aprobar
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={isProcessing}
-                                    onClick={() => handleCambiarEstado(m.id, 'CANCELADO')}
-                                    className="rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-bold text-rose-600 hover:bg-rose-50"
-                                  >
-                                    Rechazar
-                                  </button>
-                                </>
-                              )}
-
-                              {/* Estado APROBADO -> Botón Enviar a Destino */}
-                              {m.estado === 'APROBADO' && (
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Estado SOLICITADO -> Aprobar / Rechazar (Sede Origen / Almacén / Admin) */}
+                            {m.estado === 'SOLICITADO' && canActOrigin(m) && (
+                              <>
                                 <button
                                   type="button"
                                   disabled={isProcessing}
-                                  onClick={() => handleCambiarEstado(m.id, 'EN_TRANSITO')}
-                                  className="inline-flex items-center gap-1 rounded-lg bg-purple-600 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-purple-700 transition-colors"
+                                  onClick={() => handleCambiarEstado(m.id, 'APROBADO')}
+                                  className="rounded-lg bg-blue-600 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-blue-700 transition-colors"
                                 >
-                                  <Truck className="h-3 w-3" /> Despachar
+                                  Aprobar
                                 </button>
-                              )}
-
-                              {/* Estado EN_TRANSITO -> Botón Confirmar Recepción */}
-                              {m.estado === 'EN_TRANSITO' && (
                                 <button
                                   type="button"
                                   disabled={isProcessing}
-                                  onClick={() => handleCambiarEstado(m.id, 'RECIBIDO')}
-                                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-emerald-700 transition-colors shadow-xs"
+                                  onClick={() => handleCambiarEstado(m.id, 'CANCELADO')}
+                                  className="rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-bold text-rose-600 hover:bg-rose-50"
                                 >
-                                  <Check className="h-3 w-3" /> Recibir en Destino
+                                  Rechazar
                                 </button>
-                              )}
+                              </>
+                            )}
+                            {m.estado === 'SOLICITADO' && !canActOrigin(m) && (
+                              <span className="text-[10px] font-medium text-amber-600">
+                                Esperando aprobación de {m.sedeOrigen}
+                              </span>
+                            )}
 
-                              {/* Estado RECIBIDO y es PRESTAMO -> Botón Devolver Préstamo a Origen */}
-                              {m.estado === 'RECIBIDO' && esPrestamo && (
-                                <button
-                                  type="button"
-                                  disabled={isProcessing}
-                                  onClick={() => handleCambiarEstado(m.id, 'DEVUELTO')}
-                                  className="inline-flex items-center gap-1 rounded-lg bg-teal-600 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-teal-700 transition-colors shadow-xs"
-                                  title="Devolver este equipo prestado a la sede de origen"
-                                >
-                                  <RotateCcw className="h-3 w-3" /> Devolver Préstamo
-                                </button>
-                              )}
+                            {/* Estado APROBADO -> Despachar (Sede Origen / Almacén / Admin) */}
+                            {m.estado === 'APROBADO' && canActOrigin(m) && (
+                              <button
+                                type="button"
+                                disabled={isProcessing}
+                                onClick={() => handleCambiarEstado(m.id, 'EN_TRANSITO')}
+                                className="inline-flex items-center gap-1 rounded-lg bg-purple-600 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-purple-700 transition-colors"
+                              >
+                                <Truck className="h-3 w-3" /> Despachar
+                              </button>
+                            )}
+                            {m.estado === 'APROBADO' && !canActOrigin(m) && (
+                              <span className="text-[10px] font-medium text-blue-600">
+                                Listo para despacho en {m.sedeOrigen}
+                              </span>
+                            )}
 
-                              {m.estado === 'RECIBIDO' && !esPrestamo && (
-                                <span className="text-[10px] font-medium text-emerald-600">Completado</span>
-                              )}
+                            {/* Estado EN_TRANSITO -> Confirmar Recepción (Sede Destino / Almacén / Admin) */}
+                            {m.estado === 'EN_TRANSITO' && canActDestino(m) && (
+                              <button
+                                type="button"
+                                disabled={isProcessing}
+                                onClick={() => handleCambiarEstado(m.id, 'RECIBIDO')}
+                                className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-emerald-700 transition-colors shadow-xs"
+                              >
+                                <Check className="h-3 w-3" /> Recibir en Destino
+                              </button>
+                            )}
+                            {m.estado === 'EN_TRANSITO' && !canActDestino(m) && (
+                              <span className="text-[10px] font-medium text-purple-600">
+                                En tránsito hacia {m.sedeDestino}
+                              </span>
+                            )}
 
-                              {m.estado === 'DEVUELTO' && (
-                                <span className="text-[10px] font-medium text-teal-600">Devolución cerrada</span>
-                              )}
+                            {/* Estado RECIBIDO y es PRESTAMO -> Devolver Préstamo a Origen */}
+                            {m.estado === 'RECIBIDO' && esPrestamo && canActReturn(m) && (
+                              <button
+                                type="button"
+                                disabled={isProcessing}
+                                onClick={() => handleCambiarEstado(m.id, 'DEVUELTO')}
+                                className="inline-flex items-center gap-1 rounded-lg bg-teal-600 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-teal-700 transition-colors shadow-xs"
+                                title="Devolver este equipo prestado a la sede de origen"
+                              >
+                                <RotateCcw className="h-3 w-3" /> Devolver Préstamo
+                              </button>
+                            )}
 
-                              {m.estado === 'CANCELADO' && (
-                                <span className="text-[10px] font-medium text-rose-500">Cancelado</span>
-                              )}
-                            </div>
-                          )}
+                            {m.estado === 'RECIBIDO' && !esPrestamo && (
+                              <span className="text-[10px] font-medium text-emerald-600">Completado</span>
+                            )}
+
+                            {m.estado === 'DEVUELTO' && (
+                              <span className="text-[10px] font-medium text-teal-600">Devolución cerrada</span>
+                            )}
+
+                            {m.estado === 'CANCELADO' && (
+                              <span className="text-[10px] font-medium text-rose-500">Cancelado</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

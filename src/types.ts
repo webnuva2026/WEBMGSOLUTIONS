@@ -259,6 +259,8 @@ export interface Producto {
   precioCosto: number;
   stock: number;
   stockPorSede?: Record<string, number>;
+  stockPorSedeId?: Record<number, number>;
+  stockTotalGlobal?: number;
   unidadMedida: string; // NIU, ZZ, KGM, etc.
   estado: EstadoRegistro;
   modeloId?: number | null;
@@ -292,6 +294,15 @@ export interface Sucursal {
 }
 
 export type EstadoMovimientoInventario = 'SOLICITADO' | 'APROBADO' | 'EN_TRANSITO' | 'RECIBIDO' | 'DEVUELTO' | 'CANCELADO';
+
+export interface TransferPrefill {
+  tipo: 'PRESTAMO' | 'TRASLADO';
+  productoId: number;
+  sedeOrigenId: number;
+  sedeDestinoId: number;
+  cantidad?: number;
+  motivo?: string;
+}
 
 export interface MovimientoInventario {
   id: number;

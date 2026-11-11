@@ -5540,25 +5540,84 @@ async function createVenta(req, res) {
     const igv = Math.round((totalGeneral - subtotal) * 100) / 100;
     for (const it of items) {
       const prodId = Number(it.productoId);
-      if (!prodId || isNaN(prodId)) {
+      const cantidad = Number(it.cantidad) || 1;
+      if (!prodId || isNaN(prodId) || cantidad < 1) {
         await connection.rollback();
         res.status(400).json({
           success: false,
-          error: `ID de producto inv\xE1lido en el carrito (${it.productoId}).`
+          message: `Producto o cantidad inv\xE1lida en el carrito (${it.productoId}).`,
+          error: `Producto o cantidad inv\xE1lida en el carrito (${it.productoId}).`
         });
         return;
       }
       const [prodRows] = await connection.query(
-        "SELECT id, nombre FROM productos WHERE id = ?",
+        "SELECT id, nombre, requiere_serie FROM productos WHERE id = ?",
         [prodId]
       );
       if (prodRows.length === 0) {
         await connection.rollback();
-        res.status(400).json({
-          success: false,
-          error: `El producto '${it.nombre || "ID " + prodId}' no existe en la base de datos de almac\xE9n. Aseg\xFArese de registrar el producto en 'Almac\xE9n & Inventario' antes de venderlo.`
-        });
+        const msg = `El producto '${it.nombre || "ID " + prodId}' no existe en la base de datos de almac\xE9n. Aseg\xFArese de registrar el producto en 'Almac\xE9n & Inventario' antes de venderlo.`;
+        res.status(400).json({ success: false, message: msg, error: msg });
         return;
+      }
+      const prod = prodRows[0];
+      const [stockSedeRows] = await connection.query(
+        "SELECT stock FROM producto_stock_sede WHERE producto_id = ? AND sucursal_id = ? FOR UPDATE",
+        [prodId, sucursalId]
+      );
+      const stockSedeActual = stockSedeRows.length > 0 ? Number(stockSedeRows[0].stock) : 0;
+      if (stockSedeActual < cantidad) {
+        const [otrasSedesRows] = await connection.query(
+          `SELECT s.nombre AS sucursalNombre, ps.stock
+           FROM producto_stock_sede ps
+           INNER JOIN sucursales s ON ps.sucursal_id = s.id
+           WHERE ps.producto_id = ? AND ps.sucursal_id <> ? AND ps.stock > 0
+           ORDER BY ps.stock DESC`,
+          [prodId, sucursalId]
+        );
+        const otrasText = otrasSedesRows.length > 0 ? ` Disponible en otras sedes: ${otrasSedesRows.map((r) => `${r.sucursalNombre} (${r.stock} und.)`).join(", ")}. Solicite un pr\xE9stamo o traslado entre sedes.` : "";
+        await connection.rollback();
+        const msg = `Stock insuficiente en la sucursal de venta para '${prod.nombre}'. Disponible aqu\xED: ${stockSedeActual} und., solicitado: ${cantidad} und.${otrasText}`;
+        res.status(400).json({ success: false, message: msg, error: msg });
+        return;
+      }
+      const seriesList = Array.isArray(it.series) ? it.series.map((s) => String(s).trim()).filter(Boolean) : [];
+      if (Boolean(prod.requiere_serie) && seriesList.length < cantidad) {
+        await connection.rollback();
+        const msg = `El producto '${prod.nombre}' requiere seleccionar ${cantidad} n\xFAmero(s) de serie disponibles en esta sucursal.`;
+        res.status(400).json({ success: false, message: msg, error: msg });
+        return;
+      }
+      if (seriesList.length > 0) {
+        const [unitRows] = await connection.query(
+          `SELECT numero_serie, sucursal_id, estado_unidad_id, disponible_venta
+           FROM producto_unidades
+           WHERE producto_id = ? AND numero_serie IN (?)
+           FOR UPDATE`,
+          [prodId, seriesList]
+        );
+        const foundMap = new Map(unitRows.map((u) => [String(u.numero_serie), u]));
+        for (const cleanSerie of seriesList) {
+          const unit = foundMap.get(cleanSerie);
+          if (!unit) {
+            await connection.rollback();
+            const msg = `La serie '${cleanSerie}' de '${prod.nombre}' no est\xE1 registrada en almac\xE9n.`;
+            res.status(400).json({ success: false, message: msg, error: msg });
+            return;
+          }
+          if (Number(unit.sucursal_id) !== Number(sucursalId)) {
+            await connection.rollback();
+            const msg = `La serie '${cleanSerie}' de '${prod.nombre}' no pertenece al inventario f\xEDsico de esta sucursal. Debe recibirla mediante un traslado o pr\xE9stamo.`;
+            res.status(400).json({ success: false, message: msg, error: msg });
+            return;
+          }
+          if (Number(unit.estado_unidad_id) !== 1 || Number(unit.disponible_venta) !== 1) {
+            await connection.rollback();
+            const msg = `La serie '${cleanSerie}' de '${prod.nombre}' ya no se encuentra disponible para venta.`;
+            res.status(400).json({ success: false, message: msg, error: msg });
+            return;
+          }
+        }
       }
     }
     const [ventaResult] = await connection.query(
@@ -5597,12 +5656,15 @@ async function createVenta(req, res) {
         for (const serie of seriesList) {
           const cleanSerie = String(serie).trim();
           if (!cleanSerie) continue;
-          await connection.query(
+          const [unitUpdRes] = await connection.query(
             `UPDATE producto_unidades 
              SET estado_unidad_id = 2, disponible_venta = 0, updated_at = NOW()
-             WHERE producto_id = ? AND numero_serie = ?`,
-            [prodId, cleanSerie]
+             WHERE producto_id = ? AND sucursal_id = ? AND numero_serie = ? AND estado_unidad_id = 1`,
+            [prodId, sucursalId, cleanSerie]
           );
+          if (unitUpdRes.affectedRows === 0) {
+            throw new Error(`La serie '${cleanSerie}' ya no se encuentra disponible en la sucursal de venta.`);
+          }
           await connection.query(
             `INSERT INTO producto_series_garantia 
              (venta_id, producto_id, numero_serie, cliente_id, meses_garantia, fecha_venta, estado_garantia, observaciones)
@@ -5619,18 +5681,12 @@ async function createVenta(req, res) {
       }
       const [updSedeRes] = await connection.query(
         `UPDATE producto_stock_sede 
-         SET stock = GREATEST(0, stock - ?), updated_at = NOW()
-         WHERE producto_id = ? AND sucursal_id = ? AND stock > 0`,
-        [cantidad, prodId, sucursalId]
+         SET stock = stock - ?, updated_at = NOW()
+         WHERE producto_id = ? AND sucursal_id = ? AND stock >= ?`,
+        [cantidad, prodId, sucursalId, cantidad]
       );
       if (updSedeRes.affectedRows === 0) {
-        await connection.query(
-          `UPDATE producto_stock_sede 
-           SET stock = GREATEST(0, stock - ?), updated_at = NOW()
-           WHERE producto_id = ? AND stock > 0
-           ORDER BY stock DESC LIMIT 1`,
-          [cantidad, prodId]
-        );
+        throw new Error(`Stock insuficiente en la sucursal de venta al descontar el producto ID ${prodId}.`);
       }
     }
     await connection.commit();
@@ -6975,7 +7031,7 @@ async function updateEstadoMovimiento(req, res) {
     await connection.beginTransaction();
     if (estadoCodigo === "RECIBIDO" && estadoActual !== "RECIBIDO") {
       const [stockOrigenRows] = await connection.query(
-        "SELECT stock FROM producto_stock_sede WHERE producto_id = ? AND sucursal_id = ?",
+        "SELECT stock FROM producto_stock_sede WHERE producto_id = ? AND sucursal_id = ? FOR UPDATE",
         [mov.producto_id, mov.sede_origen_id]
       );
       const stockOrigen = stockOrigenRows.length > 0 ? Number(stockOrigenRows[0].stock) : 0;
@@ -6986,6 +7042,43 @@ async function updateEstadoMovimiento(req, res) {
           message: `Stock insuficiente en sede origen para concretar la recepci\xF3n. (Disponible: ${stockOrigen}, Necesario: ${mov.cantidad})`
         });
         return;
+      }
+      const [prodInfoRows] = await connection.query(
+        "SELECT requiere_serie FROM productos WHERE id = ?",
+        [mov.producto_id]
+      );
+      const requiereSerie = Boolean(prodInfoRows[0]?.requiere_serie);
+      if (seriesList.length > 0) {
+        const [seriesCheck] = await connection.query(
+          `SELECT numero_serie FROM producto_unidades
+           WHERE producto_id = ? AND sucursal_id = ? AND estado_unidad_id = 1 AND numero_serie IN (?)
+           FOR UPDATE`,
+          [mov.producto_id, mov.sede_origen_id, seriesList]
+        );
+        if (seriesCheck.length !== seriesList.length) {
+          await connection.rollback();
+          res.status(400).json({
+            success: false,
+            message: "Una o m\xE1s series seleccionadas ya fueron vendidas o ya no est\xE1n disponibles en la sede origen."
+          });
+          return;
+        }
+      } else if (requiereSerie) {
+        const [autoSeries] = await connection.query(
+          `SELECT numero_serie FROM producto_unidades
+           WHERE producto_id = ? AND sucursal_id = ? AND estado_unidad_id = 1 AND disponible_venta = 1
+           ORDER BY id ASC LIMIT ? FOR UPDATE`,
+          [mov.producto_id, mov.sede_origen_id, Number(mov.cantidad)]
+        );
+        if (autoSeries.length < Number(mov.cantidad)) {
+          await connection.rollback();
+          res.status(400).json({
+            success: false,
+            message: `No hay suficientes unidades disponibles con N\xB0 de serie en la sede origen. (Disponibles: ${autoSeries.length}, Necesarias: ${mov.cantidad})`
+          });
+          return;
+        }
+        seriesList = autoSeries.map((r) => String(r.numero_serie));
       }
       await connection.query(
         "UPDATE producto_stock_sede SET stock = stock - ?, updated_at = NOW() WHERE producto_id = ? AND sucursal_id = ?",
@@ -7008,19 +7101,48 @@ async function updateEstadoMovimiento(req, res) {
       }
       if (seriesList.length > 0) {
         await connection.query(
-          "UPDATE producto_unidades SET sucursal_id = ? WHERE producto_id = ? AND numero_serie IN (?)",
-          [mov.sede_destino_id, mov.producto_id, seriesList]
+          "UPDATE producto_unidades SET sucursal_id = ?, updated_at = NOW() WHERE producto_id = ? AND sucursal_id = ? AND estado_unidad_id = 1 AND numero_serie IN (?)",
+          [mov.sede_destino_id, mov.producto_id, mov.sede_origen_id, seriesList]
         );
       }
       await connection.query(
         `UPDATE movimientos_inventario 
-         SET estado_movimiento_id = ?, recibido_por = ?, fecha_recepcion = NOW(), updated_at = NOW()
+         SET estado_movimiento_id = ?, recibido_por = ?, series = COALESCE(series, ?), fecha_recepcion = NOW(), updated_at = NOW()
          WHERE id = ?`,
-        [nuevoEstadoId, usuarioNombre, movimientoId]
+        [nuevoEstadoId, usuarioNombre, seriesList.length > 0 ? JSON.stringify(seriesList) : null, movimientoId]
       );
     } else if (estadoCodigo === "DEVUELTO" && estadoActual === "RECIBIDO" && mov.tipo === "PRESTAMO") {
+      const [stockDestinoRows] = await connection.query(
+        "SELECT stock FROM producto_stock_sede WHERE producto_id = ? AND sucursal_id = ? FOR UPDATE",
+        [mov.producto_id, mov.sede_destino_id]
+      );
+      const stockDestino = stockDestinoRows.length > 0 ? Number(stockDestinoRows[0].stock) : 0;
+      if (stockDestino < mov.cantidad) {
+        await connection.rollback();
+        res.status(400).json({
+          success: false,
+          message: `No se puede devolver el pr\xE9stamo: la sede destino solo cuenta con ${stockDestino} unidad(es) en stock (posiblemente ya se vendi\xF3).`
+        });
+        return;
+      }
+      if (seriesList.length > 0) {
+        const [seriesCheckDest] = await connection.query(
+          `SELECT numero_serie FROM producto_unidades
+           WHERE producto_id = ? AND sucursal_id = ? AND estado_unidad_id = 1 AND numero_serie IN (?)
+           FOR UPDATE`,
+          [mov.producto_id, mov.sede_destino_id, seriesList]
+        );
+        if (seriesCheckDest.length !== seriesList.length) {
+          await connection.rollback();
+          res.status(400).json({
+            success: false,
+            message: "No se puede devolver el pr\xE9stamo porque una o m\xE1s series ya fueron vendidas o movidas de la sede destino."
+          });
+          return;
+        }
+      }
       await connection.query(
-        "UPDATE producto_stock_sede SET stock = GREATEST(0, stock - ?), updated_at = NOW() WHERE producto_id = ? AND sucursal_id = ?",
+        "UPDATE producto_stock_sede SET stock = stock - ?, updated_at = NOW() WHERE producto_id = ? AND sucursal_id = ?",
         [mov.cantidad, mov.producto_id, mov.sede_destino_id]
       );
       await connection.query(
@@ -7029,8 +7151,8 @@ async function updateEstadoMovimiento(req, res) {
       );
       if (seriesList.length > 0) {
         await connection.query(
-          "UPDATE producto_unidades SET sucursal_id = ? WHERE producto_id = ? AND numero_serie IN (?)",
-          [mov.sede_origen_id, mov.producto_id, seriesList]
+          "UPDATE producto_unidades SET sucursal_id = ?, updated_at = NOW() WHERE producto_id = ? AND sucursal_id = ? AND estado_unidad_id = 1 AND numero_serie IN (?)",
+          [mov.sede_origen_id, mov.producto_id, mov.sede_destino_id, seriesList]
         );
       }
       await connection.query(

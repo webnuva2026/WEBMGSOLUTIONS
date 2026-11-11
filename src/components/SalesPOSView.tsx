@@ -42,6 +42,8 @@ import {
   LayoutGrid,
   ArrowLeft,
   Layers,
+  ArrowRightLeft,
+  MapPin,
 } from 'lucide-react';
 import {
   Producto,
@@ -53,6 +55,8 @@ import {
   ItemVenta,
   TipoComprobante,
   MetodoPago,
+  TransferPrefill,
+  hasModuleAccess,
 } from '../types';
 import { saleService, CreateVentaPayload } from '../services/sale.service';
 import { warehouseService, UnidadFisicaSerie } from '../services/warehouse.service';
@@ -71,6 +75,7 @@ interface SalesPOSViewProps {
   onSaveCliente?: (cliente: Cliente) => void;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   setActiveView: (view: string) => void;
+  onRequestTransfer?: (prefill: TransferPrefill) => void;
 }
 
 export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
@@ -85,6 +90,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
   onSaveCliente,
   onShowToast,
   setActiveView,
+  onRequestTransfer,
 }) => {
   // Navigation tabs within sales: POS vs History
   const [activeTab, setActiveTab] = useState<'pos' | 'history'>('pos');
@@ -118,6 +124,65 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
       setActiveSucursalNombre(currentUser.sucursalNombre);
     }
   }, [assignedSucursal, currentUser?.sucursalNombre]);
+
+  const activeSucursalObj = useMemo(() => {
+    return (
+      sucursales.find((s) => s.nombre === activeSucursalNombre) ||
+      assignedSucursal ||
+      sucursales[0]
+    );
+  }, [sucursales, activeSucursalNombre, assignedSucursal]);
+
+  const activeSucursalId = activeSucursalObj?.id;
+  const canRequestTransfer =
+    isAdminRole || hasModuleAccess(currentUser.modulosPermitidos, 'movimientos');
+
+  const getBranchAvailability = React.useCallback(
+    (prod: Producto) => {
+      const targetId = activeSucursalId;
+      const targetName = activeSucursalObj?.nombre || activeSucursalNombre;
+
+      let localStock = 0;
+      const otherBranches: { sucursalId?: number; sucursalNombre: string; stock: number }[] = [];
+
+      if (prod.stockPorSedeId && Object.keys(prod.stockPorSedeId).length > 0 && targetId) {
+        localStock = Number(prod.stockPorSedeId[targetId] ?? 0);
+        Object.entries(prod.stockPorSedeId).forEach(([idStr, rawQty]) => {
+          const bId = Number(idStr);
+          const qty = Number(rawQty) || 0;
+          if (bId !== targetId && qty > 0) {
+            const branchObj = sucursales.find((s) => s.id === bId);
+            otherBranches.push({
+              sucursalId: bId,
+              sucursalNombre: branchObj?.nombre || `Sede #${bId}`,
+              stock: qty,
+            });
+          }
+        });
+      } else if (prod.stockPorSede && Object.keys(prod.stockPorSede).length > 0) {
+        localStock = Number(prod.stockPorSede[targetName] ?? 0);
+        Object.entries(prod.stockPorSede).forEach(([bName, rawQty]) => {
+          const qty = Number(rawQty) || 0;
+          if (bName !== targetName && qty > 0) {
+            const branchObj = sucursales.find((s) => s.nombre === bName);
+            otherBranches.push({
+              sucursalId: branchObj?.id,
+              sucursalNombre: bName,
+              stock: qty,
+            });
+          }
+        });
+      } else {
+        localStock = Number(prod.stock) || 0;
+      }
+
+      otherBranches.sort((a, b) => b.stock - a.stock);
+      const otherStockTotal = otherBranches.reduce((sum, b) => sum + b.stock, 0);
+
+      return { localStock, otherBranches, otherStockTotal };
+    },
+    [activeSucursalId, activeSucursalObj?.nombre, activeSucursalNombre, sucursales]
+  );
 
   // Cart State
   const [cart, setCart] = useState<ItemVenta[]>([]);
@@ -305,8 +370,15 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
     });
 
     try {
-      const res = await warehouseService.getUnidades(item.productoId);
-      const units = res.success && res.unidades ? res.unidades.filter(u => u.estadoCodigo === 'DISPONIBLE' || u.estadoUnidadId === 1) : [];
+      const res = await warehouseService.getUnidades(item.productoId, activeSucursalId ?? null);
+      const units =
+        res.success && res.unidades
+          ? res.unidades.filter(
+              (u) =>
+                (u.estadoCodigo === 'DISPONIBLE' || u.estadoUnidadId === 1) &&
+                (!activeSucursalId || u.sucursalId === activeSucursalId)
+            )
+          : [];
       setSeriesModal((prev) => (prev ? { ...prev, availableUnits: units, loading: false } : null));
     } catch (err) {
       console.error('Error al consultar series disponibles:', err);
@@ -344,15 +416,23 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
     });
   }, [cart, productos]);
 
-  // Productos habilitados para venta en mostrador POS (incluyendo Repuestos & Pantallas comercializables)
+  // Productos habilitados para venta en mostrador POS con stock estricto de la sucursal activa
   const posEligibleProducts = useMemo(() => {
-    return productos.filter(
-      (p) =>
-        p.estado === 'ACTIVO' &&
-        p.disponibleVenta !== false &&
-        p.tipoDestino !== 'SERVICIO_TALLER'
-    );
-  }, [productos]);
+    return productos
+      .filter(
+        (p) =>
+          p.estado === 'ACTIVO' &&
+          p.disponibleVenta !== false &&
+          p.tipoDestino !== 'SERVICIO_TALLER'
+      )
+      .map((p) => {
+        const { localStock } = getBranchAvailability(p);
+        return {
+          ...p,
+          stock: localStock,
+        };
+      });
+  }, [productos, getBranchAvailability]);
 
   // Orden prioritario de departamentos comerciales
   const getCategoryOrderScore = (cat: string) => {
@@ -386,6 +466,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
         name: string;
         count: number;
         totalStock: number;
+        otherBranchesStock: number;
         brands: Set<string>;
         minPrice: number;
         sampleProducts: string[];
@@ -394,11 +475,13 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
 
     posEligibleProducts.forEach((p) => {
       const cat = p.categoriaNombre || 'OTROS EQUIPOS';
+      const { otherStockTotal } = getBranchAvailability(p);
       if (!map.has(cat)) {
         map.set(cat, {
           name: cat,
           count: 0,
           totalStock: 0,
+          otherBranchesStock: 0,
           brands: new Set(),
           minPrice: p.precioUnitario,
           sampleProducts: [],
@@ -407,6 +490,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
       const entry = map.get(cat)!;
       entry.count += 1;
       entry.totalStock += Math.max(0, p.stock);
+      entry.otherBranchesStock += Math.max(0, otherStockTotal);
       if (p.marcaNombre) entry.brands.add(p.marcaNombre);
       if (p.precioUnitario < entry.minPrice) entry.minPrice = p.precioUnitario;
       if (entry.sampleProducts.length < 3) entry.sampleProducts.push(p.nombre);
@@ -418,7 +502,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
         ...d,
         brands: Array.from(d.brands),
       }));
-  }, [posEligibleProducts]);
+  }, [posEligibleProducts, getBranchAvailability]);
 
   // Marcas dinámicas según el departamento activo
   const brandsList = useMemo(() => {
@@ -606,17 +690,42 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
   const vueltoCalculado = Math.max(0, montoRecibidoNum - totalNeto);
 
   // Cart operations
-  const handleAddToCart = (product: Producto) => {
-    if (product.stock <= 0) {
-      onShowToast('Sin existencias', `El producto ${product.nombre} no tiene stock disponible.`, 'warning');
-      return;
+  const handleAddToCart = (product: Producto): boolean => {
+    const { localStock, otherBranches } = getBranchAvailability(product);
+    if (localStock <= 0) {
+      if (otherBranches.length > 0) {
+        const branchesSummary = otherBranches
+          .map((b) => `${b.sucursalNombre} (${b.stock} und.)`)
+          .join(', ');
+        onShowToast(
+          `Sin stock en ${activeSucursalNombre}`,
+          `Disponible en: ${branchesSummary}. Solicita un préstamo entre sedes para venderlo aquí.`,
+          'warning'
+        );
+      } else {
+        onShowToast(
+          'Sin existencias',
+          `El producto ${product.nombre} está agotado en todas las sucursales.`,
+          'warning'
+        );
+      }
+      return false;
+    }
+
+    const existingInCart = cart.find((item) => item.productoId === product.id);
+    if (existingInCart && existingInCart.cantidad >= localStock) {
+      onShowToast(
+        'Stock límite en sede',
+        `Solo hay ${localStock} unidad(es) disponibles en ${activeSucursalNombre}.`,
+        'warning'
+      );
+      return false;
     }
 
     setCart((prev) => {
       const existing = prev.find((item) => item.productoId === product.id);
       if (existing) {
-        if (existing.cantidad >= product.stock) {
-          onShowToast('Stock límite', `No puede agregar más de ${product.stock} unidades en stock.`, 'warning');
+        if (existing.cantidad >= localStock) {
           return prev;
         }
         return prev.map((item) =>
@@ -643,11 +752,13 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
       }
     });
     onShowToast('Producto añadido', `${product.nombre} se agregó al carrito de venta.`, 'info');
+    return true;
   };
 
   const handleUpdateQuantity = (productoId: number, delta: number) => {
     const prod = productos.find((p) => p.id === productoId);
     if (!prod) return;
+    const { localStock } = getBranchAvailability(prod);
 
     setCart((prev) =>
       prev
@@ -655,8 +766,12 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
           if (item.productoId === productoId) {
             const nuevaCantidad = item.cantidad + delta;
             if (nuevaCantidad <= 0) return null;
-            if (nuevaCantidad > prod.stock) {
-              onShowToast('Stock máximo alcanzado', `Solo hay ${prod.stock} unidades en almacén.`, 'warning');
+            if (nuevaCantidad > localStock) {
+              onShowToast(
+                'Stock máximo alcanzado',
+                `Solo hay ${localStock} unidad(es) disponibles en ${activeSucursalNombre}.`,
+                'warning'
+              );
               return item;
             }
             return {
@@ -1048,7 +1163,18 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
           <select
             value={activeSucursalNombre}
             disabled={!isAdminRole && Boolean(assignedSucursal)}
-            onChange={(e) => setActiveSucursalNombre(e.target.value)}
+            onChange={(e) => {
+              const nextName = e.target.value;
+              setActiveSucursalNombre(nextName);
+              if (cart.length > 0) {
+                setCart([]);
+                onShowToast(
+                  'Sede de POS cambiada',
+                  `Se reinició el carrito para validar el stock local de ${nextName}.`,
+                  'info'
+                );
+              }
+            }}
             title={!isAdminRole && assignedSucursal ? 'Sede asignada a su usuario' : 'Seleccionar sucursal'}
             className={`p-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#00346F] ${
               !isAdminRole && assignedSucursal ? 'bg-slate-100 cursor-not-allowed' : 'bg-white'
@@ -1089,9 +1215,10 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                             p.nombre.toLowerCase().includes(q)
                         ) || filteredProducts[0];
                         if (match) {
-                          handleAddToCart(match);
-                          setSearchProductQuery('');
-                          onShowToast('Producto añadido', `${match.nombre} agregado al carrito`, 'info');
+                          const added = handleAddToCart(match);
+                          if (added) {
+                            setSearchProductQuery('');
+                          }
                         }
                       }
                     }}
@@ -1235,18 +1362,28 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                         </div>
 
                         {/* Pie de tarjeta compacto con precio, stock y botón de acceso */}
-                        <div className="pt-2.5 border-t border-slate-100 mt-2 flex items-center justify-between text-xs">
-                          <div className="flex items-baseline gap-1.5">
+                        <div className="pt-2.5 border-t border-slate-100 mt-2 flex items-center justify-between text-xs gap-2">
+                          <div className="flex flex-wrap items-baseline gap-1.5 min-w-0">
                             <span className="text-[10px] text-slate-400 font-semibold uppercase">Desde</span>
                             <span className="text-xs font-black text-slate-900">
                               S/ {dept.minPrice.toFixed(2)}
                             </span>
-                            <span className="text-[10px] font-bold text-emerald-700 ml-1">
-                              • {dept.totalStock} unds.
-                            </span>
+                            {dept.totalStock > 0 ? (
+                              <span className="text-[10px] font-bold text-emerald-700 ml-0.5">
+                                • {dept.totalStock} unds.
+                              </span>
+                            ) : dept.otherBranchesStock > 0 ? (
+                              <span className="text-[10px] font-bold text-amber-700 ml-0.5">
+                                • 0 local (+{dept.otherBranchesStock} otras sedes)
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-red-600 ml-0.5">
+                                • 0 unds.
+                              </span>
+                            )}
                           </div>
                           <span
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition-all ${meta.btnBg}`}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition-all shrink-0 ${meta.btnBg}`}
                           >
                             <span>Ingresar</span>
                             <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
@@ -1372,16 +1509,21 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3.5">
                     {filteredProducts.map((prod) => {
                       const isInCart = cart.find((i) => i.productoId === prod.id);
-                      const isOutOfStock = prod.stock <= 0;
+                      const { localStock, otherBranches } = getBranchAvailability(prod);
+                      const isOutOfStock = localStock <= 0;
+                      const hasStockElsewhere = isOutOfStock && otherBranches.length > 0;
+                      const topOtherBranch = otherBranches[0];
 
                       return (
                         <div
                           key={prod.id}
                           className={`bg-white rounded-xl border p-4 flex flex-col justify-between transition-all hover:shadow-md ${isInCart
                             ? 'border-blue-400 ring-1 ring-blue-300'
-                            : isOutOfStock
-                              ? 'border-red-200 opacity-60 bg-red-50/20'
-                              : 'border-slate-200 hover:border-slate-300'
+                            : hasStockElsewhere
+                              ? 'border-amber-200 bg-amber-50/20'
+                              : isOutOfStock
+                                ? 'border-red-200 opacity-65 bg-red-50/20'
+                                : 'border-slate-200 hover:border-slate-300'
                             }`}
                         >
                           <div>
@@ -1409,49 +1551,98 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
                                 </p>
                               </div>
                             </div>
+
+                            {/* Aviso de existencias en otras sedes cuando en la sucursal local hay 0 */}
+                            {hasStockElsewhere && (
+                              <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[10px] text-amber-900 flex items-start gap-1.5">
+                                <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                                <div className="min-w-0 leading-snug">
+                                  <span className="font-bold">Stock en otra sede: </span>
+                                  <span>
+                                    {otherBranches
+                                      .map((b) => `${b.sucursalNombre} (${b.stock} und.)`)
+                                      .join(', ')}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
                           </div>
 
                           {/* Card Footer: Stock & Price & Action */}
-                          <div className="pt-3 border-t border-slate-100 mt-2 flex items-center justify-between">
-                            <div>
+                          <div className="pt-3 border-t border-slate-100 mt-2 flex items-center justify-between gap-2">
+                            <div className="min-w-0">
                               <span
                                 className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${isOutOfStock
                                   ? 'bg-red-100 text-red-700'
-                                  : prod.stock <= 5
+                                  : localStock <= 5
                                     ? 'bg-amber-100 text-amber-800'
                                     : 'bg-emerald-100 text-emerald-800'
                                   }`}
                               >
-                                {isOutOfStock ? 'Agotado' : `Stock: ${prod.stock} ${prod.unidadMedida}`}
+                                {isOutOfStock ? 'Agotado en esta sede' : `Stock: ${localStock} ${prod.unidadMedida}`}
                               </span>
                               <div className="text-sm font-extrabold text-[#00346F] mt-0.5">
                                 S/ {prod.precioUnitario.toFixed(2)}
                               </div>
                             </div>
 
-                            <button
-                              type="button"
-                              disabled={isOutOfStock}
-                              onClick={() => handleAddToCart(prod)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition-all active:scale-95 ${isOutOfStock
-                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                                : isInCart
-                                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                  : 'bg-[#00346F] hover:bg-[#004A99] text-white'
-                                }`}
-                            >
-                              {isInCart ? (
-                                <>
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  <span>+{isInCart.cantidad}</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Plus className="w-3.5 h-3.5" />
-                                  <span>Agregar</span>
-                                </>
-                              )}
-                            </button>
+                            {hasStockElsewhere ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (
+                                    canRequestTransfer &&
+                                    onRequestTransfer &&
+                                    topOtherBranch?.sucursalId &&
+                                    activeSucursalId
+                                  ) {
+                                    onRequestTransfer({
+                                      tipo: 'PRESTAMO',
+                                      productoId: prod.id,
+                                      sedeOrigenId: topOtherBranch.sucursalId,
+                                      sedeDestinoId: activeSucursalId,
+                                      cantidad: 1,
+                                      motivo: `Préstamo solicitado desde POS (${activeSucursalNombre}) por falta de stock local`,
+                                    });
+                                  } else {
+                                    onShowToast(
+                                      `Stock disponible en ${topOtherBranch?.sucursalNombre}`,
+                                      `Esta sede tiene 0 unidades. Solicite un préstamo a ${topOtherBranch?.sucursalNombre} (${topOtherBranch?.stock} und.) desde Movimientos entre sedes.`,
+                                      'info'
+                                    );
+                                  }
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-xs transition-all active:scale-95 bg-purple-600 hover:bg-purple-700 text-white shrink-0"
+                                title={`Solicitar préstamo desde ${topOtherBranch?.sucursalNombre}`}
+                              >
+                                <ArrowRightLeft className="w-3.5 h-3.5" />
+                                <span>Pedir Préstamo</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={isOutOfStock}
+                                onClick={() => handleAddToCart(prod)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition-all active:scale-95 ${isOutOfStock
+                                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                  : isInCart
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                    : 'bg-[#00346F] hover:bg-[#004A99] text-white'
+                                  }`}
+                              >
+                                {isInCart ? (
+                                  <>
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>+{isInCart.cantidad}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>Agregar</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
                           </div>
                         </div>
                       );

@@ -28,6 +28,7 @@ import {
   Sucursal,
   MovimientoInventario,
   EstadoMovimientoInventario,
+  TransferPrefill,
   Equipo,
   OrdenServicio,
   Venta,
@@ -163,9 +164,13 @@ export function App() {
         } else {
           const mappedProds: Producto[] = res.inventario.map((item) => {
             const branchRecord: Record<string, number> = {};
+            const branchIdRecord: Record<number, number> = {};
             if (item.stockPorSede) {
               item.stockPorSede.forEach((s) => {
-                branchRecord[s.sucursalNombre || 'Principal'] = s.stock;
+                branchRecord[s.sucursalNombre || 'Principal'] = Number(s.stock) || 0;
+                if (s.sucursalId) {
+                  branchIdRecord[s.sucursalId] = Number(s.stock) || 0;
+                }
               });
             }
 
@@ -173,6 +178,11 @@ export function App() {
               Number(item.stockTotal) || 0,
               Number(item.seriesMetricas?.disponibles) || 0
             );
+
+            const stockEnSedeFiltrada =
+              sedeFilter !== null && sedeFilter !== undefined
+                ? Number(item.stockSede ?? branchIdRecord[sedeFilter] ?? 0)
+                : realAvailableStock;
 
             return {
               id: item.id,
@@ -188,8 +198,10 @@ export function App() {
               sucursal: item.stockPorSede?.[0]?.sucursalNombre || 'Principal - Chiclayo Centro',
               precioUnitario: item.precioVenta || 0,
               precioCosto: item.precioCosto || 0,
-              stock: sedeFilter && (item.stockSede ?? 0) > 0 ? (item.stockSede ?? realAvailableStock) : realAvailableStock,
+              stock: stockEnSedeFiltrada,
               stockPorSede: branchRecord,
+              stockPorSedeId: branchIdRecord,
+              stockTotalGlobal: realAvailableStock,
               unidadMedida: 'NIU',
               estado: (item.estado as any) || 'ACTIVO',
               requiereSerie: item.requiereSerie || item.categoria?.requiereSerie || false,
@@ -366,9 +378,15 @@ export function App() {
   // View Navigation
   const [activeView, setActiveView] = useState<string>('ventas');
   const [serviceClientId, setServiceClientId] = useState<number | undefined>();
+  const [transferPrefill, setTransferPrefill] = useState<TransferPrefill | null>(null);
 
   useEffect(() => {
-    if (activeView === 'ventas' || activeView === 'panel-almacen' || activeView === 'productos') {
+    if (
+      activeView === 'ventas' ||
+      activeView === 'panel-almacen' ||
+      activeView === 'productos' ||
+      activeView === 'movimientos'
+    ) {
       loadDatabaseData(selectedSedeId);
     }
   }, [activeView]);
@@ -624,6 +642,11 @@ export function App() {
   const handleOpenServices = (clientId?: number) => {
     setServiceClientId(clientId);
     setActiveView('taller');
+  };
+
+  const handleRequestTransferFromPOS = (prefill: TransferPrefill) => {
+    setTransferPrefill(prefill);
+    setActiveView('movimientos');
   };
 
   const handleSaveMovimiento = async (data: any) => {
@@ -1093,6 +1116,7 @@ export function App() {
               onSaveCliente={handleSaveCliente}
               onShowToast={showToast}
               setActiveView={setActiveView}
+              onRequestTransfer={handleRequestTransferFromPOS}
             />
           )}
 
@@ -1182,6 +1206,9 @@ export function App() {
               onShowToast={showToast}
               currentUserName={currentUser.nombreCompleto}
               currentUserRole={currentUser.rol}
+              currentUserSucursalId={currentUser.sucursalId ?? null}
+              prefillRequest={transferPrefill}
+              onClearPrefill={() => setTransferPrefill(null)}
             />
           )}
 

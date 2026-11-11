@@ -297,28 +297,99 @@ export async function createVenta(req: AuthenticatedRequest, res: Response): Pro
     const subtotal = Math.round((totalGeneral / 1.18) * 100) / 100;
     const igv = Math.round((totalGeneral - subtotal) * 100) / 100;
 
-    // 2.5. Validar que todos los productos existan en la tabla 'productos'
+    // 2.5. Validar que todos los productos existan, tengan stock suficiente en la sucursal de la venta y que sus series pertenezcan a dicha sucursal
     for (const it of items) {
       const prodId = Number(it.productoId);
-      if (!prodId || isNaN(prodId)) {
+      const cantidad = Number(it.cantidad) || 1;
+      if (!prodId || isNaN(prodId) || cantidad < 1) {
         await connection.rollback();
         res.status(400).json({
           success: false,
-          error: `ID de producto inválido en el carrito (${it.productoId}).`,
+          message: `Producto o cantidad inválida en el carrito (${it.productoId}).`,
+          error: `Producto o cantidad inválida en el carrito (${it.productoId}).`,
         });
         return;
       }
+
       const [prodRows] = await connection.query<RowDataPacket[]>(
-        'SELECT id, nombre FROM productos WHERE id = ?',
+        'SELECT id, nombre, requiere_serie FROM productos WHERE id = ?',
         [prodId]
       );
       if (prodRows.length === 0) {
         await connection.rollback();
-        res.status(400).json({
-          success: false,
-          error: `El producto '${it.nombre || ('ID ' + prodId)}' no existe en la base de datos de almacén. Asegúrese de registrar el producto en 'Almacén & Inventario' antes de venderlo.`,
-        });
+        const msg = `El producto '${it.nombre || ('ID ' + prodId)}' no existe en la base de datos de almacén. Asegúrese de registrar el producto en 'Almacén & Inventario' antes de venderlo.`;
+        res.status(400).json({ success: false, message: msg, error: msg });
         return;
+      }
+
+      const prod = prodRows[0];
+      const [stockSedeRows] = await connection.query<RowDataPacket[]>(
+        'SELECT stock FROM producto_stock_sede WHERE producto_id = ? AND sucursal_id = ? FOR UPDATE',
+        [prodId, sucursalId]
+      );
+      const stockSedeActual = stockSedeRows.length > 0 ? Number(stockSedeRows[0].stock) : 0;
+
+      if (stockSedeActual < cantidad) {
+        const [otrasSedesRows] = await connection.query<RowDataPacket[]>(
+          `SELECT s.nombre AS sucursalNombre, ps.stock
+           FROM producto_stock_sede ps
+           INNER JOIN sucursales s ON ps.sucursal_id = s.id
+           WHERE ps.producto_id = ? AND ps.sucursal_id <> ? AND ps.stock > 0
+           ORDER BY ps.stock DESC`,
+          [prodId, sucursalId]
+        );
+        const otrasText =
+          otrasSedesRows.length > 0
+            ? ` Disponible en otras sedes: ${otrasSedesRows.map((r) => `${r.sucursalNombre} (${r.stock} und.)`).join(', ')}. Solicite un préstamo o traslado entre sedes.`
+            : '';
+        await connection.rollback();
+        const msg = `Stock insuficiente en la sucursal de venta para '${prod.nombre}'. Disponible aquí: ${stockSedeActual} und., solicitado: ${cantidad} und.${otrasText}`;
+        res.status(400).json({ success: false, message: msg, error: msg });
+        return;
+      }
+
+      const seriesList: string[] = Array.isArray(it.series)
+        ? it.series.map((s: any) => String(s).trim()).filter(Boolean)
+        : [];
+
+      if (Boolean(prod.requiere_serie) && seriesList.length < cantidad) {
+        await connection.rollback();
+        const msg = `El producto '${prod.nombre}' requiere seleccionar ${cantidad} número(s) de serie disponibles en esta sucursal.`;
+        res.status(400).json({ success: false, message: msg, error: msg });
+        return;
+      }
+
+      if (seriesList.length > 0) {
+        const [unitRows] = await connection.query<RowDataPacket[]>(
+          `SELECT numero_serie, sucursal_id, estado_unidad_id, disponible_venta
+           FROM producto_unidades
+           WHERE producto_id = ? AND numero_serie IN (?)
+           FOR UPDATE`,
+          [prodId, seriesList]
+        );
+
+        const foundMap = new Map(unitRows.map((u) => [String(u.numero_serie), u]));
+        for (const cleanSerie of seriesList) {
+          const unit = foundMap.get(cleanSerie);
+          if (!unit) {
+            await connection.rollback();
+            const msg = `La serie '${cleanSerie}' de '${prod.nombre}' no está registrada en almacén.`;
+            res.status(400).json({ success: false, message: msg, error: msg });
+            return;
+          }
+          if (Number(unit.sucursal_id) !== Number(sucursalId)) {
+            await connection.rollback();
+            const msg = `La serie '${cleanSerie}' de '${prod.nombre}' no pertenece al inventario físico de esta sucursal. Debe recibirla mediante un traslado o préstamo.`;
+            res.status(400).json({ success: false, message: msg, error: msg });
+            return;
+          }
+          if (Number(unit.estado_unidad_id) !== 1 || Number(unit.disponible_venta) !== 1) {
+            await connection.rollback();
+            const msg = `La serie '${cleanSerie}' de '${prod.nombre}' ya no se encuentra disponible para venta.`;
+            res.status(400).json({ success: false, message: msg, error: msg });
+            return;
+          }
+        }
       }
     }
 
@@ -366,13 +437,16 @@ export async function createVenta(req: AuthenticatedRequest, res: Response): Pro
           const cleanSerie = String(serie).trim();
           if (!cleanSerie) continue;
 
-          // Actualizar estado en producto_unidades a VENDIDO (2)
-          await connection.query(
+          // Actualizar estado en producto_unidades a VENDIDO (2) solo en la sucursal de venta
+          const [unitUpdRes] = await connection.query<ResultSetHeader>(
             `UPDATE producto_unidades 
              SET estado_unidad_id = 2, disponible_venta = 0, updated_at = NOW()
-             WHERE producto_id = ? AND numero_serie = ?`,
-            [prodId, cleanSerie]
+             WHERE producto_id = ? AND sucursal_id = ? AND numero_serie = ? AND estado_unidad_id = 1`,
+            [prodId, sucursalId, cleanSerie]
           );
+          if (unitUpdRes.affectedRows === 0) {
+            throw new Error(`La serie '${cleanSerie}' ya no se encuentra disponible en la sucursal de venta.`);
+          }
 
           // Registrar en producto_series_garantia (12 meses por defecto)
           await connection.query(
@@ -390,21 +464,15 @@ export async function createVenta(req: AuthenticatedRequest, res: Response): Pro
         }
       }
 
-      // Descontar stock en producto_stock_sede (primero en la sucursal activa; si no tiene fila con stock allí, en la sede con stock disponible)
+      // Descontar stock exclusivamente en producto_stock_sede de la sucursal activa
       const [updSedeRes] = await connection.query<ResultSetHeader>(
         `UPDATE producto_stock_sede 
-         SET stock = GREATEST(0, stock - ?), updated_at = NOW()
-         WHERE producto_id = ? AND sucursal_id = ? AND stock > 0`,
-        [cantidad, prodId, sucursalId]
+         SET stock = stock - ?, updated_at = NOW()
+         WHERE producto_id = ? AND sucursal_id = ? AND stock >= ?`,
+        [cantidad, prodId, sucursalId, cantidad]
       );
       if (updSedeRes.affectedRows === 0) {
-        await connection.query(
-          `UPDATE producto_stock_sede 
-           SET stock = GREATEST(0, stock - ?), updated_at = NOW()
-           WHERE producto_id = ? AND stock > 0
-           ORDER BY stock DESC LIMIT 1`,
-          [cantidad, prodId]
-        );
+        throw new Error(`Stock insuficiente en la sucursal de venta al descontar el producto ID ${prodId}.`);
       }
     }
 
