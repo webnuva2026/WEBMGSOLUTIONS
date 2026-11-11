@@ -27,6 +27,10 @@ import {
   ArrowLeft,
   ChevronRight,
   ShoppingCart,
+  Activity,
+  Volume2,
+  Cable,
+  Palette,
 } from 'lucide-react';
 import { Categoria, Marca, Modelo, EstadoRegistro } from '../types';
 import { categoryService, CreateCategoriaData } from '../services/category.service';
@@ -45,6 +49,10 @@ const PRESET_ATTRIBUTES = [
   'Almacenamiento',
   'Pantalla',
   'Tarjeta Gráfica',
+  'Tasa de Refresco',
+  'Tiempo de Respuesta',
+  'Puertos',
+  'Audio',
   'Color',
   'Generación',
   'Batería',
@@ -494,6 +502,14 @@ export const CatalogMasterView: React.FC<CatalogMasterViewProps> = ({
       return <Monitor className="w-3.5 h-3.5 text-indigo-600" />;
     if (a.includes('grafica') || a.includes('video') || a.includes('gpu'))
       return <Sparkles className="w-3.5 h-3.5 text-purple-600" />;
+    if (a.includes('refresco') || a.includes('hz') || a.includes('respuesta') || a.includes('ms'))
+      return <Activity className="w-3.5 h-3.5 text-rose-600" />;
+    if (a.includes('puerto') || a.includes('hdmi') || a.includes('vga') || a.includes('usb'))
+      return <Cable className="w-3.5 h-3.5 text-cyan-600" />;
+    if (a.includes('audio') || a.includes('parlante') || a.includes('sonido'))
+      return <Volume2 className="w-3.5 h-3.5 text-teal-600" />;
+    if (a.includes('color'))
+      return <Palette className="w-3.5 h-3.5 text-slate-600" />;
     return <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />;
   };
 
