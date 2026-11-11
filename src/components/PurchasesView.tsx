@@ -113,11 +113,20 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
   const [selectedProveedorId, setSelectedProveedorId] = useState<number | ''>(proveedores[0]?.id || '');
   const [tipoComprobante, setTipoComprobante] = useState<'FACTURA' | 'BOLETA' | 'GUIA_REMISION'>('FACTURA');
   const [serieNumero, setSerieNumero] = useState('');
+  const isGlobalAdmin = currentUser?.rol === 'SUPERADMIN' || currentUser?.rol === 'ADMIN';
+  const normalizeBranchName = (val?: string | null) =>
+    (val || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase();
+
   const assignedUserSucursal = useMemo(() => {
+    const userBranchNorm = normalizeBranchName(currentUser?.sucursalNombre);
     return (
       sucursales.find((s) => s.id === currentUser?.sucursalId) ||
-      (currentUser?.sucursalNombre
-        ? sucursales.find((s) => s.nombre === currentUser.sucursalNombre)
+      (userBranchNorm
+        ? sucursales.find((s) => normalizeBranchName(s.nombre) === userBranchNorm)
         : undefined)
     );
   }, [sucursales, currentUser?.sucursalId, currentUser?.sucursalNombre]);
@@ -743,29 +752,57 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
     );
   };
 
+  // Control estricto de sede: usuarios asignados a una sucursal solo ven órdenes de su propia sede
+  const scopedCompras = useMemo(() => {
+    if (isGlobalAdmin || (!currentUser?.sucursalId && !currentUser?.sucursalNombre)) {
+      return compras;
+    }
+    const targetId = assignedUserSucursal?.id ?? currentUser?.sucursalId;
+    const targetNameNorm = normalizeBranchName(
+      assignedUserSucursal?.nombre || currentUser?.sucursalNombre
+    );
+    return compras.filter((c) => {
+      if (targetId && c.sucursalId) {
+        return Number(c.sucursalId) === Number(targetId);
+      }
+      return targetNameNorm ? normalizeBranchName(c.sucursalDestino) === targetNameNorm : true;
+    });
+  }, [compras, isGlobalAdmin, assignedUserSucursal, currentUser?.sucursalId, currentUser?.sucursalNombre]);
+
+  useEffect(() => {
+    if (!isGlobalAdmin && (assignedUserSucursal?.nombre || currentUser?.sucursalNombre)) {
+      setFilterSede(assignedUserSucursal?.nombre || currentUser?.sucursalNombre || 'ALL');
+    } else {
+      setFilterSede('ALL');
+    }
+  }, [isGlobalAdmin, assignedUserSucursal?.nombre, currentUser?.sucursalNombre]);
+
   // Filtered purchases history
   const filteredCompras = useMemo(() => {
-    return compras.filter((c) => {
+    return scopedCompras.filter((c) => {
       const matchSearch =
         !historialSearch ||
         c.codigoComprobante.toLowerCase().includes(historialSearch.toLowerCase()) ||
         c.proveedorRazonSocial.toLowerCase().includes(historialSearch.toLowerCase()) ||
         c.proveedorRuc.includes(historialSearch);
 
-      const matchSede = filterSede === 'ALL' || c.sucursalDestino === filterSede;
+      const matchSede =
+        !isGlobalAdmin ||
+        filterSede === 'ALL' ||
+        normalizeBranchName(c.sucursalDestino) === normalizeBranchName(filterSede);
       const matchProv = filterProveedor === 'ALL' || String(c.proveedorId) === filterProveedor;
       const matchEstado = filterEstadoPedido === 'ALL' || c.estado === filterEstadoPedido;
 
       return matchSearch && matchSede && matchProv && matchEstado;
     });
-  }, [compras, historialSearch, filterSede, filterProveedor, filterEstadoPedido]);
+  }, [scopedCompras, isGlobalAdmin, historialSearch, filterSede, filterProveedor, filterEstadoPedido]);
 
-  // Metric stats
-  const pedidosEnTransito = compras.filter((c) => c.estado === 'SOLICITADO').length;
-  const totalInvertido = compras
+  // Metric stats (estrictamente sobre órdenes visibles para la sede)
+  const pedidosEnTransito = scopedCompras.filter((c) => c.estado === 'SOLICITADO').length;
+  const totalInvertido = scopedCompras
     .filter((c) => c.estado === 'REGISTRADA')
     .reduce((sum, c) => sum + c.total, 0);
-  const totalItemsComprados = compras
+  const totalItemsComprados = scopedCompras
     .filter((c) => c.estado === 'REGISTRADA')
     .reduce((sum, c) => sum + c.items.reduce((acc, it) => acc + it.cantidad, 0), 0);
 
@@ -793,7 +830,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
     const csv =
       'data:text/csv;charset=utf-8,' +
       'ID,Comprobante,Tipo,RUC,Proveedor,SedeDestino,Fecha,Total,Estado\n' +
-      compras
+      filteredCompras
         .map(
           (c) =>
             `"${c.id}","${c.codigoComprobante}","${c.tipoComprobante}","${c.proveedorRuc}","${c.proveedorRazonSocial}","${c.sucursalDestino}","${c.fecha}",${c.total},"${c.estado}"`
@@ -866,7 +903,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
               }`}
             >
               <FileText className="h-4 w-4" />
-              Órdenes & Recepción ({compras.length})
+              Órdenes & Recepción ({scopedCompras.length})
               {pedidosEnTransito > 0 && (
                 <span className="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-black text-white">
                   {pedidosEnTransito}
@@ -1043,8 +1080,12 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                     <label className="block text-xs font-bold text-slate-700">Sede Destino (Aumento de stock)</label>
                     <select
                       value={sucursalDestino}
+                      disabled={!isGlobalAdmin && Boolean(assignedUserSucursal)}
                       onChange={(e) => setSucursalDestino(e.target.value)}
-                      className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
+                      title={!isGlobalAdmin && assignedUserSucursal ? 'Sede asignada a su usuario' : 'Seleccionar sede destino'}
+                      className={`mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-[#00346F] ${
+                        !isGlobalAdmin && assignedUserSucursal ? 'bg-slate-100 cursor-not-allowed' : 'bg-slate-50 focus:bg-white'
+                      }`}
                     >
                       {sucursales.map((suc) => (
                         <option key={suc.id} value={suc.nombre}>
@@ -1692,16 +1733,23 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                   <option value="ANULADA">❌ Anulados</option>
                 </select>
 
-                <select
-                  value={filterSede}
-                  onChange={(e) => setFilterSede(e.target.value)}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 outline-none"
-                >
-                  <option value="ALL">Todas las Sedes</option>
-                  {sucursales.map((s) => (
-                    <option key={s.id} value={s.nombre}>{s.nombre}</option>
-                  ))}
-                </select>
+                {isGlobalAdmin ? (
+                  <select
+                    value={filterSede}
+                    onChange={(e) => setFilterSede(e.target.value)}
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 outline-none"
+                  >
+                    <option value="ALL">Todas las Sedes</option>
+                    {sucursales.map((s) => (
+                      <option key={s.id} value={s.nombre}>{s.nombre}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-[#00346F]">
+                    <Store className="h-3.5 w-3.5" />
+                    {assignedUserSucursal?.nombre || currentUser?.sucursalNombre || sucursalDestino}
+                  </span>
+                )}
 
                 <select
                   value={filterProveedor}

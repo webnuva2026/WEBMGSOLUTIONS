@@ -267,13 +267,16 @@ export function App() {
       }
     });
 
-    // Cargar movimientos y préstamos de inventario reales desde MySQL
-    transferService.getMovimientos().then((res) => {
-      if (res.success && Array.isArray(res.movimientos)) {
-        setMovimientos(res.movimientos);
-        localStorage.setItem('mg_movimientos_inventario', JSON.stringify(res.movimientos));
-      }
-    });
+    // Cargar movimientos y préstamos de inventario reales desde MySQL filtrados por sede
+    transferService
+      .getMovimientos(effectiveSedeFilter ? { sedeId: effectiveSedeFilter } : undefined)
+      .then((res) => {
+        if (reqSeq !== inventarioReqSeqRef.current) return;
+        if (res.success && Array.isArray(res.movimientos)) {
+          setMovimientos(res.movimientos);
+          localStorage.setItem('mg_movimientos_inventario', JSON.stringify(res.movimientos));
+        }
+      });
 
     // Cargar proveedores reales desde MySQL
     purchaseService.getProveedores().then((res) => {
@@ -283,8 +286,9 @@ export function App() {
       }
     });
 
-    // Cargar compras y reabastecimiento reales desde MySQL
-    purchaseService.getCompras().then((res) => {
+    // Cargar compras y reabastecimiento reales desde MySQL filtradas por sede
+    purchaseService.getCompras({ sucursal_id: effectiveSedeFilter }).then((res) => {
+      if (reqSeq !== inventarioReqSeqRef.current) return;
       if (res.success && Array.isArray(res.compras)) {
         setCompras(res.compras);
         localStorage.setItem('mg_compras', JSON.stringify(res.compras));

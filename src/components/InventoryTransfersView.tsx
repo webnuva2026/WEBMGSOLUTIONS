@@ -91,6 +91,7 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
 
   const normalizedRole = String(currentUserRole || '').toUpperCase();
   const isSuperAdmin = normalizedRole === 'SUPERADMIN';
+  const isGlobalAdmin = normalizedRole === 'SUPERADMIN' || normalizedRole === 'ADMIN';
   const isAdminOrAlmacenGlobalRole = [
     'SUPERADMIN',
     'ADMIN',
@@ -99,19 +100,34 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
     'ALMACEN_Y_LOGISTICA',
   ].includes(normalizedRole);
 
+  const normalizeBranch = (val?: string | null) =>
+    (val || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase();
+
   const matchesUserBranch = (movSedeId?: number, movSedeNombre?: string): boolean => {
     if (currentUserSucursalId && movSedeId && Number(currentUserSucursalId) === Number(movSedeId)) {
       return true;
     }
     if (currentUserSucursalNombre && movSedeNombre) {
-      return (
-        currentUserSucursalNombre.trim().toLowerCase() === movSedeNombre.trim().toLowerCase()
-      );
+      return normalizeBranch(currentUserSucursalNombre) === normalizeBranch(movSedeNombre);
     }
     return false;
   };
 
   const hasAssignedBranch = Boolean(currentUserSucursalId || currentUserSucursalNombre);
+
+  // Control por sede: cada sucursal solo visualiza movimientos donde es origen o destino
+  const scopedMovimientos =
+    !isGlobalAdmin && hasAssignedBranch
+      ? movimientos.filter(
+          (m) =>
+            matchesUserBranch(m.sedeOrigenId, m.sedeOrigen) ||
+            matchesUserBranch(m.sedeDestinoId, m.sedeDestino)
+        )
+      : movimientos;
 
   const canActOrigin = (m: MovimientoInventario) =>
     isSuperAdmin ||
@@ -272,8 +288,8 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
     setActionInProgress(null);
   };
 
-  // Filtrado de movimientos
-  const filteredMovimientos = movimientos.filter((m) => {
+  // Filtrado de movimientos (ya acotados a la sede cuando corresponde)
+  const filteredMovimientos = scopedMovimientos.filter((m) => {
     // Filtro por tab
     if (filterTab === 'PRESTAMO' && m.tipo !== 'PRESTAMO') return false;
     if (filterTab === 'TRASLADO' && m.tipo !== 'TRASLADO') return false;
@@ -295,15 +311,15 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
   });
 
   // Métricas
-  const totalPrestamosActivos = movimientos.filter((m) => m.tipo === 'PRESTAMO' && m.estado === 'RECIBIDO').length;
-  const totalEnTransito = movimientos.filter((m) => m.estado === 'EN_TRANSITO').length;
-  const totalDevueltos = movimientos.filter((m) => m.estado === 'DEVUELTO').length;
-  const totalPendientesAprobacion = movimientos.filter((m) => m.estado === 'SOLICITADO').length;
+  const totalPrestamosActivos = scopedMovimientos.filter((m) => m.tipo === 'PRESTAMO' && m.estado === 'RECIBIDO').length;
+  const totalEnTransito = scopedMovimientos.filter((m) => m.estado === 'EN_TRANSITO').length;
+  const totalDevueltos = scopedMovimientos.filter((m) => m.estado === 'DEVUELTO').length;
+  const totalPendientesAprobacion = scopedMovimientos.filter((m) => m.estado === 'SOLICITADO').length;
 
-  const pendingMyOriginActions = movimientos.filter(
+  const pendingMyOriginActions = scopedMovimientos.filter(
     (m) => (m.estado === 'SOLICITADO' || m.estado === 'APROBADO') && canActOrigin(m)
   ).length;
-  const pendingMyDestActions = movimientos.filter(
+  const pendingMyDestActions = scopedMovimientos.filter(
     (m) => m.estado === 'EN_TRANSITO' && canActDestino(m)
   ).length;
   const totalMyPendingActions = pendingMyOriginActions + pendingMyDestActions;
@@ -447,7 +463,7 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              Todos ({movimientos.length})
+              Todos ({scopedMovimientos.length})
             </button>
             <button
               onClick={() => setFilterTab('PRESTAMO')}
@@ -457,7 +473,7 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
                   : 'text-purple-700 hover:bg-purple-50'
               }`}
             >
-              🤝 Préstamos entre Sedes ({movimientos.filter((m) => m.tipo === 'PRESTAMO').length})
+              🤝 Préstamos entre Sedes ({scopedMovimientos.filter((m) => m.tipo === 'PRESTAMO').length})
             </button>
             <button
               onClick={() => setFilterTab('TRASLADO')}
@@ -467,7 +483,7 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
                   : 'text-blue-700 hover:bg-blue-50'
               }`}
             >
-              🚚 Traslados Definitivos ({movimientos.filter((m) => m.tipo === 'TRASLADO').length})
+              🚚 Traslados Definitivos ({scopedMovimientos.filter((m) => m.tipo === 'TRASLADO').length})
             </button>
             <button
               onClick={() => setFilterTab('PENDIENTES')}
@@ -477,7 +493,7 @@ export const InventoryTransfersView: React.FC<InventoryTransfersViewProps> = ({
                   : 'text-amber-700 hover:bg-amber-50'
               }`}
             >
-              ⏳ En Proceso / Pendientes ({movimientos.filter((m) => !['RECIBIDO', 'DEVUELTO', 'CANCELADO'].includes(m.estado)).length})
+              ⏳ En Proceso / Pendientes ({scopedMovimientos.filter((m) => !['RECIBIDO', 'DEVUELTO', 'CANCELADO'].includes(m.estado)).length})
             </button>
           </div>
 

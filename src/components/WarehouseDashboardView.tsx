@@ -107,19 +107,52 @@ export const WarehouseDashboardView: React.FC<WarehouseDashboardViewProps> = ({
     }
   }, [initialSection, canAccessInventario, canAccessCompras]);
 
-  const pedidosEnTransito = compras.filter((c) => c.estado === 'SOLICITADO').length;
+  const normalizeBranchName = (val?: string | null) =>
+    (val || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase();
+
+  const userBranchId = currentUser.sucursalId ?? null;
+  const userBranchNorm = normalizeBranchName(currentUser.sucursalNombre);
+
+  const scopedCompras =
+    isAdminRole || (!userBranchId && !userBranchNorm)
+      ? compras
+      : compras.filter((c) => {
+          if (userBranchId && c.sucursalId) {
+            return Number(c.sucursalId) === Number(userBranchId);
+          }
+          return userBranchNorm ? normalizeBranchName(c.sucursalDestino) === userBranchNorm : true;
+        });
+
+  const scopedMovimientos =
+    isAdminRole || (!userBranchId && !userBranchNorm)
+      ? movimientos
+      : movimientos.filter(
+          (m) =>
+            (userBranchId &&
+              (Number(m.sedeOrigenId) === Number(userBranchId) ||
+                Number(m.sedeDestinoId) === Number(userBranchId))) ||
+            (userBranchNorm &&
+              (normalizeBranchName(m.sedeOrigen) === userBranchNorm ||
+                normalizeBranchName(m.sedeDestino) === userBranchNorm))
+        );
+
+  const pedidosEnTransito = scopedCompras.filter((c) => c.estado === 'SOLICITADO').length;
 
   // --- Computed data ---
   const productosActivos = productos.filter((p) => p.estado === 'ACTIVO');
   const stockBajo = productosActivos.filter((p) => p.stock <= 10);
-  const movimientosEnTransito = movimientos.filter(
+  const movimientosEnTransito = scopedMovimientos.filter(
     (m) => m.estado === 'EN_TRANSITO'
   ).length;
-  const movimientosAbiertos = movimientos.filter(
-    (m) => !['RECIBIDO', 'CANCELADO'].includes(m.estado)
+  const movimientosAbiertos = scopedMovimientos.filter(
+    (m) => !['RECIBIDO', 'CANCELADO', 'DEVUELTO'].includes(m.estado)
   ).length;
   const sedesActivas = sucursales.filter((s) => s.estado === 'ACTIVO').length;
-  const movimientosRecientes = [...movimientos].slice(0, 5);
+  const movimientosRecientes = [...scopedMovimientos].slice(0, 5);
 
   const handleRequestOrderFromInventory = (prodId: number) => {
     setOrderProductId(prodId);

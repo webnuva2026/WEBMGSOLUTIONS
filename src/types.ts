@@ -406,6 +406,7 @@ export interface Compra {
   proveedorEmail?: string;
   proveedorTelefono?: string;
   sucursalDestino: string;
+  sucursalId?: number;
   compradorId: number;
   compradorNombre: string;
   fecha: string;

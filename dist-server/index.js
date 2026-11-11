@@ -1870,7 +1870,12 @@ async function authenticateToken(req, res, next) {
   }
   try {
     const [rows] = await pool.query(
-      "SELECT u.id, e.nombre AS estado FROM usuarios u JOIN estados e ON u.estado_id = e.id WHERE u.id = ? LIMIT 1",
+      `SELECT u.id, u.sucursal_id AS sucursalId, r.codigo AS rolCodigo, e.nombre AS estado
+       FROM usuarios u
+       JOIN roles r ON u.rol_id = r.id
+       JOIN estados e ON u.estado_id = e.id
+       WHERE u.id = ?
+       LIMIT 1`,
       [decoded.userId]
     );
     if (rows.length === 0 || rows[0].estado !== "ACTIVO") {
@@ -1880,7 +1885,11 @@ async function authenticateToken(req, res, next) {
       });
       return;
     }
-    req.user = decoded;
+    req.user = {
+      ...decoded,
+      rol: rows[0].rolCodigo || decoded.rol,
+      sucursalId: rows[0].sucursalId !== void 0 ? rows[0].sucursalId : decoded.sucursalId
+    };
     next();
   } catch (err) {
     console.error("Error verificando usuario en middleware auth:", err);
@@ -6776,9 +6785,12 @@ var workshop_routes_default = router10;
 import { Router as Router11 } from "express";
 
 // server/controllers/transfer.controller.ts
+var isGlobalAdminRole = (rol) => rol === "SUPERADMIN" || rol === "ADMIN";
 async function getMovimientos(req, res) {
   try {
     const { tipo, estado, sedeId } = req.query;
+    const isGlobalAdmin = isGlobalAdminRole(req.user?.rol);
+    const userBranchId = req.user?.sucursalId ? Number(req.user.sucursalId) : null;
     let query = `
       SELECT 
         m.id,
@@ -6825,7 +6837,10 @@ async function getMovimientos(req, res) {
       query += " AND em.codigo = ?";
       params.push(estado);
     }
-    if (sedeId && !isNaN(Number(sedeId))) {
+    if (!isGlobalAdmin && userBranchId) {
+      query += " AND (m.sede_origen_id = ? OR m.sede_destino_id = ?)";
+      params.push(userBranchId, userBranchId);
+    } else if (sedeId && !isNaN(Number(sedeId))) {
       query += " AND (m.sede_origen_id = ? OR m.sede_destino_id = ?)";
       params.push(Number(sedeId), Number(sedeId));
     }
@@ -7232,6 +7247,11 @@ import { Router as Router12 } from "express";
 
 // server/controllers/purchase.controller.ts
 init_mailer();
+var isGlobalAdminRole2 = (rol) => rol === "SUPERADMIN" || rol === "ADMIN";
+var canAccessOrderBranch = (req, orderSucursalId) => {
+  if (isGlobalAdminRole2(req.user?.rol) || !req.user?.sucursalId) return true;
+  return Number(orderSucursalId) === Number(req.user.sucursalId);
+};
 async function getProveedores(_req, res) {
   try {
     const [rows] = await pool.query(`
@@ -7382,9 +7402,13 @@ async function toggleProveedorEstado(req, res) {
     res.status(500).json({ success: false, message: "Error interno al actualizar estado del proveedor." });
   }
 }
-async function getCompras(_req, res) {
+async function getCompras(req, res) {
   try {
-    const [comprasRows] = await pool.query(`
+    const isGlobalAdmin = isGlobalAdminRole2(req.user?.rol);
+    const userBranchId = req.user?.sucursalId ? Number(req.user.sucursalId) : null;
+    const requestedSedeId = req.query.sucursal_id && !["ALL", "TODOS"].includes(String(req.query.sucursal_id).toUpperCase()) && !isNaN(Number(req.query.sucursal_id)) ? Number(req.query.sucursal_id) : null;
+    const effectiveSedeId = !isGlobalAdmin && userBranchId ? userBranchId : requestedSedeId;
+    let query = `
       SELECT 
         c.id,
         c.codigo AS codigoComprobante,
@@ -7406,8 +7430,15 @@ async function getCompras(_req, res) {
       LEFT JOIN sucursales s ON c.sucursal_id = s.id
       LEFT JOIN usuarios u ON c.usuario_id = u.id
       INNER JOIN estados e ON c.estado_id = e.id
-      ORDER BY c.id DESC
-    `);
+      WHERE 1=1
+    `;
+    const params = [];
+    if (effectiveSedeId) {
+      query += " AND c.sucursal_id = ?";
+      params.push(effectiveSedeId);
+    }
+    query += " ORDER BY c.id DESC";
+    const [comprasRows] = await pool.query(query, params);
     if (comprasRows.length === 0) {
       res.json({ success: true, total: 0, compras: [] });
       return;
@@ -7470,6 +7501,7 @@ async function getCompras(_req, res) {
         proveedorRazonSocial: c.proveedorRazonSocial,
         proveedorEmail: c.proveedorEmail || "",
         proveedorTelefono: c.proveedorTelefono || "",
+        sucursalId: c.sucursalId,
         sucursalDestino: c.sucursalDestino,
         compradorId: c.compradorId || 1,
         compradorNombre: c.compradorNombre,
@@ -7495,6 +7527,8 @@ async function getCompras(_req, res) {
 async function createCompra(req, res) {
   const connection = await pool.getConnection();
   try {
+    const isGlobalAdmin = isGlobalAdminRole2(req.user?.rol);
+    const userBranchId = req.user?.sucursalId ? Number(req.user.sucursalId) : null;
     const {
       codigoComprobante,
       proveedorId,
@@ -7516,16 +7550,18 @@ async function createCompra(req, res) {
       return;
     }
     const isPendingOrder = modoIngreso === "SOLICITADO";
-    let targetSucursalId = 1;
-    if (typeof sucursalDestino === "number") {
-      targetSucursalId = sucursalDestino;
-    } else if (typeof sucursalDestino === "string") {
-      const [sucRows] = await connection.query(
-        "SELECT id FROM sucursales WHERE nombre LIKE ? LIMIT 1",
-        [`%${sucursalDestino.trim()}%`]
-      );
-      if (sucRows.length > 0) {
-        targetSucursalId = sucRows[0].id;
+    let targetSucursalId = userBranchId || 1;
+    if (isGlobalAdmin || !userBranchId) {
+      if (typeof sucursalDestino === "number") {
+        targetSucursalId = sucursalDestino;
+      } else if (typeof sucursalDestino === "string") {
+        const [sucRows] = await connection.query(
+          "SELECT id FROM sucursales WHERE nombre LIKE ? LIMIT 1",
+          [`%${sucursalDestino.trim()}%`]
+        );
+        if (sucRows.length > 0) {
+          targetSucursalId = sucRows[0].id;
+        }
       }
     }
     const cleanCodigo = codigoComprobante && codigoComprobante.trim() ? codigoComprobante.trim() : isPendingOrder ? `OC-${Date.now().toString().slice(-6)}` : `CMP-${Date.now().toString().slice(-6)}`;
@@ -7659,6 +7695,10 @@ async function recepcionarCompra(req, res) {
       return;
     }
     const cmp = compraRows[0];
+    if (!canAccessOrderBranch(req, cmp.sucursal_id)) {
+      res.status(403).json({ success: false, message: "No tiene permisos para recepcionar \xF3rdenes de otra sucursal." });
+      return;
+    }
     if (cmp.estado_id !== 1) {
       res.status(400).json({ success: false, message: "No se puede recepcionar un pedido anulado." });
       return;
@@ -7793,7 +7833,7 @@ async function enviarOrdenCompraEmail(req, res) {
       return;
     }
     const [rows] = await pool.query(
-      `SELECT c.id, c.codigo, c.total, c.fecha_compra AS fecha, c.observaciones,
+      `SELECT c.id, c.codigo, c.sucursal_id AS sucursalId, c.total, c.fecha_compra AS fecha, c.observaciones,
               p.ruc AS proveedorRuc, p.razon_social AS proveedorRazonSocial, p.email AS proveedorEmail, p.nombre_contacto AS contacto,
               COALESCE(s.nombre, 'Principal - Chiclayo Centro') AS sucursalDestino
        FROM compras c
@@ -7807,6 +7847,10 @@ async function enviarOrdenCompraEmail(req, res) {
       return;
     }
     const order = rows[0];
+    if (!canAccessOrderBranch(req, order.sucursalId)) {
+      res.status(403).json({ success: false, message: "No tiene permisos para gestionar \xF3rdenes de otra sucursal." });
+      return;
+    }
     const targetEmail = String(order.proveedorEmail || "").trim();
     if (!targetEmail || !targetEmail.includes("@")) {
       res.status(400).json({
@@ -7894,6 +7938,10 @@ async function anularCompra(req, res) {
       return;
     }
     const cmp = compraRows[0];
+    if (!canAccessOrderBranch(req, cmp.sucursal_id)) {
+      res.status(403).json({ success: false, message: "No tiene permisos para anular \xF3rdenes de otra sucursal." });
+      return;
+    }
     if (cmp.estado_id !== 1) {
       res.status(400).json({ success: false, message: "El registro ya se encuentra anulado." });
       return;

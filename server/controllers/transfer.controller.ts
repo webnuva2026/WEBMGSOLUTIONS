@@ -1,14 +1,19 @@
 import { Request, Response } from 'express';
 import { pool } from '../config/db';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { AuthenticatedRequest } from '../middlewares/auth';
+
+const isGlobalAdminRole = (rol?: string) => rol === 'SUPERADMIN' || rol === 'ADMIN';
 
 /**
  * GET /api/almacen/movimientos
  * Obtiene el historial de movimientos y préstamos de inventario entre sedes
  */
-export async function getMovimientos(req: Request, res: Response): Promise<void> {
+export async function getMovimientos(req: AuthenticatedRequest, res: Response): Promise<void> {
   try {
     const { tipo, estado, sedeId } = req.query;
+    const isGlobalAdmin = isGlobalAdminRole(req.user?.rol);
+    const userBranchId = req.user?.sucursalId ? Number(req.user.sucursalId) : null;
 
     let query = `
       SELECT 
@@ -59,7 +64,10 @@ export async function getMovimientos(req: Request, res: Response): Promise<void>
       params.push(estado);
     }
 
-    if (sedeId && !isNaN(Number(sedeId))) {
+    if (!isGlobalAdmin && userBranchId) {
+      query += ' AND (m.sede_origen_id = ? OR m.sede_destino_id = ?)';
+      params.push(userBranchId, userBranchId);
+    } else if (sedeId && !isNaN(Number(sedeId))) {
       query += ' AND (m.sede_origen_id = ? OR m.sede_destino_id = ?)';
       params.push(Number(sedeId), Number(sedeId));
     }

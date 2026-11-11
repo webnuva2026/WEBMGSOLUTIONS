@@ -2,6 +2,14 @@ import { Request, Response } from 'express';
 import { pool } from '../config/db';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { dispatchEmail } from '../utils/mailer';
+import { AuthenticatedRequest } from '../middlewares/auth';
+
+const isGlobalAdminRole = (rol?: string) => rol === 'SUPERADMIN' || rol === 'ADMIN';
+
+const canAccessOrderBranch = (req: AuthenticatedRequest, orderSucursalId?: number | null) => {
+  if (isGlobalAdminRole(req.user?.rol) || !req.user?.sucursalId) return true;
+  return Number(orderSucursalId) === Number(req.user.sucursalId);
+};
 
 /**
  * GET /api/proveedores
@@ -194,9 +202,20 @@ export async function toggleProveedorEstado(req: Request, res: Response): Promis
  * GET /api/compras
  * Obtiene el historial completo de órdenes de pedido y compras recepcionadas con sus items detallados
  */
-export async function getCompras(_req: Request, res: Response): Promise<void> {
+export async function getCompras(req: AuthenticatedRequest, res: Response): Promise<void> {
   try {
-    const [comprasRows] = await pool.query<RowDataPacket[]>(`
+    const isGlobalAdmin = isGlobalAdminRole(req.user?.rol);
+    const userBranchId = req.user?.sucursalId ? Number(req.user.sucursalId) : null;
+    const requestedSedeId =
+      req.query.sucursal_id &&
+      !['ALL', 'TODOS'].includes(String(req.query.sucursal_id).toUpperCase()) &&
+      !isNaN(Number(req.query.sucursal_id))
+        ? Number(req.query.sucursal_id)
+        : null;
+
+    const effectiveSedeId = !isGlobalAdmin && userBranchId ? userBranchId : requestedSedeId;
+
+    let query = `
       SELECT 
         c.id,
         c.codigo AS codigoComprobante,
@@ -218,8 +237,16 @@ export async function getCompras(_req: Request, res: Response): Promise<void> {
       LEFT JOIN sucursales s ON c.sucursal_id = s.id
       LEFT JOIN usuarios u ON c.usuario_id = u.id
       INNER JOIN estados e ON c.estado_id = e.id
-      ORDER BY c.id DESC
-    `);
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+    if (effectiveSedeId) {
+      query += ' AND c.sucursal_id = ?';
+      params.push(effectiveSedeId);
+    }
+    query += ' ORDER BY c.id DESC';
+
+    const [comprasRows] = await pool.query<RowDataPacket[]>(query, params);
 
     if (comprasRows.length === 0) {
       res.json({ success: true, total: 0, compras: [] });
@@ -306,6 +333,7 @@ export async function getCompras(_req: Request, res: Response): Promise<void> {
         proveedorRazonSocial: c.proveedorRazonSocial,
         proveedorEmail: c.proveedorEmail || '',
         proveedorTelefono: c.proveedorTelefono || '',
+        sucursalId: c.sucursalId,
         sucursalDestino: c.sucursalDestino,
         compradorId: c.compradorId || 1,
         compradorNombre: c.compradorNombre,
@@ -336,9 +364,11 @@ export async function getCompras(_req: Request, res: Response): Promise<void> {
  * - Si modoIngreso === 'SOLICITADO': Crea el pedido al proveedor SIN incrementar stock hasta que Almacén confirme la recepción física.
  * - Si modoIngreso === 'RECEPCION_DIRECTA': Incrementa el stock e ingresa series inmediatamente.
  */
-export async function createCompra(req: Request, res: Response): Promise<void> {
+export async function createCompra(req: AuthenticatedRequest, res: Response): Promise<void> {
   const connection = await pool.getConnection();
   try {
+    const isGlobalAdmin = isGlobalAdminRole(req.user?.rol);
+    const userBranchId = req.user?.sucursalId ? Number(req.user.sucursalId) : null;
     const {
       codigoComprobante,
       proveedorId,
@@ -362,17 +392,19 @@ export async function createCompra(req: Request, res: Response): Promise<void> {
 
     const isPendingOrder = modoIngreso === 'SOLICITADO';
 
-    // Resolver sucursalId numérico
-    let targetSucursalId = 1;
-    if (typeof sucursalDestino === 'number') {
-      targetSucursalId = sucursalDestino;
-    } else if (typeof sucursalDestino === 'string') {
-      const [sucRows] = await connection.query<RowDataPacket[]>(
-        'SELECT id FROM sucursales WHERE nombre LIKE ? LIMIT 1',
-        [`%${sucursalDestino.trim()}%`]
-      );
-      if (sucRows.length > 0) {
-        targetSucursalId = sucRows[0].id;
+    // Resolver sucursalId numérico (los usuarios asignados a una sede solo pueden emitir órdenes para su propia sede)
+    let targetSucursalId = userBranchId || 1;
+    if (isGlobalAdmin || !userBranchId) {
+      if (typeof sucursalDestino === 'number') {
+        targetSucursalId = sucursalDestino;
+      } else if (typeof sucursalDestino === 'string') {
+        const [sucRows] = await connection.query<RowDataPacket[]>(
+          'SELECT id FROM sucursales WHERE nombre LIKE ? LIMIT 1',
+          [`%${sucursalDestino.trim()}%`]
+        );
+        if (sucRows.length > 0) {
+          targetSucursalId = sucRows[0].id;
+        }
       }
     }
 
@@ -516,7 +548,7 @@ export async function createCompra(req: Request, res: Response): Promise<void> {
  * - Registra los números de serie individuales en producto_unidades (si aplica)
  * - Incrementa el stock real en producto_stock_sede para Ventas POS y Taller Técnico
  */
-export async function recepcionarCompra(req: Request, res: Response): Promise<void> {
+export async function recepcionarCompra(req: AuthenticatedRequest, res: Response): Promise<void> {
   const connection = await pool.getConnection();
   try {
     const compraId = Number(req.params.id);
@@ -545,6 +577,10 @@ export async function recepcionarCompra(req: Request, res: Response): Promise<vo
     }
 
     const cmp = compraRows[0];
+    if (!canAccessOrderBranch(req, cmp.sucursal_id)) {
+      res.status(403).json({ success: false, message: 'No tiene permisos para recepcionar órdenes de otra sucursal.' });
+      return;
+    }
     if (cmp.estado_id !== 1) {
       res.status(400).json({ success: false, message: 'No se puede recepcionar un pedido anulado.' });
       return;
@@ -709,7 +745,7 @@ export async function recepcionarCompra(req: Request, res: Response): Promise<vo
  * POST /api/compras/:id/enviar-email
  * Envía la Orden de Pedido / Compra oficial al correo registrado del Proveedor (bloqueado por integridad)
  */
-export async function enviarOrdenCompraEmail(req: Request, res: Response): Promise<void> {
+export async function enviarOrdenCompraEmail(req: AuthenticatedRequest, res: Response): Promise<void> {
   try {
     const compraId = Number(req.params.id);
     if (isNaN(compraId)) {
@@ -718,7 +754,7 @@ export async function enviarOrdenCompraEmail(req: Request, res: Response): Promi
     }
 
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT c.id, c.codigo, c.total, c.fecha_compra AS fecha, c.observaciones,
+      `SELECT c.id, c.codigo, c.sucursal_id AS sucursalId, c.total, c.fecha_compra AS fecha, c.observaciones,
               p.ruc AS proveedorRuc, p.razon_social AS proveedorRazonSocial, p.email AS proveedorEmail, p.nombre_contacto AS contacto,
               COALESCE(s.nombre, 'Principal - Chiclayo Centro') AS sucursalDestino
        FROM compras c
@@ -734,6 +770,10 @@ export async function enviarOrdenCompraEmail(req: Request, res: Response): Promi
     }
 
     const order = rows[0];
+    if (!canAccessOrderBranch(req, order.sucursalId)) {
+      res.status(403).json({ success: false, message: 'No tiene permisos para gestionar órdenes de otra sucursal.' });
+      return;
+    }
     const targetEmail = String(order.proveedorEmail || '').trim();
     if (!targetEmail || !targetEmail.includes('@')) {
       res.status(400).json({
@@ -821,7 +861,7 @@ export async function enviarOrdenCompraEmail(req: Request, res: Response): Promi
  * - Si estaba SOLICITADO (en tránsito), solo cambia el estado a ANULADA sin restar stock.
  * - Si ya estaba REGISTRADA (recibida en almacén), revierte el stock ingresado a la sede.
  */
-export async function anularCompra(req: Request, res: Response): Promise<void> {
+export async function anularCompra(req: AuthenticatedRequest, res: Response): Promise<void> {
   const connection = await pool.getConnection();
   try {
     const compraId = Number(req.params.id);
@@ -841,6 +881,10 @@ export async function anularCompra(req: Request, res: Response): Promise<void> {
     }
 
     const cmp = compraRows[0];
+    if (!canAccessOrderBranch(req, cmp.sucursal_id)) {
+      res.status(403).json({ success: false, message: 'No tiene permisos para anular órdenes de otra sucursal.' });
+      return;
+    }
     if (cmp.estado_id !== 1) {
       res.status(400).json({ success: false, message: 'El registro ya se encuentra anulado.' });
       return;

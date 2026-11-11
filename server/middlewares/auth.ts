@@ -37,9 +37,14 @@ export async function authenticateToken(
   }
 
   try {
-    // Verificar que el usuario sigue activo en la base de datos
+    // Verificar que el usuario sigue activo y sincronizar su rol y sede vigentes desde BD
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT u.id, e.nombre AS estado FROM usuarios u JOIN estados e ON u.estado_id = e.id WHERE u.id = ? LIMIT 1',
+      `SELECT u.id, u.sucursal_id AS sucursalId, r.codigo AS rolCodigo, e.nombre AS estado
+       FROM usuarios u
+       JOIN roles r ON u.rol_id = r.id
+       JOIN estados e ON u.estado_id = e.id
+       WHERE u.id = ?
+       LIMIT 1`,
       [decoded.userId]
     );
 
@@ -51,7 +56,11 @@ export async function authenticateToken(
       return;
     }
 
-    req.user = decoded;
+    req.user = {
+      ...decoded,
+      rol: rows[0].rolCodigo || decoded.rol,
+      sucursalId: rows[0].sucursalId !== undefined ? rows[0].sucursalId : decoded.sucursalId,
+    };
     next();
   } catch (err) {
     console.error('Error verificando usuario en middleware auth:', err);

@@ -83,9 +83,14 @@ export const purchaseService = {
   },
 
   // ─── COMPRAS & REABASTECIMIENTO ───
-  async getCompras(): Promise<{ success: boolean; compras?: Compra[]; message?: string }> {
+  async getCompras(params?: { sucursal_id?: number | null }): Promise<{ success: boolean; compras?: Compra[]; message?: string }> {
     try {
-      const res = await fetch(`${API_BASE_URL}/compras`, {
+      const query = new URLSearchParams();
+      if (params?.sucursal_id) {
+        query.append('sucursal_id', String(params.sucursal_id));
+      }
+      const qs = query.toString();
+      const res = await fetch(`${API_BASE_URL}/compras${qs ? `?${qs}` : ''}`, {
         headers: getAuthHeaders(),
       });
       return await res.json();
