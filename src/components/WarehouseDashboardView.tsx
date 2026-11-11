@@ -15,7 +15,7 @@ import {
   Building2,
   FileText,
 } from 'lucide-react';
-import { Compra, MovimientoInventario, Producto, Proveedor, Sucursal, Usuario } from '../types';
+import { Compra, MovimientoInventario, Producto, Proveedor, Sucursal, Usuario, normalizeModuleIds } from '../types';
 import { WarehouseInventoryView } from './WarehouseInventoryView';
 import { PurchasesView } from './PurchasesView';
 
@@ -70,18 +70,42 @@ export const WarehouseDashboardView: React.FC<WarehouseDashboardViewProps> = ({
   onShowToast,
   onProductCreated,
 }) => {
-  const [activeTab, setActiveTab] = useState<'inventario' | 'pedidos' | 'proveedores' | 'resumen'>(initialSection);
+  const isAdminRole = currentUser.rol === 'SUPERADMIN' || currentUser.rol === 'ADMIN';
+  const normalizedMods = normalizeModuleIds(currentUser.modulosPermitidos);
+  const canAccessInventario = isAdminRole || normalizedMods.includes('panel-almacen');
+  const canAccessCompras = isAdminRole || normalizedMods.includes('compras');
+
+  type WarehouseTab = 'inventario' | 'pedidos' | 'proveedores' | 'resumen';
+  const typedInitialSection: WarehouseTab =
+    initialSection === 'pedidos' || initialSection === 'proveedores' || initialSection === 'resumen'
+      ? initialSection
+      : 'inventario';
+
+  const resolveAllowedTab = (requested: WarehouseTab): WarehouseTab => {
+    if ((requested === 'pedidos' || requested === 'proveedores') && !canAccessCompras && canAccessInventario) {
+      return 'inventario';
+    }
+    if ((requested === 'inventario' || requested === 'resumen') && !canAccessInventario && canAccessCompras) {
+      return 'pedidos';
+    }
+    return requested;
+  };
+
+  const [activeTab, setActiveTab] = useState<WarehouseTab>(() =>
+    resolveAllowedTab(typedInitialSection)
+  );
   const [purchasesSubTab, setPurchasesSubTab] = useState<'nueva' | 'historial' | 'proveedores'>('nueva');
   const [orderProductId, setOrderProductId] = useState<number | null>(null);
 
   useEffect(() => {
-    setActiveTab(initialSection);
-    if (initialSection === 'proveedores') {
+    const resolved = resolveAllowedTab(typedInitialSection);
+    setActiveTab(resolved);
+    if (resolved === 'proveedores') {
       setPurchasesSubTab('proveedores');
-    } else if (initialSection === 'pedidos') {
+    } else if (resolved === 'pedidos') {
       setPurchasesSubTab('nueva');
     }
-  }, [initialSection]);
+  }, [initialSection, canAccessInventario, canAccessCompras]);
 
   const pedidosEnTransito = compras.filter((c) => c.estado === 'SOLICITADO').length;
 
@@ -108,19 +132,21 @@ export const WarehouseDashboardView: React.FC<WarehouseDashboardViewProps> = ({
       {/* Barra de Pestañas Superiores Unificadas: Almacén + Pedidos a Proveedor + Proveedores */}
       <div className="border-b border-slate-200 bg-white px-6 pt-3">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('inventario')}
-            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${activeTab === 'inventario'
-              ? 'border-[#00346F] text-[#00346F] bg-slate-50/80 rounded-t-xl'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-          >
-            <Boxes className="h-4 w-4" />
-            Control de Inventario & Números de Serie
-          </button>
+          {canAccessInventario && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('inventario')}
+              className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${activeTab === 'inventario'
+                ? 'border-[#00346F] text-[#00346F] bg-slate-50/80 rounded-t-xl'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+            >
+              <Boxes className="h-4 w-4" />
+              Control de Inventario & Números de Serie
+            </button>
+          )}
 
-          {!readOnly && (
+          {canAccessCompras && (
             <>
               <button
                 type="button"
@@ -159,35 +185,37 @@ export const WarehouseDashboardView: React.FC<WarehouseDashboardViewProps> = ({
             </>
           )}
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('resumen')}
-            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${activeTab === 'resumen'
-              ? 'border-[#00346F] text-[#00346F] bg-slate-50/80 rounded-t-xl'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-          >
-            <BarChart3 className="h-4 w-4" />
-            Métricas & Transferencias entre Sedes
-          </button>
+          {canAccessInventario && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('resumen')}
+              className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${activeTab === 'resumen'
+                ? 'border-[#00346F] text-[#00346F] bg-slate-50/80 rounded-t-xl'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+            >
+              <BarChart3 className="h-4 w-4" />
+              Métricas & Transferencias entre Sedes
+            </button>
+          )}
         </div>
       </div>
 
       {/* Contenido según pestaña */}
-      {activeTab === 'inventario' ? (
+      {activeTab === 'inventario' && canAccessInventario ? (
         <WarehouseInventoryView
           sucursales={sucursales}
           onShowToast={onShowToast || (() => { })}
           readOnly={readOnly}
           onProductCreated={onProductCreated}
-          onRequestOrderProduct={handleRequestOrderFromInventory}
-          onOpenPedidosTab={() => {
+          onRequestOrderProduct={canAccessCompras ? handleRequestOrderFromInventory : undefined}
+          onOpenPedidosTab={canAccessCompras ? () => {
             setPurchasesSubTab('nueva');
             setActiveTab('pedidos');
-          }}
+          } : undefined}
           onGoToCatalogoMaestro={() => setActiveView('catalogo-maestro')}
         />
-      ) : activeTab === 'pedidos' || activeTab === 'proveedores' ? (
+      ) : (activeTab === 'pedidos' || activeTab === 'proveedores') && canAccessCompras ? (
         <PurchasesView
           currentUser={currentUser}
           compras={compras}
@@ -206,7 +234,7 @@ export const WarehouseDashboardView: React.FC<WarehouseDashboardViewProps> = ({
           onRefreshData={onProductCreated}
           embeddedInWarehouse
         />
-      ) : (
+      ) : canAccessInventario ? (
         <div className="flex-1 overflow-y-auto p-6 md:p-8">
           <div className="mx-auto w-full max-w-7xl">
             {/* Header */}
@@ -491,7 +519,7 @@ export const WarehouseDashboardView: React.FC<WarehouseDashboardViewProps> = ({
             )}
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 };

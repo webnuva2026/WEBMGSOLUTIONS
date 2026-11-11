@@ -81,6 +81,16 @@ export function requireRoles(...rolesPermitidos: string[]) {
   };
 }
 
+const MODULE_PERMISSION_ALIASES: Record<string, string[]> = {
+  marcas: ['catalogo'],
+  categorias: ['catalogo'],
+  catalogo: ['catalogo', 'marcas', 'categorias'],
+  'config-empresa': ['sucursales', 'config-empresa'],
+  sucursales: ['sucursales', 'config-empresa'],
+  productos: ['panel-almacen', 'productos'],
+  'panel-almacen': ['panel-almacen', 'productos'],
+};
+
 /**
  * Middleware para validar acceso dinámico por permiso/módulo del sistema
  * Permite acceso a:
@@ -89,6 +99,10 @@ export function requireRoles(...rolesPermitidos: string[]) {
  * 3. Cualquier usuario cuyo rol tenga asignado el módulo en la base de datos (roles.modulos_predeterminados o rol_permisos)
  */
 export function requirePermission(moduloCodigo: string, ...rolesFallback: string[]) {
+  const acceptedCodes = Array.from(
+    new Set([moduloCodigo, ...(MODULE_PERMISSION_ALIASES[moduloCodigo] || [])])
+  );
+
   return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) {
       res.status(401).json({ success: false, message: 'No autenticado.' });
@@ -127,20 +141,21 @@ export function requirePermission(moduloCodigo: string, ...rolesFallback: string
             modulos = [];
           }
         }
-        if (Array.isArray(modulos) && modulos.includes(moduloCodigo)) {
+        if (Array.isArray(modulos) && modulos.some((m: string) => acceptedCodes.includes(m))) {
           next();
           return;
         }
       }
 
       // 4. Verificar en tabla relacional rol_permisos
+      const placeholders = acceptedCodes.map(() => '?').join(', ');
       const [permRows] = await pool.query<RowDataPacket[]>(
         `SELECT 1 FROM rol_permisos rp
          JOIN permisos p ON rp.permiso_id = p.id
          JOIN usuarios u ON u.rol_id = rp.rol_id
-         WHERE u.id = ? AND p.codigo = ?
+         WHERE u.id = ? AND p.codigo IN (${placeholders})
          LIMIT 1`,
-        [req.user.userId, moduloCodigo]
+        [req.user.userId, ...acceptedCodes]
       );
 
       if (permRows.length > 0) {

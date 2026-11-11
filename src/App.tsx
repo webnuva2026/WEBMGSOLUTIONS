@@ -35,6 +35,8 @@ import {
   Compra,
   CajaTurno,
   MovimientoCaja,
+  hasModuleAccess,
+  normalizeModuleIds,
 } from './types';
 import { TopNavBar } from './components/TopNavBar';
 import { SideNavBar } from './components/SideNavBar';
@@ -452,9 +454,11 @@ export function App() {
       currentUser &&
       currentUser.rol !== 'ADMIN' &&
       currentUser.rol !== 'SUPERADMIN' &&
-      !currentUser.modulosPermitidos.includes(activeView)
+      !hasModuleAccess(currentUser.modulosPermitidos, activeView)
     ) {
-      setActiveView(currentUser.modulosPermitidos[0] || 'ventas');
+      const normalized = normalizeModuleIds(currentUser.modulosPermitidos);
+      const firstView = normalized[0] === 'compras' ? 'panel-almacen' : normalized[0] || 'ventas';
+      setActiveView(firstView);
     }
   }, [activeView, currentUser]);
 
@@ -508,15 +512,18 @@ export function App() {
       setShowForceChangePassword(true);
       return;
     }
-    setActiveView(
+    const preferredView =
       user.rol === 'TECNICO'
         ? 'taller'
         : user.rol === 'SECRETARIA'
         ? 'panel-recepcion'
         : user.rol === 'ALMACEN'
         ? 'panel-almacen'
-        : 'ventas'
-    );
+        : 'ventas';
+    const isAdminUser = user.rol === 'ADMIN' || user.rol === 'SUPERADMIN';
+    const normalized = normalizeModuleIds(user.modulosPermitidos);
+    const fallbackView = normalized[0] === 'compras' ? 'panel-almacen' : normalized[0] || 'ventas';
+    setActiveView(isAdminUser || hasModuleAccess(user.modulosPermitidos, preferredView) ? preferredView : fallbackView);
     setIsWorkerAccess(false);
     showToast('Bienvenido al Sistema', `Sesion iniciada como ${user.nombreCompleto} (${user.rol}).`, 'success');
   };
@@ -528,15 +535,18 @@ export function App() {
       const updatedUser = { ...currentUser, requiereCambioPassword: false };
       setCurrentUser(updatedUser);
       const rol = updatedUser.rol;
-      setActiveView(
+      const preferredView =
         rol === 'TECNICO'
           ? 'taller'
           : rol === 'SECRETARIA'
           ? 'panel-recepcion'
           : rol === 'ALMACEN'
           ? 'panel-almacen'
-          : 'ventas'
-      );
+          : 'ventas';
+      const isAdminUser = rol === 'ADMIN' || rol === 'SUPERADMIN';
+      const normalized = normalizeModuleIds(updatedUser.modulosPermitidos);
+      const fallbackView = normalized[0] === 'compras' ? 'panel-almacen' : normalized[0] || 'ventas';
+      setActiveView(isAdminUser || hasModuleAccess(updatedUser.modulosPermitidos, preferredView) ? preferredView : fallbackView);
       setIsWorkerAccess(false);
       showToast('Contrasena actualizada', 'Su nueva contrasena ha sido guardada. Bienvenido al sistema.', 'success');
     }
@@ -1159,8 +1169,7 @@ export function App() {
           {(activeView === 'config-empresa' || activeView === 'sucursales') &&
             (currentUser.rol === 'SUPERADMIN' ||
               currentUser.rol === 'ADMIN' ||
-              currentUser.modulosPermitidos?.includes('config-empresa') ||
-              currentUser.modulosPermitidos?.includes('sucursales')) && (
+              hasModuleAccess(currentUser.modulosPermitidos, 'sucursales')) && (
             <CompanySettingsView
               empresa={empresa}
               sucursales={sucursales}
@@ -1197,7 +1206,7 @@ export function App() {
           {activeView === 'usuarios' &&
             (currentUser.rol === 'SUPERADMIN' ||
               currentUser.rol === 'ADMIN' ||
-              currentUser.modulosPermitidos?.includes('usuarios')) && (
+              hasModuleAccess(currentUser.modulosPermitidos, 'usuarios')) && (
             <UsersManagementView
               usuarios={usuarios}
               sucursales={sucursalesActivas}

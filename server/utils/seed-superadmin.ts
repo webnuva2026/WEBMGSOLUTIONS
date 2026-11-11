@@ -5,23 +5,94 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 dotenv.config();
 
-const ALL_MODULES = [
+export const ALL_MODULES = [
   'ventas',
-  'caja',
-  'compras',
-  'panel-recepcion',
-  'panel-almacen',
-  'taller',
-  'equipos',
   'clientes',
-  'productos',
-  'categorias',
-  'marcas',
-  'usuarios',
-  'config-empresa',
-  'sucursales',
+  'panel-recepcion',
+  'taller',
+  'panel-almacen',
+  'compras',
   'movimientos',
+  'catalogo',
+  'repuestos-catalogo',
+  'usuarios',
+  'sucursales',
 ];
+
+const ACTIVE_MODULES_SET = new Set(ALL_MODULES);
+const LEGACY_MODULE_MAP: Record<string, string | null> = {
+  productos: 'panel-almacen',
+  categorias: 'catalogo',
+  marcas: 'catalogo',
+  'config-empresa': 'sucursales',
+  caja: null,
+  equipos: null,
+};
+
+function normalizeRoleModuleList(raw: unknown, rolCodigo: string): string[] {
+  if (rolCodigo === 'SUPERADMIN' || rolCodigo === 'ADMIN') {
+    return [...ALL_MODULES];
+  }
+  let parsed: string[] = [];
+  if (Array.isArray(raw)) {
+    parsed = raw.map(String);
+  } else if (typeof raw === 'string') {
+    try {
+      const json = JSON.parse(raw);
+      if (Array.isArray(json)) parsed = json.map(String);
+    } catch {
+      parsed = [];
+    }
+  }
+  const normalized = new Set<string>();
+  for (const item of parsed) {
+    const mapped = item in LEGACY_MODULE_MAP ? LEGACY_MODULE_MAP[item] : item;
+    if (mapped && ACTIVE_MODULES_SET.has(mapped)) {
+      normalized.add(mapped);
+    }
+  }
+  if (rolCodigo === 'TECNICO') {
+    normalized.add('repuestos-catalogo');
+  }
+  return Array.from(normalized);
+}
+
+/**
+ * Normaliza una sola vez los códigos de módulos en `roles.modulos_predeterminados`
+ * para alinearlos con los 11 módulos activos del sistema.
+ */
+export async function normalizeRolesModules(): Promise<void> {
+  const SEED_KEY = 'roles_modules_v2_2026_11';
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS _catalog_seeds (
+        seed_key VARCHAR(100) PRIMARY KEY,
+        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    const [doneRows] = await pool.query<RowDataPacket[]>(
+      'SELECT seed_key FROM _catalog_seeds WHERE seed_key = ? LIMIT 1',
+      [SEED_KEY]
+    );
+    if (doneRows.length > 0) return;
+
+    const [roleRows] = await pool.query<RowDataPacket[]>(
+      'SELECT id, codigo, modulos_predeterminados FROM roles'
+    );
+    for (const r of roleRows) {
+      const normalized = normalizeRoleModuleList(r.modulos_predeterminados, String(r.codigo || ''));
+      await pool.query(
+        'UPDATE roles SET modulos_predeterminados = ? WHERE id = ?',
+        [JSON.stringify(normalized), r.id]
+      );
+    }
+
+    await pool.query('INSERT IGNORE INTO _catalog_seeds (seed_key) VALUES (?)', [SEED_KEY]);
+    console.log(`✅ Módulos de ${roleRows.length} roles normalizados (seed ${SEED_KEY}).`);
+  } catch (err) {
+    console.error('⚠️ Error al normalizar módulos de roles:', err);
+  }
+}
 
 export async function seedSuperAdmin(): Promise<void> {
   const superadminName = process.env.SUPERADMIN_NAME || 'Super Administrador';

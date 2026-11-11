@@ -21,22 +21,51 @@ export interface ModuloSistemaDef {
 }
 
 export const MODULOS_DISPONIBLES: ModuloSistemaDef[] = [
-  { id: 'ventas', nombre: 'Ventas', descripcion: 'Gestión de ventas y operaciones comerciales', icono: 'Receipt', categoria: 'Operaciones' },
-  { id: 'caja', nombre: 'Caja & Finanzas', descripcion: 'Apertura, arqueo, turnos y balance de caja', icono: 'DollarSign', categoria: 'Operaciones' },
-  { id: 'compras', nombre: 'Compras & Proveedores', descripcion: 'Registro de facturas de compra, abastecimiento y proveedores', icono: 'Truck', categoria: 'Almacén' },
-  { id: 'panel-recepcion', nombre: 'Panel de recepción', descripcion: 'Ingresos y seguimiento inicial de equipos', icono: 'ClipboardList', categoria: 'Taller' },
-  { id: 'panel-almacen', nombre: 'Panel de almacén', descripcion: 'Stock y movimientos entre sedes', icono: 'Package', categoria: 'Almacén' },
-  { id: 'taller', nombre: 'Servicio Técnico & Taller', descripcion: 'Recepción, bandeja del técnico, avances y entregas', icono: 'Wrench', categoria: 'Taller' },
-  { id: 'equipos', nombre: 'Equipos registrados', descripcion: 'Equipos de clientes e historial de servicios', icono: 'Laptop', categoria: 'Taller' },
+  { id: 'ventas', nombre: 'Punto de Venta (POS)', descripcion: 'Gestión de ventas y operaciones comerciales', icono: 'Receipt', categoria: 'Operaciones' },
   { id: 'clientes', nombre: 'Directorio de Clientes', descripcion: 'Gestión y validación de RUC y DNI', icono: 'Users', categoria: 'Operaciones' },
-  { id: 'productos', nombre: 'Productos & Stock', descripcion: 'Catálogo, inventario y control de precios', icono: 'Package', categoria: 'Almacén' },
-  { id: 'categorias', nombre: 'Categorías', descripcion: 'Clasificación de productos', icono: 'Layers', categoria: 'Almacén' },
-  { id: 'marcas', nombre: 'Marcas', descripcion: 'Registro de marcas del catálogo', icono: 'Tag', categoria: 'Almacén' },
-  { id: 'usuarios', nombre: 'Gestión de Usuarios & Paneles', descripcion: 'Usuarios, roles y asignación de permisos a paneles', icono: 'ShieldCheck', categoria: 'Administración' },
-  { id: 'config-empresa', nombre: 'Datos de Empresa', descripcion: 'Información general y parámetros operativos', icono: 'Building2', categoria: 'Administración' },
-  { id: 'sucursales', nombre: 'Sucursales', descripcion: 'Sedes y almacenes secundarios', icono: 'Network', categoria: 'Administración' },
+  { id: 'panel-recepcion', nombre: 'Panel de recepción', descripcion: 'Ingresos y seguimiento inicial de equipos', icono: 'ClipboardList', categoria: 'Taller' },
+  { id: 'taller', nombre: 'Taller & Órdenes de Servicio', descripcion: 'Recepción, bandeja del técnico, avances y entregas', icono: 'Wrench', categoria: 'Taller' },
+  { id: 'panel-almacen', nombre: 'Almacén: Inventario & Series', descripcion: 'Control de inventario, números de serie y métricas entre sedes', icono: 'Package', categoria: 'Almacén' },
+  { id: 'compras', nombre: 'Almacén: Pedidos & Proveedores', descripcion: 'Realizar pedidos, recepción de proveedores y directorio', icono: 'Truck', categoria: 'Almacén' },
   { id: 'movimientos', nombre: 'Movimientos entre sedes', descripcion: 'Traslados y control de inventario entre sedes', icono: 'ArrowLeftRight', categoria: 'Almacén' },
+  { id: 'catalogo', nombre: 'Catálogo de Productos', descripcion: 'Categorías, marcas, modelos y productos maestros', icono: 'Layers', categoria: 'Almacén' },
+  { id: 'repuestos-catalogo', nombre: 'Catálogo de Repuestos', descripcion: 'Catálogo maestro de repuestos y compatibilidades', icono: 'Cpu', categoria: 'Almacén' },
+  { id: 'usuarios', nombre: 'Usuarios & Permisos', descripcion: 'Usuarios, roles y asignación de permisos a paneles', icono: 'ShieldCheck', categoria: 'Administración' },
+  { id: 'sucursales', nombre: 'Sucursales & Empresa', descripcion: 'Datos de empresa, sedes y almacenes secundarios', icono: 'Network', categoria: 'Administración' },
 ];
+
+const ACTIVE_MODULE_ID_SET = new Set(MODULOS_DISPONIBLES.map((m) => m.id));
+
+const LEGACY_MODULE_ALIAS: Record<string, string | null> = {
+  productos: 'panel-almacen',
+  categorias: 'catalogo',
+  marcas: 'catalogo',
+  'config-empresa': 'sucursales',
+  caja: null,
+  equipos: null,
+};
+
+export function normalizeModuleIds(mods: string[] | undefined | null): string[] {
+  if (!Array.isArray(mods)) return [];
+  const result = new Set<string>();
+  for (const raw of mods) {
+    const mapped = raw in LEGACY_MODULE_ALIAS ? LEGACY_MODULE_ALIAS[raw] : raw;
+    if (mapped && ACTIVE_MODULE_ID_SET.has(mapped)) {
+      result.add(mapped);
+    }
+  }
+  return Array.from(result);
+}
+
+export function hasModuleAccess(userModules: string[] | undefined | null, targetView: string): boolean {
+  const normalized = normalizeModuleIds(userModules);
+  const mappedTarget = targetView in LEGACY_MODULE_ALIAS ? LEGACY_MODULE_ALIAS[targetView] : targetView;
+  if (!mappedTarget) return false;
+  if (mappedTarget === 'panel-almacen') {
+    return normalized.includes('panel-almacen') || normalized.includes('compras');
+  }
+  return normalized.includes(mappedTarget);
+}
 
 export interface Usuario {
   id: number;

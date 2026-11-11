@@ -31,6 +31,9 @@ import {
   Volume2,
   Cable,
   Palette,
+  Printer,
+  Wifi,
+  FileText,
 } from 'lucide-react';
 import { Categoria, Marca, Modelo, EstadoRegistro } from '../types';
 import { categoryService, CreateCategoriaData } from '../services/category.service';
@@ -56,6 +59,14 @@ const PRESET_ATTRIBUTES = [
   'Color',
   'Generación',
   'Batería',
+  'Tipo',
+  'Funciones',
+  'Conectividad',
+  'Rendimiento Negro',
+  'Rendimiento Color',
+  'Impresión Dúplex',
+  'Alimentador ADF',
+  'App / Software',
 ];
 
 export const CatalogMasterView: React.FC<CatalogMasterViewProps> = ({
@@ -508,8 +519,16 @@ export const CatalogMasterView: React.FC<CatalogMasterViewProps> = ({
       return <Cable className="w-3.5 h-3.5 text-cyan-600" />;
     if (a.includes('audio') || a.includes('parlante') || a.includes('sonido'))
       return <Volume2 className="w-3.5 h-3.5 text-teal-600" />;
-    if (a.includes('color'))
+    if (a.includes('color') && !a.includes('rendimiento'))
       return <Palette className="w-3.5 h-3.5 text-slate-600" />;
+    if (a.includes('conectividad') || a.includes('wifi') || a.includes('bluetooth') || a.includes('ethernet'))
+      return <Wifi className="w-3.5 h-3.5 text-sky-600" />;
+    if (a.includes('rendimiento') || a.includes('página') || a.includes('pagina') || a.includes('adf'))
+      return <FileText className="w-3.5 h-3.5 text-violet-600" />;
+    if (a.includes('funcion') || a.includes('dúplex') || a.includes('duplex') || a.includes('impres') || a.includes('tipo'))
+      return <Printer className="w-3.5 h-3.5 text-[#00346F]" />;
+    if (a.includes('app') || a.includes('software'))
+      return <Sparkles className="w-3.5 h-3.5 text-emerald-600" />;
     return <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />;
   };
 

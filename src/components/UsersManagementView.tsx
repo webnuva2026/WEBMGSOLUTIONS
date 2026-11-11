@@ -39,8 +39,9 @@ import {
   Store,
   Mail,
   Copy,
+  Cpu,
 } from 'lucide-react';
-import { Usuario, UserRole, EstadoRegistro, MODULOS_DISPONIBLES, Rol, Sucursal } from '../types';
+import { Usuario, UserRole, EstadoRegistro, MODULOS_DISPONIBLES, Rol, Sucursal, normalizeModuleIds } from '../types';
 import { userService, CreateRoleData } from '../services/user.service';
 import { companyService } from '../services/company.service';
 import { consultaService } from '../services/consulta.service';
@@ -89,6 +90,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   Building2: <Building2 className="w-4 h-4" />,
   Network: <Network className="w-4 h-4" />,
   ArrowLeftRight: <ArrowLeftRight className="w-4 h-4" />,
+  Cpu: <Cpu className="w-4 h-4" />,
 };
 
 export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
@@ -279,7 +281,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
       rol: defaultRol ? defaultRol.codigo : 'SECRETARIA',
       sucursalId: defaultSucursal ? defaultSucursal.id : null,
       estado: 'ACTIVO',
-      modulosPermitidos: defaultRol?.modulosPredeterminados || ['ventas'],
+      modulosPermitidos: normalizeModuleIds(defaultRol?.modulosPredeterminados || ['ventas']),
     });
     setIsUserModalOpen(true);
   };
@@ -299,7 +301,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
       rol: u.rol,
       sucursalId: u.sucursalId !== undefined ? u.sucursalId : null,
       estado: u.estado,
-      modulosPermitidos: u.modulosPermitidos || userRole?.modulosPredeterminados || ['ventas'],
+      modulosPermitidos: normalizeModuleIds(u.modulosPermitidos || userRole?.modulosPredeterminados || ['ventas']),
     });
     setIsUserModalOpen(true);
   };
@@ -361,7 +363,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
   // Handle Role Change in User Form
   const handleUserRoleChange = (newRoleCode: string) => {
     const foundRole = roles.find(r => r.codigo === newRoleCode);
-    const defaultPanels = foundRole?.modulosPredeterminados || ['ventas'];
+    const defaultPanels = normalizeModuleIds(foundRole?.modulosPredeterminados || ['ventas']);
     setUserForm(prev => ({
       ...prev,
       rol: newRoleCode,
@@ -572,7 +574,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
       codigo: role.codigo,
       nombre: role.nombre,
       descripcion: role.descripcion || '',
-      modulosPredeterminados: role.modulosPredeterminados || [],
+      modulosPredeterminados: normalizeModuleIds(role.modulosPredeterminados || []),
     });
     setIsRoleModalOpen(true);
   };
@@ -735,22 +737,20 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
       <div className="flex gap-2 p-1 bg-slate-200/70 rounded-xl max-w-md mb-6">
         <button
           onClick={() => setActiveTab('usuarios')}
-          className={`flex-1 py-2 px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-            activeTab === 'usuarios'
-              ? 'bg-white text-[#00346F] shadow-xs'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
+          className={`flex-1 py-2 px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'usuarios'
+            ? 'bg-white text-[#00346F] shadow-xs'
+            : 'text-slate-600 hover:text-slate-900'
+            }`}
         >
           <Users className="w-4 h-4" />
           Usuarios ({filteredUsers.length})
         </button>
         <button
           onClick={() => setActiveTab('roles')}
-          className={`flex-1 py-2 px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-            activeTab === 'roles'
-              ? 'bg-white text-[#00346F] shadow-xs'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
+          className={`flex-1 py-2 px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'roles'
+            ? 'bg-white text-[#00346F] shadow-xs'
+            : 'text-slate-600 hover:text-slate-900'
+            }`}
         >
           <Shield className="w-4 h-4" />
           Roles & Permisos ({roles.length})
@@ -838,7 +838,8 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                   ) : (
                     filteredUsers.map((u, idx) => {
                       const roleBadge = getRoleBadge(u.rol, (u as any).rolNombre);
-                      const allowedCount = u.modulosPermitidos?.length || 0;
+                      const normalizedUserMods = normalizeModuleIds(u.modulosPermitidos);
+                      const allowedCount = normalizedUserMods.length;
                       return (
                         <tr key={u.id} className={idx % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'}>
                           <td className="py-3.5 px-4 font-mono font-bold text-[#00346F]">
@@ -876,7 +877,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                               <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
                                 {allowedCount} / {MODULOS_DISPONIBLES.length}
                               </span>
-                              {u.modulosPermitidos?.slice(0, 2).map((modId) => {
+                              {normalizedUserMods.slice(0, 2).map((modId) => {
                                 const m = MODULOS_DISPONIBLES.find((d) => d.id === modId);
                                 return (
                                   <span key={modId} className="px-1.5 py-0.5 rounded text-[9px] bg-blue-50 text-blue-700 font-medium border border-blue-100">
@@ -892,11 +893,10 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                           <td className="py-3.5 px-4 text-center">
                             <button
                               onClick={() => handleToggleStatus(u)}
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold cursor-pointer transition-transform hover:scale-105 ${
-                                u.estado === 'ACTIVO'
-                                  ? 'bg-[#DCFCE7] text-[#166534]'
-                                  : 'bg-[#FEE2E2] text-[#991B1B]'
-                              }`}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold cursor-pointer transition-transform hover:scale-105 ${u.estado === 'ACTIVO'
+                                ? 'bg-[#DCFCE7] text-[#166534]'
+                                : 'bg-[#FEE2E2] text-[#991B1B]'
+                                }`}
                               title="Haga clic para alternar Estado"
                             >
                               {u.estado === 'ACTIVO' ? (
@@ -954,7 +954,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {roles.map((r) => {
               const badge = getRoleBadge(r.codigo, r.nombre);
-              const assignedModules = r.modulosPredeterminados || [];
+              const assignedModules = normalizeModuleIds(r.modulosPredeterminados || []);
               const usersCount = usuariosList.filter(u => u.rol === r.codigo).length;
 
               return (
@@ -1208,11 +1208,10 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                       value={userForm.rol}
                       disabled={Boolean(editingUser && editingUser.username === 'superadmin')}
                       onChange={(e) => handleUserRoleChange(e.target.value)}
-                      className={`w-full p-2 border rounded-lg font-bold text-slate-800 focus:outline-none ${
-                        editingUser && editingUser.username === 'superadmin'
-                          ? 'bg-slate-100 border-slate-200 cursor-not-allowed opacity-90'
-                          : 'bg-white border-slate-300 focus:border-[#00346F]'
-                      }`}
+                      className={`w-full p-2 border rounded-lg font-bold text-slate-800 focus:outline-none ${editingUser && editingUser.username === 'superadmin'
+                        ? 'bg-slate-100 border-slate-200 cursor-not-allowed opacity-90'
+                        : 'bg-white border-slate-300 focus:border-[#00346F]'
+                        }`}
                     >
                       {roles.map((r) => (
                         <option key={r.id} value={r.codigo}>
@@ -1251,11 +1250,10 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                     <select
                       value={userForm.estado}
                       onChange={(e) => setUserForm({ ...userForm, estado: e.target.value as EstadoRegistro })}
-                      className={`w-full p-2 border rounded-lg font-bold ${
-                        userForm.estado === 'ACTIVO'
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                          : 'bg-red-50 text-red-800 border-red-300'
-                      }`}
+                      className={`w-full p-2 border rounded-lg font-bold ${userForm.estado === 'ACTIVO'
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                        : 'bg-red-50 text-red-800 border-red-300'
+                        }`}
                     >
                       <option value="ACTIVO">ACTIVO</option>
                       <option value="INACTIVO">INACTIVO</option>
@@ -1288,11 +1286,10 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                     return (
                       <div
                         key={m.id}
-                        className={`p-2.5 rounded-lg border flex items-start gap-2.5 select-none transition-all ${
-                          isAllowed
-                            ? 'bg-[#EFF4FF]/70 border-blue-200 shadow-xs'
-                            : 'bg-slate-50/60 border-slate-200/80 opacity-40'
-                        }`}
+                        className={`p-2.5 rounded-lg border flex items-start gap-2.5 select-none transition-all ${isAllowed
+                          ? 'bg-[#EFF4FF]/70 border-blue-200 shadow-xs'
+                          : 'bg-slate-50/60 border-slate-200/80 opacity-40'
+                          }`}
                       >
                         <div className={`mt-0.5 ${isAllowed ? 'text-[#00346F]' : 'text-slate-400'}`}>
                           {isAllowed ? (
@@ -1443,11 +1440,10 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                             <div
                               key={m.id}
                               onClick={() => toggleRoleModule(m.id)}
-                              className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all select-none ${
-                                isChecked
-                                  ? 'bg-[#EFF4FF] border-[#00346F] shadow-xs'
-                                  : 'bg-white border-slate-200 hover:border-slate-300 opacity-60'
-                              }`}
+                              className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all select-none ${isChecked
+                                ? 'bg-[#EFF4FF] border-[#00346F] shadow-xs'
+                                : 'bg-white border-slate-200 hover:border-slate-300 opacity-60'
+                                }`}
                             >
                               <div className={`mt-0.5 ${isChecked ? 'text-[#00346F]' : 'text-slate-400'}`}>
                                 {isChecked ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}

@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import {
   ShieldCheck,
   Wrench,
@@ -93,7 +93,7 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
     const info = moduleLabels[effectiveId] || { label: effectiveId, icon: <Package className="w-5 h-5 shrink-0" strokeWidth={1.75} /> };
     const isActive =
       activeView === effectiveId ||
-      (effectiveId === 'panel-almacen' && activeView === 'productos') ||
+      (effectiveId === 'panel-almacen' && (activeView === 'productos' || activeView === 'compras')) ||
       (effectiveId === 'sucursales' && activeView === 'config-empresa') ||
       (effectiveId === 'catalogo' && (activeView === 'categorias' || activeView === 'marcas' || activeView === 'catalogo'));
 

@@ -27,7 +27,8 @@ import transferRoutes from './routes/transfer.routes';
 import purchaseRoutes from './routes/purchase.routes';
 import consultaRoutes from './routes/consulta.routes';
 import maintenanceRoutes from './routes/maintenance.routes';
-import { seedSuperAdmin } from './utils/seed-superadmin';
+import { seedSuperAdmin, normalizeRolesModules } from './utils/seed-superadmin';
+import { seedPrintersCatalog } from './utils/seed-printers';
 
 dotenv.config();
 
@@ -140,6 +141,8 @@ async function startServer() {
     );
   } else {
     await seedSuperAdmin();
+    await normalizeRolesModules();
+    await seedPrintersCatalog();
   }
 
   app.listen(PORT, '0.0.0.0', () => {

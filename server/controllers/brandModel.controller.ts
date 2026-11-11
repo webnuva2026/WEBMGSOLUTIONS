@@ -137,10 +137,12 @@ export async function updateMarca(req: Request, res: Response): Promise<void> {
     const cleanNombre = nombre.trim().toUpperCase();
     const cleanCatId = categoriaId !== undefined ? (categoriaId ? Number(categoriaId) : null) : undefined;
 
-    // Validar duplicado excluyendo a sí misma
+    // Validar duplicado excluyendo a sí misma (respetando la categoría)
     const [existing] = await pool.query<RowDataPacket[]>(
-      'SELECT id FROM marcas WHERE UPPER(nombre) = ? AND id != ? LIMIT 1',
-      [cleanNombre, marcaId]
+      cleanCatId !== undefined && cleanCatId !== null
+        ? 'SELECT id FROM marcas WHERE UPPER(nombre) = ? AND categoria_id = ? AND id != ? LIMIT 1'
+        : 'SELECT id FROM marcas WHERE UPPER(nombre) = ? AND id != ? LIMIT 1',
+      cleanCatId !== undefined && cleanCatId !== null ? [cleanNombre, cleanCatId, marcaId] : [cleanNombre, marcaId]
     );
 
     if (existing.length > 0) {
