@@ -2123,6 +2123,23 @@ async function createUser(req, res) {
       });
       return;
     }
+    if (numeroDocumento && numeroDocumento.trim()) {
+      const cleanDoc = numeroDocumento.trim();
+      const [allUsersWithDoc] = await pool.query(
+        "SELECT id, numero_documento_cifrado, nombre_completo FROM usuarios WHERE numero_documento_cifrado IS NOT NULL"
+      );
+      const duplicate = allUsersWithDoc.find((u) => {
+        const decrypted = decryptSensitiveData(u.numero_documento_cifrado);
+        return decrypted === cleanDoc;
+      });
+      if (duplicate) {
+        res.status(409).json({
+          success: false,
+          message: `El documento de identidad ${cleanDoc} ya pertenece a '${duplicate.nombre_completo}'. No se permite registrar m\xE1s de una cuenta con el mismo DNI.`
+        });
+        return;
+      }
+    }
     let rolQuery = "SELECT r.id, r.codigo, r.nombre, r.modulos_predeterminados FROM roles r JOIN estados e ON r.estado_id = e.id WHERE ";
     let rolParam;
     if (rolId && !isNaN(Number(rolId))) {
@@ -2239,6 +2256,24 @@ async function updateUser(req, res) {
       );
       if (emailCheck.length > 0) {
         res.status(409).json({ success: false, message: "El email ya est\xE1 en uso por otro usuario." });
+        return;
+      }
+    }
+    if (numeroDocumento && String(numeroDocumento).trim()) {
+      const cleanDoc = String(numeroDocumento).trim();
+      const [allUsersWithDoc] = await pool.query(
+        "SELECT id, numero_documento_cifrado, nombre_completo FROM usuarios WHERE numero_documento_cifrado IS NOT NULL AND id != ?",
+        [userId]
+      );
+      const duplicate = allUsersWithDoc.find((u) => {
+        const decrypted = decryptSensitiveData(u.numero_documento_cifrado);
+        return decrypted === cleanDoc;
+      });
+      if (duplicate) {
+        res.status(409).json({
+          success: false,
+          message: `El documento de identidad ${cleanDoc} ya pertenece a '${duplicate.nombre_completo}'. No se permite duplicar el DNI en dos cuentas.`
+        });
         return;
       }
     }
@@ -2372,6 +2407,62 @@ async function toggleUserStatus(req, res) {
   } catch (error) {
     console.error("Error en toggleUserStatus:", error);
     res.status(500).json({ success: false, message: "Error cambiando estado del usuario." });
+  }
+}
+async function deleteUser(req, res) {
+  try {
+    const userId = Number(req.params.id);
+    if (isNaN(userId) || userId <= 0) {
+      res.status(400).json({ success: false, message: "ID de usuario inv\xE1lido." });
+      return;
+    }
+    if (userId === 1) {
+      res.status(403).json({ success: false, message: "La cuenta ra\xEDz Super Administrador no puede ser eliminada." });
+      return;
+    }
+    if (req.user?.userId === userId) {
+      res.status(400).json({ success: false, message: "No puede eliminar su propia cuenta de usuario en sesi\xF3n." });
+      return;
+    }
+    const [existingRows] = await pool.query(
+      "SELECT id, username, email, nombre_completo FROM usuarios WHERE id = ? LIMIT 1",
+      [userId]
+    );
+    if (existingRows.length === 0) {
+      res.status(404).json({ success: false, message: "Usuario no encontrado." });
+      return;
+    }
+    const targetUser = existingRows[0];
+    if (targetUser.username === "superadmin" || targetUser.email === "superadmin@mgsolutions.pe") {
+      res.status(403).json({ success: false, message: "La cuenta Super Administrador no puede ser eliminada." });
+      return;
+    }
+    const [ventas] = await pool.query("SELECT id FROM ventas WHERE usuario_id = ? LIMIT 1", [userId]);
+    const [compras] = await pool.query("SELECT id FROM compras WHERE usuario_id = ? LIMIT 1", [userId]);
+    const [ordenes] = await pool.query(
+      "SELECT id FROM ordenes_servicio WHERE usuario_recibe_id = ? OR usuario_tecnico_id = ? LIMIT 1",
+      [userId, userId]
+    );
+    if (ventas.length > 0 || compras.length > 0 || ordenes.length > 0) {
+      res.status(409).json({
+        success: false,
+        message: `El usuario '${targetUser.nombre_completo || targetUser.username}' tiene transacciones hist\xF3ricas registradas (ventas, compras u \xF3rdenes de taller). Por seguridad contable no puede eliminarse f\xEDsicamente; c\xE1mbielo a estado 'INACTIVO'.`
+      });
+      return;
+    }
+    await pool.query("DELETE FROM sesiones_tokens WHERE usuario_id = ?", [userId]);
+    await pool.query("DELETE FROM codigos_recuperacion WHERE usuario_id = ?", [userId]);
+    await pool.query("DELETE FROM usuario_permisos WHERE usuario_id = ?", [userId]);
+    await pool.query("DELETE FROM vendedores WHERE usuario_id = ?", [userId]);
+    await pool.query("DELETE FROM tecnicos WHERE usuario_id = ?", [userId]);
+    await pool.query("DELETE FROM usuarios WHERE id = ?", [userId]);
+    res.json({
+      success: true,
+      message: `El usuario '${targetUser.nombre_completo || targetUser.username}' ha sido eliminado exitosamente del sistema.`
+    });
+  } catch (error) {
+    console.error("Error en deleteUser:", error);
+    res.status(500).json({ success: false, message: "Error al eliminar el usuario." });
   }
 }
 async function resetUserPassword(req, res) {
@@ -2747,6 +2838,7 @@ router2.get("/usuarios", authenticateToken, getUsers);
 router2.get("/usuarios/:id", authenticateToken, getUserById);
 router2.post("/usuarios", authenticateToken, requireRoles("ADMIN", "SUPERADMIN"), createUser);
 router2.put("/usuarios/:id", authenticateToken, requireRoles("ADMIN", "SUPERADMIN"), updateUser);
+router2.delete("/usuarios/:id", authenticateToken, requireRoles("ADMIN", "SUPERADMIN"), deleteUser);
 router2.patch("/usuarios/:id/estado", authenticateToken, requireRoles("ADMIN", "SUPERADMIN"), toggleUserStatus);
 router2.patch("/usuarios/:id/reset-password", authenticateToken, requireRoles("ADMIN", "SUPERADMIN"), resetUserPassword);
 router2.patch("/usuarios/:id/desbloquear", authenticateToken, requireRoles("ADMIN", "SUPERADMIN"), unlockUser);

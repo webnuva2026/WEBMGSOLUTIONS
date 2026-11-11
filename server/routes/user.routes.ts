@@ -1,9 +1,10 @@
-﻿import { Router } from 'express';
+import { Router } from 'express';
 import {
   getUsers,
   getUserById,
   createUser,
   updateUser,
+  deleteUser,
   toggleUserStatus,
   resetUserPassword,
   unlockUser,
@@ -21,11 +22,12 @@ import { authenticateToken, requireRoles } from '../middlewares/auth';
 
 const router = Router();
 
-// â”€â”€â”€ USUARIOS (protegidas, solo ADMIN y SUPERADMIN pueden crear/editar/eliminar) â”€â”€â”€
+// ─── USUARIOS (protegidas, solo ADMIN y SUPERADMIN pueden crear/editar/eliminar) ───
 router.get('/usuarios', authenticateToken, getUsers);
 router.get('/usuarios/:id', authenticateToken, getUserById);
 router.post('/usuarios', authenticateToken, requireRoles('ADMIN', 'SUPERADMIN'), createUser);
 router.put('/usuarios/:id', authenticateToken, requireRoles('ADMIN', 'SUPERADMIN'), updateUser);
+router.delete('/usuarios/:id', authenticateToken, requireRoles('ADMIN', 'SUPERADMIN'), deleteUser);
 router.patch('/usuarios/:id/estado', authenticateToken, requireRoles('ADMIN', 'SUPERADMIN'), toggleUserStatus);
 router.patch('/usuarios/:id/reset-password', authenticateToken, requireRoles('ADMIN', 'SUPERADMIN'), resetUserPassword);
 router.patch('/usuarios/:id/desbloquear', authenticateToken, requireRoles('ADMIN', 'SUPERADMIN'), unlockUser);

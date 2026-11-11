@@ -79,6 +79,14 @@ export const userService = {
     return res.json();
   },
 
+  async deleteUser(id: number): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`${API_BASE_URL}/usuarios/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    return res.json();
+  },
+
   async toggleStatus(id: number): Promise<{ success: boolean; message: string; estado?: string }> {
     const res = await fetch(`${API_BASE_URL}/usuarios/${id}/estado`, {
       method: 'PATCH',

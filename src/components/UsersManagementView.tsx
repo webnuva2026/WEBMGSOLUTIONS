@@ -397,6 +397,25 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
       return;
     }
 
+    // Validación preventiva en cliente: evitar DNI duplicado entre usuarios
+    const cleanDoc = userForm.numeroDocumento ? userForm.numeroDocumento.trim() : '';
+    if (cleanDoc) {
+      const duplicateUser = usuariosList.find(u => {
+        if (editingUser && u.id === editingUser.id) return false;
+        const existingDoc = (u as any).numeroDocumento || '';
+        return existingDoc && existingDoc.trim() === cleanDoc;
+      });
+
+      if (duplicateUser) {
+        onShowToast(
+          'DNI ya registrado',
+          `El documento ${cleanDoc} ya está asignado a '${duplicateUser.nombreCompleto}'. Cada colaborador debe tener una única cuenta en el sistema.`,
+          'warning'
+        );
+        return;
+      }
+    }
+
     setUserModalLoading(true);
 
     try {
@@ -532,6 +551,31 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
       }
     } catch {
       onShowToast('Error', 'No se pudo conectar con el servidor.', 'error');
+    }
+  };
+
+  // Delete user (ADMIN / SUPERADMIN)
+  const handleDeleteUser = async (user: Usuario) => {
+    if (user.username === 'superadmin' || user.id === 1) {
+      onShowToast('Acción no permitida', 'La cuenta principal Super Administrador no puede ser eliminada.', 'warning');
+      return;
+    }
+
+    const confirmDelete = window.confirm(
+      `¿Está seguro de eliminar definitivamente al usuario "${user.nombreCompleto || user.username}"?\n\nEsta acción revocará sus credenciales de acceso.`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      const res = await userService.deleteUser(user.id);
+      if (res.success) {
+        setUsuariosList(prev => prev.filter(u => u.id !== user.id));
+        onShowToast('Usuario eliminado', res.message || 'El usuario ha sido eliminado correctamente.', 'success');
+      } else {
+        onShowToast('No se pudo eliminar', res.message || 'Error al eliminar el usuario.', 'error');
+      }
+    } catch (err: any) {
+      onShowToast('Error de conexión', err?.message || 'No se pudo conectar con el servidor.', 'error');
     }
   };
 
@@ -919,6 +963,15 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                                 <Edit2 className="w-3.5 h-3.5" />
                                 Editar
                               </button>
+                              {u.username !== 'superadmin' && u.id !== 1 && (
+                                <button
+                                  onClick={() => handleDeleteUser(u)}
+                                  className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
+                                  title="Eliminar Usuario"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
