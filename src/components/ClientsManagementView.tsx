@@ -897,15 +897,10 @@ export const ClientsManagementView: React.FC<ClientsManagementViewProps> = ({
                   </select>
                 </div>
                 <div className="col-span-2">
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="mb-1">
                     <label className="block font-bold text-slate-700 uppercase tracking-wider">
                       {formData.tipoDocumento === 'RUC' ? 'N° RUC (11 dígitos) *' : (formData.tipoDocumento === 'DNI' ? 'N° DNI (8 dígitos) *' : 'N° Documento *')}
                     </label>
-                    {(formData.tipoDocumento === 'RUC' || formData.tipoDocumento === 'DNI') && (
-                      <span className="text-[10px] text-blue-700 font-semibold flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-amber-500" /> Auto-rellenable
-                      </span>
-                    )}
                   </div>
                   <div className="flex gap-2">
                     <input
@@ -1037,20 +1032,6 @@ export const ClientsManagementView: React.FC<ClientsManagementViewProps> = ({
                     className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-[#00346F]"
                     placeholder="974812390"
                   />
-                </div>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <label className="block font-bold text-slate-800 uppercase tracking-wider mb-2">Estado</label>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="estadoCli" value="ACTIVO" checked={formData.estado === 'ACTIVO'} onChange={() => setFormData({ ...formData, estado: 'ACTIVO' })} />
-                    <span className="font-semibold text-emerald-800">ACTIVO</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="estadoCli" value="INACTIVO" checked={formData.estado === 'INACTIVO'} onChange={() => setFormData({ ...formData, estado: 'INACTIVO' })} />
-                    <span className="font-semibold text-red-800">INACTIVO</span>
-                  </label>
                 </div>
               </div>
 

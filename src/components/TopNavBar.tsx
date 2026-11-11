@@ -165,7 +165,6 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSedeDropdown, setShowSedeDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showPresenceMenu, setShowPresenceMenu] = useState(false);
 
   const isSuperAdmin = currentUser?.rol === 'SUPERADMIN' || currentUser?.rol === 'ADMIN';
   const canAccessUsuarios =
@@ -173,80 +172,6 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   const canAccessEmpresa =
     isSuperAdmin || Boolean(currentUser?.modulosPermitidos?.includes('config-empresa'));
 
-  const PRESENCE_OPTIONS = [
-    {
-      id: 'DISPONIBLE',
-      label: 'Disponible (En línea)',
-      shortLabel: 'Disponible',
-      desc: 'Activo y recibiendo asignaciones',
-      dotClass: 'bg-emerald-500 animate-pulse',
-      pillClass: 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100',
-    },
-    {
-      id: 'OCUPADO',
-      label: 'Ocupado / En Reparación',
-      shortLabel: 'Ocupado',
-      desc: 'En diagnóstico o mesa de trabajo',
-      dotClass: 'bg-red-500',
-      pillClass: 'bg-red-50 border-red-200 text-red-800 hover:bg-red-100',
-    },
-    {
-      id: 'ALMUERZO',
-      label: 'En Almuerzo / Refrigerio',
-      shortLabel: 'Almuerzo',
-      desc: 'Horario de refrigerio en curso',
-      dotClass: 'bg-amber-500',
-      pillClass: 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100',
-    },
-    {
-      id: 'ENFERMERIA',
-      label: 'Enfermería / Tópico',
-      shortLabel: 'Enfermería',
-      desc: 'Atención médica o tópico',
-      dotClass: 'bg-purple-500',
-      pillClass: 'bg-purple-50 border-purple-200 text-purple-800 hover:bg-purple-100',
-    },
-    {
-      id: 'COMISION',
-      label: 'Atendiendo / En Comisión',
-      shortLabel: 'En Comisión',
-      desc: 'En mostrador o diligencia externa',
-      dotClass: 'bg-blue-500',
-      pillClass: 'bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100',
-    },
-    {
-      id: 'AUSENTE',
-      label: 'Ausente / Pausa corta',
-      shortLabel: 'Ausente',
-      desc: 'Fuera del puesto temporalmente',
-      dotClass: 'bg-slate-400',
-      pillClass: 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200',
-    },
-  ] as const;
-
-  const presenceStorageKey = `mg_presence_status_${currentUser?.id || 'default'}`;
-  const [presenceStatus, setPresenceStatus] = useState<string>(() => {
-    return localStorage.getItem(presenceStorageKey) || 'DISPONIBLE';
-  });
-
-  React.useEffect(() => {
-    const saved = localStorage.getItem(presenceStorageKey);
-    setPresenceStatus(saved || 'DISPONIBLE');
-    // Publicar el estado actual en el servidor para que Recepción lo vea
-    if (currentUser?.id) {
-      userService.setPresencia(saved || 'DISPONIBLE').catch(() => {});
-    }
-  }, [presenceStorageKey]);
-
-  const handleSelectPresence = (statusId: string) => {
-    setPresenceStatus(statusId);
-    localStorage.setItem(presenceStorageKey, statusId);
-    setShowPresenceMenu(false);
-    userService.setPresencia(statusId).catch(() => {});
-  };
-
-  const currentPresence =
-    PRESENCE_OPTIONS.find((p) => p.id === presenceStatus) || PRESENCE_OPTIONS[0];
   const currentSedeNombre = selectedSedeId
     ? sucursales.find((s) => s.id === selectedSedeId)?.nombre.replace(/^[0-9]+ - /, '') || 'Sede Seleccionada'
     : isSuperAdmin
@@ -595,74 +520,11 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
           )}
         </div>
 
-        {/* Selector interactivo de Estado Operativo (Disponible, Ocupado, Almuerzo, Enfermería, etc.) */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => {
-              setShowPresenceMenu(!showPresenceMenu);
-              setShowUserMenu(false);
-              setShowNotifications(false);
-            }}
-            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold transition-all cursor-pointer shadow-2xs ${currentPresence.pillClass}`}
-            title="Cambiar mi estado operativo actual"
-          >
-            <span className={`w-2 h-2 rounded-full ${currentPresence.dotClass}`}></span>
-            <span>{currentPresence.shortLabel}</span>
-            <ChevronDown className="w-3 h-3 opacity-70" />
-          </button>
-
-          {showPresenceMenu && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setShowPresenceMenu(false)}
-              />
-              <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="px-3 py-1.5 border-b border-slate-100">
-                  <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                    Mi Estado Operativo
-                  </p>
-                </div>
-                <div className="py-1">
-                  {PRESENCE_OPTIONS.map((opt) => {
-                    const isSelected = currentPresence.id === opt.id;
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => handleSelectPresence(opt.id)}
-                        className={`w-full text-left px-3 py-2 flex items-center justify-between transition-colors cursor-pointer ${
-                          isSelected ? 'bg-[#EFF4FF]' : 'hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-start gap-2.5">
-                          <span className={`w-2.5 h-2.5 rounded-full mt-1 shrink-0 ${opt.dotClass}`} />
-                          <div>
-                            <p className={`text-xs ${isSelected ? 'font-bold text-[#00346F]' : 'font-semibold text-slate-800'}`}>
-                              {opt.label}
-                            </p>
-                            <p className="text-[10px] text-slate-400 leading-tight">
-                              {opt.desc}
-                            </p>
-                          </div>
-                        </div>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-[#00346F] shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
         {/* User Pill / Dropdown */}
         <div className="relative pl-3 border-l border-slate-200">
           <button
             onClick={() => {
               setShowUserMenu(!showUserMenu);
-              setShowPresenceMenu(false);
               setShowNotifications(false);
             }}
             className="flex items-center gap-2.5 p-1 rounded-full hover:bg-slate-100 transition-colors text-left cursor-pointer"
@@ -680,7 +542,8 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                 {currentUser?.avatar || currentUser?.nombreCompleto?.slice(0, 2).toUpperCase() || 'SA'}
               </div>
               <span
-                className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${currentPresence.dotClass}`}
+                className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white bg-emerald-500"
+                title="Usuario activo"
               />
             </div>
           </button>
@@ -699,37 +562,6 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                     <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">
                       Cuenta: {currentUser?.estado || 'ACTIVO'}
                     </span>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${currentPresence.pillClass}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${currentPresence.dotClass}`} />
-                      {currentPresence.shortLabel}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Selector rápido de estado dentro del menú de perfil */}
-                <div className="px-3 py-2 border-b border-slate-100">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Cambiar disponibilidad
-                  </p>
-                  <div className="grid grid-cols-2 gap-1">
-                    {PRESENCE_OPTIONS.map((opt) => {
-                      const active = currentPresence.id === opt.id;
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => handleSelectPresence(opt.id)}
-                          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-semibold transition-all cursor-pointer ${
-                            active
-                              ? 'bg-[#00346F] text-white shadow-2xs'
-                              : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
-                          }`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${active ? 'bg-white' : opt.dotClass}`} />
-                          <span className="truncate">{opt.shortLabel}</span>
-                        </button>
-                      );
-                    })}
                   </div>
                 </div>
 
