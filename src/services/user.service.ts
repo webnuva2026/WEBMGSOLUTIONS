@@ -141,6 +141,15 @@ export const userService = {
     return res.json();
   },
 
+  async toggleRoleStatus(id: number, estado: 'ACTIVO' | 'INACTIVO'): Promise<{ success: boolean; message: string; estado?: string }> {
+    const res = await fetch(`${API_BASE_URL}/roles/${id}/estado`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ estado }),
+    });
+    return res.json();
+  },
+
   async deleteRole(id: number): Promise<{ success: boolean; message: string }> {
     const res = await fetch(`${API_BASE_URL}/roles/${id}`, {
       method: 'DELETE',

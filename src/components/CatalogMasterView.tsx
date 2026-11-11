@@ -23,7 +23,6 @@ import {
   ChevronUp,
   Package,
   Wrench,
-  Trash2,
   ArrowLeft,
   ChevronRight,
   ShoppingCart,
@@ -1635,9 +1634,9 @@ export const CatalogMasterView: React.FC<CatalogMasterViewProps> = ({
                           type="button"
                           onClick={() => handleRemoveCaracteristica(idx)}
                           className="p-2 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 cursor-pointer"
-                          title="Eliminar fila"
+                          title="Quitar fila"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     ))

@@ -1903,7 +1903,19 @@ function requireRoles(...rolesPermitidos) {
     });
   };
 }
+var MODULE_PERMISSION_ALIASES = {
+  marcas: ["catalogo"],
+  categorias: ["catalogo"],
+  catalogo: ["catalogo", "marcas", "categorias"],
+  "config-empresa": ["sucursales", "config-empresa"],
+  sucursales: ["sucursales", "config-empresa"],
+  productos: ["panel-almacen", "productos"],
+  "panel-almacen": ["panel-almacen", "productos"]
+};
 function requirePermission(moduloCodigo, ...rolesFallback) {
+  const acceptedCodes = Array.from(
+    /* @__PURE__ */ new Set([moduloCodigo, ...MODULE_PERMISSION_ALIASES[moduloCodigo] || []])
+  );
   return async (req, res, next) => {
     if (!req.user) {
       res.status(401).json({ success: false, message: "No autenticado." });
@@ -1935,18 +1947,19 @@ function requirePermission(moduloCodigo, ...rolesFallback) {
             modulos = [];
           }
         }
-        if (Array.isArray(modulos) && modulos.includes(moduloCodigo)) {
+        if (Array.isArray(modulos) && modulos.some((m) => acceptedCodes.includes(m))) {
           next();
           return;
         }
       }
+      const placeholders = acceptedCodes.map(() => "?").join(", ");
       const [permRows] = await pool.query(
         `SELECT 1 FROM rol_permisos rp
          JOIN permisos p ON rp.permiso_id = p.id
          JOIN usuarios u ON u.rol_id = rp.rol_id
-         WHERE u.id = ? AND p.codigo = ?
+         WHERE u.id = ? AND p.codigo IN (${placeholders})
          LIMIT 1`,
-        [req.user.userId, moduloCodigo]
+        [req.user.userId, ...acceptedCodes]
       );
       if (permRows.length > 0) {
         next();
@@ -2734,6 +2747,43 @@ async function updateRole(req, res) {
     res.status(500).json({ success: false, message: error.message || "Error actualizando rol." });
   }
 }
+async function toggleRoleStatus(req, res) {
+  try {
+    const roleId = Number(req.params.id);
+    const { estado } = req.body;
+    if (!estado || !["ACTIVO", "INACTIVO"].includes(estado)) {
+      res.status(400).json({ success: false, message: "Estado debe ser ACTIVO o INACTIVO." });
+      return;
+    }
+    const [existing] = await pool.query(
+      "SELECT id, codigo, nombre, es_sistema FROM roles WHERE id = ? LIMIT 1",
+      [roleId]
+    );
+    if (existing.length === 0) {
+      res.status(404).json({ success: false, message: "Rol no encontrado." });
+      return;
+    }
+    if ((existing[0].es_sistema || existing[0].codigo === "SUPERADMIN") && estado === "INACTIVO") {
+      res.status(403).json({
+        success: false,
+        message: "No es posible desactivar un rol base del sistema."
+      });
+      return;
+    }
+    await pool.query(
+      "UPDATE roles SET estado_id = (SELECT id FROM estados WHERE nombre = ? LIMIT 1) WHERE id = ?",
+      [estado, roleId]
+    );
+    res.json({
+      success: true,
+      message: `Rol '${existing[0].nombre}' ${estado === "ACTIVO" ? "activado" : "desactivado"} con \xE9xito.`,
+      estado
+    });
+  } catch (error) {
+    console.error("Error en toggleRoleStatus:", error);
+    res.status(500).json({ success: false, message: error.message || "Error cambiando estado del rol." });
+  }
+}
 async function deleteRole(req, res) {
   try {
     const roleId = Number(req.params.id);
@@ -2847,6 +2897,7 @@ router2.get("/sucursales", authenticateToken, getBranches);
 router2.get("/roles", authenticateToken, getRoles);
 router2.post("/roles", authenticateToken, requireRoles("ADMIN", "SUPERADMIN"), createRole);
 router2.put("/roles/:id", authenticateToken, requireRoles("ADMIN", "SUPERADMIN"), updateRole);
+router2.patch("/roles/:id/estado", authenticateToken, requireRoles("ADMIN", "SUPERADMIN"), toggleRoleStatus);
 router2.delete("/roles/:id", authenticateToken, requireRoles("ADMIN", "SUPERADMIN"), deleteRole);
 router2.get("/permisos", authenticateToken, getPermisos);
 router2.get("/presencia", authenticateToken, getPresencia);
@@ -3848,12 +3899,12 @@ router4.post("/empresa/mail-bridge", authenticateToken, requireRoles("SUPERADMIN
   }
 });
 router4.get("/empresa", authenticateToken, getEmpresa);
-router4.put("/empresa", authenticateToken, requireRoles("SUPERADMIN", "ADMIN"), updateEmpresa);
+router4.put("/empresa", authenticateToken, requirePermission("sucursales", "SUPERADMIN", "ADMIN"), updateEmpresa);
 router4.get("/sucursales", authenticateToken, getSucursales);
-router4.post("/sucursales", authenticateToken, requireRoles("SUPERADMIN", "ADMIN"), createSucursal);
-router4.put("/sucursales/:id", authenticateToken, requireRoles("SUPERADMIN", "ADMIN"), updateSucursal);
-router4.patch("/sucursales/:id/principal", authenticateToken, requireRoles("SUPERADMIN", "ADMIN"), setSucursalPrincipal);
-router4.patch("/sucursales/:id/estado", authenticateToken, requireRoles("SUPERADMIN", "ADMIN"), toggleSucursalEstado);
+router4.post("/sucursales", authenticateToken, requirePermission("sucursales", "SUPERADMIN", "ADMIN"), createSucursal);
+router4.put("/sucursales/:id", authenticateToken, requirePermission("sucursales", "SUPERADMIN", "ADMIN"), updateSucursal);
+router4.patch("/sucursales/:id/principal", authenticateToken, requirePermission("sucursales", "SUPERADMIN", "ADMIN"), setSucursalPrincipal);
+router4.patch("/sucursales/:id/estado", authenticateToken, requirePermission("sucursales", "SUPERADMIN", "ADMIN"), toggleSucursalEstado);
 var company_routes_default = router4;
 
 // server/routes/brandModel.routes.ts
@@ -3954,8 +4005,8 @@ async function updateMarca(req, res) {
     const cleanNombre = nombre.trim().toUpperCase();
     const cleanCatId = categoriaId !== void 0 ? categoriaId ? Number(categoriaId) : null : void 0;
     const [existing] = await pool.query(
-      "SELECT id FROM marcas WHERE UPPER(nombre) = ? AND id != ? LIMIT 1",
-      [cleanNombre, marcaId]
+      cleanCatId !== void 0 && cleanCatId !== null ? "SELECT id FROM marcas WHERE UPPER(nombre) = ? AND categoria_id = ? AND id != ? LIMIT 1" : "SELECT id FROM marcas WHERE UPPER(nombre) = ? AND id != ? LIMIT 1",
+      cleanCatId !== void 0 && cleanCatId !== null ? [cleanNombre, cleanCatId, marcaId] : [cleanNombre, marcaId]
     );
     if (existing.length > 0) {
       res.status(409).json({ success: false, message: `La marca '${cleanNombre}' ya existe.` });
@@ -8114,21 +8165,83 @@ init_security();
 dotenv5.config();
 var ALL_MODULES = [
   "ventas",
-  "caja",
-  "compras",
-  "panel-recepcion",
-  "panel-almacen",
-  "taller",
-  "equipos",
   "clientes",
-  "productos",
-  "categorias",
-  "marcas",
+  "panel-recepcion",
+  "taller",
+  "panel-almacen",
+  "compras",
+  "movimientos",
+  "catalogo",
+  "repuestos-catalogo",
   "usuarios",
-  "config-empresa",
-  "sucursales",
-  "movimientos"
+  "sucursales"
 ];
+var ACTIVE_MODULES_SET = new Set(ALL_MODULES);
+var LEGACY_MODULE_MAP = {
+  productos: "panel-almacen",
+  categorias: "catalogo",
+  marcas: "catalogo",
+  "config-empresa": "sucursales",
+  caja: null,
+  equipos: null
+};
+function normalizeRoleModuleList(raw, rolCodigo) {
+  if (rolCodigo === "SUPERADMIN" || rolCodigo === "ADMIN") {
+    return [...ALL_MODULES];
+  }
+  let parsed = [];
+  if (Array.isArray(raw)) {
+    parsed = raw.map(String);
+  } else if (typeof raw === "string") {
+    try {
+      const json = JSON.parse(raw);
+      if (Array.isArray(json)) parsed = json.map(String);
+    } catch {
+      parsed = [];
+    }
+  }
+  const normalized = /* @__PURE__ */ new Set();
+  for (const item of parsed) {
+    const mapped = item in LEGACY_MODULE_MAP ? LEGACY_MODULE_MAP[item] : item;
+    if (mapped && ACTIVE_MODULES_SET.has(mapped)) {
+      normalized.add(mapped);
+    }
+  }
+  if (rolCodigo === "TECNICO") {
+    normalized.add("repuestos-catalogo");
+  }
+  return Array.from(normalized);
+}
+async function normalizeRolesModules() {
+  const SEED_KEY = "roles_modules_v2_2026_11";
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS _catalog_seeds (
+        seed_key VARCHAR(100) PRIMARY KEY,
+        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    const [doneRows] = await pool.query(
+      "SELECT seed_key FROM _catalog_seeds WHERE seed_key = ? LIMIT 1",
+      [SEED_KEY]
+    );
+    if (doneRows.length > 0) return;
+    const [roleRows] = await pool.query(
+      "SELECT id, codigo, modulos_predeterminados FROM roles"
+    );
+    for (const r of roleRows) {
+      const normalized = normalizeRoleModuleList(r.modulos_predeterminados, String(r.codigo || ""));
+      await pool.query(
+        "UPDATE roles SET modulos_predeterminados = ? WHERE id = ?",
+        [JSON.stringify(normalized), r.id]
+      );
+    }
+    await pool.query("INSERT IGNORE INTO _catalog_seeds (seed_key) VALUES (?)", [SEED_KEY]);
+    console.log(`\u2705 M\xF3dulos de ${roleRows.length} roles normalizados (seed ${SEED_KEY}).`);
+  } catch (err) {
+    console.error("\u26A0\uFE0F Error al normalizar m\xF3dulos de roles:", err);
+  }
+}
 async function seedSuperAdmin() {
   const superadminName = process.env.SUPERADMIN_NAME || "Super Administrador";
   const superadminUsername = (process.env.SUPERADMIN_USERNAME || "superadmin").trim().toLowerCase();
@@ -8224,6 +8337,200 @@ if (process.argv[1]?.includes("seed-superadmin")) {
   seedSuperAdmin().then(() => {
     pool.end();
   });
+}
+
+// server/utils/seed-printers.ts
+var PRINTER_SEED_KEY = "impresoras_catalog_v1";
+var PRINTER_SPECS = [
+  {
+    marca: "EPSON",
+    marcaDescripcion: "Fabricante l\xEDder en impresoras multifuncionales y sistema EcoTank",
+    modelo: "EcoTank L3210",
+    descripcion: "Impresora multifuncional de sistema de tinta continua EcoTank con conexi\xF3n USB 2.0, impresi\xF3n sin bordes y alto rendimiento de hasta 7,500 p\xE1ginas en negro y 4,500 p\xE1ginas a color.",
+    caracteristicas: [
+      { atributo: "Tipo", valor: "Multifuncional de tinta continua (EcoTank)" },
+      { atributo: "Funciones", valor: "Impresi\xF3n, copia y escaneo" },
+      { atributo: "Conectividad", valor: "USB 2.0" },
+      { atributo: "Rendimiento Negro", valor: "7,500 p\xE1ginas" },
+      { atributo: "Rendimiento Color", valor: "4,500 p\xE1ginas" },
+      { atributo: "Impresi\xF3n sin Bordes", valor: "S\xED" }
+    ]
+  },
+  {
+    marca: "EPSON",
+    marcaDescripcion: "Fabricante l\xEDder en impresoras multifuncionales y sistema EcoTank",
+    modelo: "EcoTank L3250",
+    descripcion: "Impresora multifuncional inal\xE1mbrica EcoTank para impresi\xF3n, copia y escaneo con conectividad Wi-Fi y USB 2.0, con rendimiento de hasta 7,500 p\xE1ginas en negro y 4,500 p\xE1ginas a color.",
+    caracteristicas: [
+      { atributo: "Tipo", valor: "Multifuncional de tinta continua (EcoTank)" },
+      { atributo: "Funciones", valor: "Impresi\xF3n, copia y escaneo" },
+      { atributo: "Conectividad", valor: "Wi-Fi, USB 2.0" },
+      { atributo: "Rendimiento Negro", valor: "7,500 p\xE1ginas" },
+      { atributo: "Rendimiento Color", valor: "4,500 p\xE1ginas" }
+    ]
+  },
+  {
+    marca: "EPSON",
+    marcaDescripcion: "Fabricante l\xEDder en impresoras multifuncionales y sistema EcoTank",
+    modelo: "L4360",
+    descripcion: "Impresora multifuncional con Wi-Fi Dual Band e impresi\xF3n d\xFAplex autom\xE1tica, funciones de impresi\xF3n, copia y escaneo, compatibilidad con Epson Smart Panel y rendimiento de 6,600 p\xE1ginas en negro y 5,500 a color.",
+    caracteristicas: [
+      { atributo: "Tipo", valor: "Multifuncional de tinta continua" },
+      { atributo: "Funciones", valor: "Impresi\xF3n, copia y escaneo" },
+      { atributo: "Conectividad", valor: "Wi-Fi Dual Band" },
+      { atributo: "Impresi\xF3n D\xFAplex", valor: "Autom\xE1tica (doble cara)" },
+      { atributo: "App / Software", valor: "Epson Smart Panel" },
+      { atributo: "Rendimiento Negro", valor: "6,600 p\xE1ginas" },
+      { atributo: "Rendimiento Color", valor: "5,500 p\xE1ginas" }
+    ]
+  },
+  {
+    marca: "EPSON",
+    marcaDescripcion: "Fabricante l\xEDder en impresoras multifuncionales y sistema EcoTank",
+    modelo: "EcoTank L5590",
+    descripcion: "Impresora multifuncional empresarial con sistema EcoTank de alto rendimiento, conectividad Wi-Fi empresarial y Ethernet, alimentador autom\xE1tico (ADF) de 30 hojas y soporte Epson Smart Panel.",
+    caracteristicas: [
+      { atributo: "Tipo", valor: "Multifuncional empresarial EcoTank de alto rendimiento" },
+      { atributo: "Funciones", valor: "Impresi\xF3n, copia y escaneo" },
+      { atributo: "Conectividad", valor: "Wi-Fi empresarial, Ethernet" },
+      { atributo: "Alimentador ADF", valor: "30 hojas" },
+      { atributo: "App / Software", valor: "Epson Smart Panel" }
+    ]
+  },
+  {
+    marca: "EPSON",
+    marcaDescripcion: "Fabricante l\xEDder en impresoras multifuncionales y sistema EcoTank",
+    modelo: "EcoTank L6370",
+    descripcion: "Impresora multifuncional avanzada EcoTank con Wi-Fi Direct, Ethernet, impresi\xF3n d\xFAplex autom\xE1tica, ADF de 30 hojas, Epson Smart Panel y rendimiento de 8,500 p\xE1ginas en negro y 6,500 p\xE1ginas a color.",
+    caracteristicas: [
+      { atributo: "Tipo", valor: "Multifuncional corporativa EcoTank" },
+      { atributo: "Funciones", valor: "Impresi\xF3n, copia y escaneo" },
+      { atributo: "Conectividad", valor: "Wi-Fi Direct, Ethernet" },
+      { atributo: "Impresi\xF3n D\xFAplex", valor: "Autom\xE1tica (doble cara)" },
+      { atributo: "Alimentador ADF", valor: "30 hojas" },
+      { atributo: "App / Software", valor: "Epson Smart Panel" },
+      { atributo: "Rendimiento Negro", valor: "8,500 p\xE1ginas" },
+      { atributo: "Rendimiento Color", valor: "6,500 p\xE1ginas" }
+    ]
+  },
+  {
+    marca: "HP",
+    marcaDescripcion: "Fabricante de impresoras Smart Tank, equipos de impresi\xF3n y c\xF3mputo",
+    modelo: "Smart Tank 585",
+    descripcion: "Impresora multifuncional de sistema de tinta continua HP Smart Tank con Wi-Fi y Bluetooth, impresi\xF3n m\xF3vil mediante HP Smart App, impresi\xF3n, copia y escaneo, y rendimiento de 6,000 p\xE1ginas en negro y 6,000 a color.",
+    caracteristicas: [
+      { atributo: "Tipo", valor: "Multifuncional de tinta continua (Smart Tank)" },
+      { atributo: "Funciones", valor: "Impresi\xF3n, copia y escaneo" },
+      { atributo: "Conectividad", valor: "Wi-Fi, Bluetooth" },
+      { atributo: "Impresi\xF3n M\xF3vil", valor: "Compatible" },
+      { atributo: "App / Software", valor: "HP Smart App" },
+      { atributo: "Rendimiento Negro", valor: "6,000 p\xE1ginas" },
+      { atributo: "Rendimiento Color", valor: "6,000 p\xE1ginas" }
+    ]
+  }
+];
+async function ensureBrandUniquePerCategory() {
+  const [idxRows] = await pool.query(
+    `SHOW INDEX FROM marcas WHERE Key_name = 'uq_marcas_nombre'`
+  );
+  if (idxRows.length > 0) {
+    await pool.query("ALTER TABLE marcas DROP INDEX `uq_marcas_nombre`");
+    const [compositeIdx] = await pool.query(
+      `SHOW INDEX FROM marcas WHERE Key_name = 'uq_marcas_nombre_categoria'`
+    );
+    if (compositeIdx.length === 0) {
+      await pool.query(
+        "ALTER TABLE marcas ADD UNIQUE KEY `uq_marcas_nombre_categoria` (`nombre`, `categoria_id`)"
+      );
+    }
+  }
+}
+async function seedPrintersCatalog() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS _catalog_seeds (
+        seed_key VARCHAR(100) PRIMARY KEY,
+        executed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    const [alreadySeeded] = await pool.query(
+      "SELECT seed_key FROM _catalog_seeds WHERE seed_key = ? LIMIT 1",
+      [PRINTER_SEED_KEY]
+    );
+    if (alreadySeeded.length > 0) {
+      return;
+    }
+    await ensureBrandUniquePerCategory();
+    let categoriaId;
+    const [catRows] = await pool.query(
+      "SELECT id FROM categorias WHERE UPPER(nombre) = ? LIMIT 1",
+      ["IMPRESORAS"]
+    );
+    if (catRows.length > 0) {
+      categoriaId = Number(catRows[0].id);
+    } else {
+      const [catInsert] = await pool.query(
+        `INSERT INTO categorias (nombre, descripcion, es_equipo_taller, es_venta, es_repuesto_taller, estado_id)
+         VALUES (?, ?, 1, 1, 0, 1)`,
+        [
+          "IMPRESORAS",
+          "Impresoras multifuncionales y de sistema de tinta continua para hogar y oficina"
+        ]
+      );
+      categoriaId = catInsert.insertId;
+    }
+    const brandIds = /* @__PURE__ */ new Map();
+    for (const spec of PRINTER_SPECS) {
+      if (brandIds.has(spec.marca)) continue;
+      const [marcaRows] = await pool.query(
+        "SELECT id FROM marcas WHERE UPPER(nombre) = ? AND categoria_id = ? LIMIT 1",
+        [spec.marca, categoriaId]
+      );
+      if (marcaRows.length > 0) {
+        brandIds.set(spec.marca, Number(marcaRows[0].id));
+      } else {
+        const [marcaInsert] = await pool.query(
+          "INSERT INTO marcas (nombre, descripcion, categoria_id, estado_id) VALUES (?, ?, ?, 1)",
+          [spec.marca, spec.marcaDescripcion, categoriaId]
+        );
+        brandIds.set(spec.marca, marcaInsert.insertId);
+      }
+    }
+    for (const spec of PRINTER_SPECS) {
+      const marcaId = brandIds.get(spec.marca);
+      const [modRows] = await pool.query(
+        "SELECT id FROM modelos WHERE marca_id = ? AND UPPER(nombre) = ? LIMIT 1",
+        [marcaId, spec.modelo.toUpperCase()]
+      );
+      let modeloId;
+      if (modRows.length > 0) {
+        modeloId = Number(modRows[0].id);
+        await pool.query(
+          "UPDATE modelos SET descripcion = ?, estado_id = 1 WHERE id = ?",
+          [spec.descripcion, modeloId]
+        );
+        await pool.query("DELETE FROM detalle_modelo WHERE modelo_id = ?", [modeloId]);
+      } else {
+        const [modInsert] = await pool.query(
+          "INSERT INTO modelos (marca_id, nombre, descripcion, estado_id) VALUES (?, ?, ?, 1)",
+          [marcaId, spec.modelo, spec.descripcion]
+        );
+        modeloId = modInsert.insertId;
+      }
+      for (const det of spec.caracteristicas) {
+        await pool.query(
+          "INSERT INTO detalle_modelo (modelo_id, atributo, valor) VALUES (?, ?, ?)",
+          [modeloId, det.atributo, det.valor]
+        );
+      }
+    }
+    await pool.query("INSERT IGNORE INTO _catalog_seeds (seed_key) VALUES (?)", [
+      PRINTER_SEED_KEY
+    ]);
+    console.log("\u2705 Cat\xE1logo Maestro de Impresoras (Epson y HP) registrado con detalle t\xE9cnico.");
+  } catch (error) {
+    console.error("\u26A0\uFE0F Error sembrando cat\xE1logo de impresoras:", error);
+  }
 }
 
 // server/index.ts
@@ -8325,6 +8632,8 @@ async function startServer() {
     );
   } else {
     await seedSuperAdmin();
+    await normalizeRolesModules();
+    await seedPrintersCatalog();
   }
   app.listen(PORT, "0.0.0.0", () => {
     console.log("");

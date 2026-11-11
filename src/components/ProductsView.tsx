@@ -6,7 +6,6 @@ import {
   FileSpreadsheet,
   Search,
   Edit2,
-  Trash2,
   CheckCircle2,
   XCircle,
   ToggleLeft,
@@ -464,7 +463,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           className="text-slate-500 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
                           title="Desactivar Producto"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <XCircle className="w-3.5 h-3.5" />
                         </button>
                       </div>
                       )}

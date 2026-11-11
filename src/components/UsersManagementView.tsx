@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   XCircle,
   Edit2,
-  Trash2,
   KeyRound,
   ShieldAlert,
   Save,
@@ -665,20 +664,25 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
     }
   };
 
-  const handleDeleteRole = async (role: Rol) => {
-    if (role.esSistema) {
-      onShowToast('Protegido', 'Los roles base del sistema no pueden ser eliminados.', 'warning');
+  const handleToggleRoleStatus = async (role: Rol) => {
+    const isCurrentlyActive = role.estado !== 'INACTIVO';
+    if (role.esSistema && isCurrentlyActive) {
+      onShowToast('Protegido', 'Los roles base del sistema no pueden ser desactivados.', 'warning');
       return;
     }
-    if (!confirm(`¿Está seguro de eliminar el rol '${role.nombre}'? Esta acción no se puede deshacer.`)) return;
+    const nextEstado: 'ACTIVO' | 'INACTIVO' = isCurrentlyActive ? 'INACTIVO' : 'ACTIVO';
 
     try {
-      const res = await userService.deleteRole(role.id);
+      const res = await userService.toggleRoleStatus(role.id, nextEstado);
       if (res.success) {
-        onShowToast('Rol Eliminado', `Rol '${role.nombre}' eliminado.`, 'success');
+        onShowToast(
+          nextEstado === 'ACTIVO' ? 'Rol Activado' : 'Rol Desactivado',
+          `El rol '${role.nombre}' quedó ${nextEstado === 'ACTIVO' ? 'activo' : 'inactivo'}.`,
+          nextEstado === 'ACTIVO' ? 'success' : 'warning'
+        );
         await loadRoles();
       } else {
-        onShowToast('No se puede eliminar', res.message || 'Error al eliminar rol.', 'error');
+        onShowToast('No se pudo actualizar', res.message || 'Error al cambiar estado del rol.', 'error');
       }
     } catch {
       onShowToast('Error', 'No se pudo conectar con el servidor.', 'error');
@@ -960,13 +964,15 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
               return (
                 <div
                   key={r.id}
-                  className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between"
+                  className={`bg-white rounded-xl border border-slate-200 p-5 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between ${
+                    r.estado === 'INACTIVO' ? 'opacity-70' : ''
+                  }`}
                 >
                   <div>
                     {/* Header Card */}
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${badge.bg} ${badge.text}`}>
                             {r.codigo}
                           </span>
@@ -977,6 +983,11 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                           ) : (
                             <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                               Personalizado
+                            </span>
+                          )}
+                          {r.estado === 'INACTIVO' && (
+                            <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                              Inactivo
                             </span>
                           )}
                         </div>
@@ -1032,11 +1043,26 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
 
                     {!r.esSistema && (
                       <button
-                        onClick={() => handleDeleteRole(r)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Eliminar Rol"
+                        type="button"
+                        onClick={() => handleToggleRoleStatus(r)}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold cursor-pointer transition-colors ${
+                          r.estado !== 'INACTIVO'
+                            ? 'bg-[#DCFCE7] text-[#166534] hover:bg-emerald-200'
+                            : 'bg-[#FEE2E2] text-[#991B1B] hover:bg-rose-200'
+                        }`}
+                        title={r.estado !== 'INACTIVO' ? 'Desactivar Rol' : 'Activar Rol'}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        {r.estado !== 'INACTIVO' ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Activo</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="w-3.5 h-3.5" />
+                            <span>Inactivo</span>
+                          </>
+                        )}
                       </button>
                     )}
                   </div>
@@ -1213,11 +1239,13 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                         : 'bg-white border-slate-300 focus:border-[#00346F]'
                         }`}
                     >
-                      {roles.map((r) => (
-                        <option key={r.id} value={r.codigo}>
-                          {r.nombre}
-                        </option>
-                      ))}
+                      {roles
+                        .filter((r) => r.estado !== 'INACTIVO' || r.codigo === userForm.rol)
+                        .map((r) => (
+                          <option key={r.id} value={r.codigo}>
+                            {r.nombre} {r.estado === 'INACTIVO' ? '(Inactivo)' : ''}
+                          </option>
+                        ))}
                     </select>
                   </div>
 

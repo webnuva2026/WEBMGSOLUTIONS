@@ -953,6 +953,54 @@ export async function updateRole(req: AuthenticatedRequest, res: Response): Prom
 }
 
 /**
+ * PATCH /api/roles/:id/estado
+ * Activa o desactiva un rol (no permite desactivar roles base del sistema ni SUPERADMIN).
+ */
+export async function toggleRoleStatus(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    const roleId = Number(req.params.id);
+    const { estado } = req.body;
+
+    if (!estado || !['ACTIVO', 'INACTIVO'].includes(estado)) {
+      res.status(400).json({ success: false, message: 'Estado debe ser ACTIVO o INACTIVO.' });
+      return;
+    }
+
+    const [existing] = await pool.query<RowDataPacket[]>(
+      'SELECT id, codigo, nombre, es_sistema FROM roles WHERE id = ? LIMIT 1',
+      [roleId]
+    );
+
+    if (existing.length === 0) {
+      res.status(404).json({ success: false, message: 'Rol no encontrado.' });
+      return;
+    }
+
+    if ((existing[0].es_sistema || existing[0].codigo === 'SUPERADMIN') && estado === 'INACTIVO') {
+      res.status(403).json({
+        success: false,
+        message: 'No es posible desactivar un rol base del sistema.',
+      });
+      return;
+    }
+
+    await pool.query(
+      'UPDATE roles SET estado_id = (SELECT id FROM estados WHERE nombre = ? LIMIT 1) WHERE id = ?',
+      [estado, roleId]
+    );
+
+    res.json({
+      success: true,
+      message: `Rol '${existing[0].nombre}' ${estado === 'ACTIVO' ? 'activado' : 'desactivado'} con éxito.`,
+      estado,
+    });
+  } catch (error: any) {
+    console.error('Error en toggleRoleStatus:', error);
+    res.status(500).json({ success: false, message: error.message || 'Error cambiando estado del rol.' });
+  }
+}
+
+/**
  * DELETE /api/roles/:id
  * Elimina un rol si no es de sistema y no tiene usuarios asignados.
  */

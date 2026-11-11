@@ -13,6 +13,7 @@ import {
   getRoles,
   createRole,
   updateRole,
+  toggleRoleStatus,
   deleteRole,
   getPermisos,
   getPresencia,
@@ -42,6 +43,7 @@ router.get('/sucursales', authenticateToken, getBranches);
 router.get('/roles', authenticateToken, getRoles);
 router.post('/roles', authenticateToken, requireRoles('ADMIN', 'SUPERADMIN'), createRole);
 router.put('/roles/:id', authenticateToken, requireRoles('ADMIN', 'SUPERADMIN'), updateRole);
+router.patch('/roles/:id/estado', authenticateToken, requireRoles('ADMIN', 'SUPERADMIN'), toggleRoleStatus);
 router.delete('/roles/:id', authenticateToken, requireRoles('ADMIN', 'SUPERADMIN'), deleteRole);
 router.get('/permisos', authenticateToken, getPermisos);
 router.get('/presencia', authenticateToken, getPresencia);
