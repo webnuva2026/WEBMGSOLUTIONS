@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Home, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Home, ChevronRight, RefreshCw } from 'lucide-react';
 import {
   INITIAL_EMPRESA,
   INITIAL_SUCURSALES,
@@ -146,7 +146,19 @@ export function App() {
     }
   };
 
-  const loadDatabaseData = (sedeFilter: number | null = selectedSedeId) => {
+  const inventarioReqSeqRef = useRef(0);
+  const initialFrontendBuildRef = useRef<string | null>(null);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+
+  const loadDatabaseData = (sedeFilter?: number | null) => {
+    const isAdminUser = currentUser?.rol === 'SUPERADMIN' || currentUser?.rol === 'ADMIN';
+    const effectiveSedeFilter =
+      currentUser && !isAdminUser && currentUser.sucursalId
+        ? currentUser.sucursalId
+        : sedeFilter !== undefined
+        ? sedeFilter
+        : selectedSedeId;
+
     clientService.getClients({ limit: 100 }).then((res) => {
       if (res.success && res.data) {
         setClientes(res.data);
@@ -155,8 +167,10 @@ export function App() {
       }
     });
 
-    // Cargar inventario desde MySQL filtrado por sede
-    warehouseService.getInventario({ sucursal_id: sedeFilter }).then((res) => {
+    // Cargar inventario desde MySQL filtrado por sede (evitar sobrescritura por respuestas fuera de orden)
+    const reqSeq = ++inventarioReqSeqRef.current;
+    warehouseService.getInventario({ sucursal_id: effectiveSedeFilter }).then((res) => {
+      if (reqSeq !== inventarioReqSeqRef.current) return;
       if (res.success && res.inventario) {
         if (res.inventario.length === 0) {
           setProductos([]);
@@ -180,8 +194,8 @@ export function App() {
             );
 
             const stockEnSedeFiltrada =
-              sedeFilter !== null && sedeFilter !== undefined
-                ? Number(item.stockSede ?? branchIdRecord[sedeFilter] ?? 0)
+              effectiveSedeFilter !== null && effectiveSedeFilter !== undefined
+                ? Number(item.stockSede ?? branchIdRecord[effectiveSedeFilter] ?? 0)
                 : realAvailableStock;
 
             return {
@@ -226,9 +240,9 @@ export function App() {
       if (res.success && res.sucursales) {
         setSucursales(res.sucursales);
         localStorage.setItem('mg_sucursales', JSON.stringify(res.sucursales));
-        if (sedeFilter) {
+        if (effectiveSedeFilter) {
           const isStillActive = res.sucursales.some(
-            (s) => s.id === sedeFilter && s.estado === 'ACTIVO'
+            (s) => s.id === effectiveSedeFilter && s.estado === 'ACTIVO'
           );
           if (!isStillActive) {
             handleSelectSede(null);
@@ -246,7 +260,7 @@ export function App() {
     });
 
     // Cargar órdenes de servicio reales desde MySQL filtradas por sede
-    workshopService.getOrdenes({ sucursal_id: sedeFilter }).then((res) => {
+    workshopService.getOrdenes({ sucursal_id: effectiveSedeFilter }).then((res) => {
       if (res.success && Array.isArray(res.ordenes)) {
         setOrdenes(res.ordenes);
         localStorage.setItem('mg_ordenes_servicio', JSON.stringify(res.ordenes));
@@ -380,16 +394,6 @@ export function App() {
   const [serviceClientId, setServiceClientId] = useState<number | undefined>();
   const [transferPrefill, setTransferPrefill] = useState<TransferPrefill | null>(null);
 
-  useEffect(() => {
-    if (
-      activeView === 'ventas' ||
-      activeView === 'panel-almacen' ||
-      activeView === 'productos' ||
-      activeView === 'movimientos'
-    ) {
-      loadDatabaseData(selectedSedeId);
-    }
-  }, [activeView]);
   const [sidebarOpenMobile, setSidebarOpenMobile] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -397,7 +401,7 @@ export function App() {
     if (currentUser) {
       loadDatabaseData();
     }
-  }, [activeView, currentUser]);
+  }, [activeView, currentUser?.id, currentUser?.sucursalId]);
 
   // Modals & Notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -475,13 +479,29 @@ export function App() {
     ) {
       const targetSede = currentUser.sucursalId ?? null;
       if (selectedSedeId !== targetSede) {
-        setSelectedSedeId(targetSede);
+        handleSelectSede(targetSede);
       }
     }
   }, [currentUser?.id, currentUser?.rol, currentUser?.sucursalId]);
 
   useEffect(() => {
     if (!currentUser) return;
+    const checkFrontendVersion = async () => {
+      try {
+        const res = await fetch('/api/health', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const remoteBuild = data?.frontendBuild as string | null | undefined;
+        if (!remoteBuild) return;
+        if (!initialFrontendBuildRef.current) {
+          initialFrontendBuildRef.current = remoteBuild;
+        } else if (initialFrontendBuildRef.current !== remoteBuild) {
+          setUpdateAvailable(true);
+        }
+      } catch {
+        // Ignorar errores de red transitorios
+      }
+    };
     const syncProfile = () => {
       if (!authService.getToken()) return;
       authService.getProfile().then((res) => {
@@ -489,7 +509,9 @@ export function App() {
           setCurrentUser((prev) => (prev ? { ...prev, ...res.user } : res.user));
         }
       });
+      checkFrontendVersion();
     };
+    checkFrontendVersion();
     window.addEventListener('focus', syncProfile);
     return () => window.removeEventListener('focus', syncProfile);
   }, [currentUser?.id]);
@@ -1093,6 +1115,21 @@ export function App() {
 
         {/* View Switcher Container */}
         <main className="flex-1 min-w-0 flex flex-col md:pl-[260px] transition-all min-h-[calc(100vh-4rem)] bg-[#F4F7FC]">
+          {updateAvailable && (
+            <div className="mx-6 md:mx-8 mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 flex items-center justify-between gap-3 text-xs text-blue-900 shadow-xs">
+              <span className="font-semibold">
+                Hay una nueva actualización del sistema publicada en el servidor. Recarga esta pestaña para aplicar los últimos cambios.
+              </span>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#00346F] hover:bg-[#004A99] text-white font-bold shrink-0 transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Actualizar ahora
+              </button>
+            </div>
+          )}
           {activeView !== 'ventas' && (
             <div className="w-full max-w-7xl mx-auto px-6 md:px-8 pt-4 -mb-3 flex items-center gap-1.5 text-xs font-medium text-slate-500">
               <Home className="w-3.5 h-3.5 text-[#0A4DA8]" strokeWidth={2} />

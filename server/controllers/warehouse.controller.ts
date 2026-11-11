@@ -163,7 +163,7 @@ export async function getInventarioJerarquico(req: Request, res: Response): Prom
       }
     }
 
-    // Obtener stock por sede
+    // Obtener stock por sede (tabla producto_stock_sede + respaldo por series disponibles por sede)
     const prodIds = productosRows.map(r => r.productoId);
     const stockPorSedeMap = new Map<number, { sucursalId: number; sucursalNombre: string; stock: number }[]>();
 
@@ -184,6 +184,36 @@ export async function getInventarioJerarquico(req: Request, res: Response): Prom
           sucursalNombre: r.sucursalNombre,
           stock: Number(r.stock) || 0,
         });
+      }
+
+      // Respaldo: si un producto con series tiene unidades disponibles sin fila en producto_stock_sede,
+      // atribuirlas estrictamente a la sucursal real de cada serie (nunca como stock global).
+      const prodsSinFilasSede = prodIds.filter((id) => {
+        const list = stockPorSedeMap.get(id);
+        return !list || list.length === 0;
+      });
+
+      if (prodsSinFilasSede.length > 0) {
+        const [unitBranchRows] = await pool.query<RowDataPacket[]>(`
+          SELECT pu.producto_id AS productoId, pu.sucursal_id AS sucursalId, s.nombre AS sucursalNombre, COUNT(pu.id) AS stock
+          FROM producto_unidades pu
+          INNER JOIN sucursales s ON pu.sucursal_id = s.id
+          WHERE pu.producto_id IN (?)
+            AND pu.estado_unidad_id = 1
+            AND pu.disponible_venta = 1
+          GROUP BY pu.producto_id, pu.sucursal_id, s.nombre
+        `, [prodsSinFilasSede]);
+
+        for (const r of unitBranchRows) {
+          if (!stockPorSedeMap.has(r.productoId)) {
+            stockPorSedeMap.set(r.productoId, []);
+          }
+          stockPorSedeMap.get(r.productoId)!.push({
+            sucursalId: r.sucursalId,
+            sucursalNombre: r.sucursalNombre,
+            stock: Number(r.stock) || 0,
+          });
+        }
       }
     }
 

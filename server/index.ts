@@ -67,24 +67,53 @@ app.use('/api', consultaRoutes);
 app.use('/api', maintenanceRoutes);
 
 
+const distPath = path.resolve(process.cwd(), 'dist');
+const distIndexPath = path.join(distPath, 'index.html');
+let currentFrontendBuildId: string | null = null;
+if (fs.existsSync(distIndexPath)) {
+  try {
+    const html = fs.readFileSync(distIndexPath, 'utf8');
+    const match = html.match(/\/assets\/(index-[A-Za-z0-9_-]+\.js)/);
+    currentFrontendBuildId = match ? match[1] : String(fs.statSync(distIndexPath).mtimeMs);
+  } catch {
+    currentFrontendBuildId = null;
+  }
+}
+
 // ─── HEALTH CHECK ───
 app.get('/api/health', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.json({
     success: true,
     message: 'MG Solutions ERP - Backend activo',
     timestamp: new Date().toISOString(),
     env: process.env.NODE_ENV || 'development',
+    frontendBuild: currentFrontendBuildId,
   });
 });
 
 // ─── STATIC CLIENT (PRODUCCIÓN & RENDER) ───
-const distPath = path.resolve(process.cwd(), 'dist');
 if (fs.existsSync(distPath)) {
   console.log(`📦 Sirviendo frontend de producción desde: ${distPath}`);
-  app.use(express.static(distPath));
+  app.use(
+    express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('index.html')) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+        } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      },
+    })
+  );
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api')) return next();
-    res.sendFile(path.join(distPath, 'index.html'));
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.sendFile(distIndexPath);
   });
 } else {
   // ─── ROOT / LANDING HANDLER (MODO DESARROLLO) ───

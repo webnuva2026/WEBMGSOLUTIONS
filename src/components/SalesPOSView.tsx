@@ -100,11 +100,19 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('DEPARTAMENTOS');
   const [selectedBrand, setSelectedBrand] = useState<string>('TODAS');
   const isAdminRole = currentUser.rol === 'SUPERADMIN' || currentUser.rol === 'ADMIN';
+  const normalizeBranchName = (val?: string | null) =>
+    (val || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase();
+
   const assignedSucursal = useMemo(() => {
+    const userBranchNorm = normalizeBranchName(currentUser?.sucursalNombre);
     return (
       sucursales.find((s) => s.id === currentUser?.sucursalId) ||
-      (currentUser?.sucursalNombre
-        ? sucursales.find((s) => s.nombre === currentUser.sucursalNombre)
+      (userBranchNorm
+        ? sucursales.find((s) => normalizeBranchName(s.nombre) === userBranchNorm)
         : undefined)
     );
   }, [sucursales, currentUser?.sucursalId, currentUser?.sucursalNombre]);
@@ -126,14 +134,15 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
   }, [assignedSucursal, currentUser?.sucursalNombre]);
 
   const activeSucursalObj = useMemo(() => {
+    const activeNorm = normalizeBranchName(activeSucursalNombre);
     return (
-      sucursales.find((s) => s.nombre === activeSucursalNombre) ||
+      sucursales.find((s) => normalizeBranchName(s.nombre) === activeNorm) ||
       assignedSucursal ||
       sucursales[0]
     );
   }, [sucursales, activeSucursalNombre, assignedSucursal]);
 
-  const activeSucursalId = activeSucursalObj?.id;
+  const activeSucursalId = activeSucursalObj?.id ?? currentUser?.sucursalId;
   const canRequestTransfer =
     isAdminRole || hasModuleAccess(currentUser.modulosPermitidos, 'movimientos');
 
@@ -141,6 +150,7 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
     (prod: Producto) => {
       const targetId = activeSucursalId;
       const targetName = activeSucursalObj?.nombre || activeSucursalNombre;
+      const targetNameNorm = normalizeBranchName(targetName);
 
       let localStock = 0;
       const otherBranches: { sucursalId?: number; sucursalNombre: string; stock: number }[] = [];
@@ -160,11 +170,14 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
           }
         });
       } else if (prod.stockPorSede && Object.keys(prod.stockPorSede).length > 0) {
-        localStock = Number(prod.stockPorSede[targetName] ?? 0);
         Object.entries(prod.stockPorSede).forEach(([bName, rawQty]) => {
           const qty = Number(rawQty) || 0;
-          if (bName !== targetName && qty > 0) {
-            const branchObj = sucursales.find((s) => s.nombre === bName);
+          if (normalizeBranchName(bName) === targetNameNorm) {
+            localStock += qty;
+          } else if (qty > 0) {
+            const branchObj = sucursales.find(
+              (s) => normalizeBranchName(s.nombre) === normalizeBranchName(bName)
+            );
             otherBranches.push({
               sucursalId: branchObj?.id,
               sucursalNombre: bName,
@@ -172,7 +185,9 @@ export const SalesPOSView: React.FC<SalesPOSViewProps> = ({
             });
           }
         });
-      } else {
+      } else if (!targetId && !targetNameNorm) {
+        localStock = Number(prod.stock) || 0;
+      } else if (normalizeBranchName(prod.sucursal) === targetNameNorm) {
         localStock = Number(prod.stock) || 0;
       }
 

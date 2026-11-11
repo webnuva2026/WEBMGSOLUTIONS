@@ -4876,6 +4876,31 @@ async function getInventarioJerarquico(req, res) {
           stock: Number(r.stock) || 0
         });
       }
+      const prodsSinFilasSede = prodIds.filter((id) => {
+        const list = stockPorSedeMap.get(id);
+        return !list || list.length === 0;
+      });
+      if (prodsSinFilasSede.length > 0) {
+        const [unitBranchRows] = await pool.query(`
+          SELECT pu.producto_id AS productoId, pu.sucursal_id AS sucursalId, s.nombre AS sucursalNombre, COUNT(pu.id) AS stock
+          FROM producto_unidades pu
+          INNER JOIN sucursales s ON pu.sucursal_id = s.id
+          WHERE pu.producto_id IN (?)
+            AND pu.estado_unidad_id = 1
+            AND pu.disponible_venta = 1
+          GROUP BY pu.producto_id, pu.sucursal_id, s.nombre
+        `, [prodsSinFilasSede]);
+        for (const r of unitBranchRows) {
+          if (!stockPorSedeMap.has(r.productoId)) {
+            stockPorSedeMap.set(r.productoId, []);
+          }
+          stockPorSedeMap.get(r.productoId).push({
+            sucursalId: r.sucursalId,
+            sucursalNombre: r.sucursalNombre,
+            stock: Number(r.stock) || 0
+          });
+        }
+      }
     }
     const items = productosRows.map((p) => {
       const modeloId = p.modeloId ? Number(p.modeloId) : null;
@@ -8689,21 +8714,49 @@ app.use("/api", sale_routes_default);
 app.use("/api", workshop_routes_default);
 app.use("/api", consulta_routes_default);
 app.use("/api", maintenance_routes_default);
+var distPath = path.resolve(process.cwd(), "dist");
+var distIndexPath = path.join(distPath, "index.html");
+var currentFrontendBuildId = null;
+if (fs.existsSync(distIndexPath)) {
+  try {
+    const html = fs.readFileSync(distIndexPath, "utf8");
+    const match = html.match(/\/assets\/(index-[A-Za-z0-9_-]+\.js)/);
+    currentFrontendBuildId = match ? match[1] : String(fs.statSync(distIndexPath).mtimeMs);
+  } catch {
+    currentFrontendBuildId = null;
+  }
+}
 app.get("/api/health", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   res.json({
     success: true,
     message: "MG Solutions ERP - Backend activo",
     timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    env: process.env.NODE_ENV || "development"
+    env: process.env.NODE_ENV || "development",
+    frontendBuild: currentFrontendBuildId
   });
 });
-var distPath = path.resolve(process.cwd(), "dist");
 if (fs.existsSync(distPath)) {
   console.log(`\u{1F4E6} Sirviendo frontend de producci\xF3n desde: ${distPath}`);
-  app.use(express.static(distPath));
+  app.use(
+    express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith("index.html")) {
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+      }
+    })
+  );
   app.get("*", (req, res, next) => {
     if (req.path.startsWith("/api")) return next();
-    res.sendFile(path.join(distPath, "index.html"));
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.sendFile(distIndexPath);
   });
 } else {
   app.get("/", (_req, res) => {
