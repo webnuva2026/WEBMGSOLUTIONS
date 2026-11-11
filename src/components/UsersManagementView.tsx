@@ -1044,7 +1044,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-emerald-400" />
                 <h3 className="text-sm font-bold">
-                  {editingUser ? `Editar Usuario: @${editingUser.username}` : 'Registrar Nuevo Usuario'}
+                  {editingUser ? 'Editar Usuario' : 'Registrar Nuevo Usuario'}
                 </h3>
               </div>
               <button onClick={() => setIsUserModalOpen(false)} className="text-white/70 hover:text-white">
@@ -1182,14 +1182,6 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                   <Store className="w-4 h-4 text-[#00346F]" />
                   Asignación Laboral y Permisos
                 </span>
-
-                {/* Identificador visible solo al editar */}
-                {editingUser && (
-                  <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-600">
-                    <span>Código de Usuario:</span>
-                    <span className="font-mono font-bold text-[#00346F]">@{userForm.username}</span>
-                  </div>
-                )}
 
                 {/* Rol Funcional, Sucursal de Trabajo y Estado */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">

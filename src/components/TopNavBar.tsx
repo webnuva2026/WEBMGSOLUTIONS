@@ -342,11 +342,13 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             className="flex items-center gap-2.5 p-1 rounded-full hover:bg-slate-100 transition-colors text-left cursor-pointer"
           >
             <div className="text-right hidden md:block">
-              <p className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[150px]">
+              <p className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[170px]">
                 {currentUser?.nombreCompleto || 'Usuario del Sistema'}
               </p>
-              <p className="text-[10px] font-black text-[#00346F] uppercase tracking-wider">
-                {currentUser?.rolNombre || (currentUser?.rol === 'ADMIN' ? 'Administrador' : currentUser?.rol || 'Personal')}
+              <p className="text-[10px] font-medium text-slate-500 tracking-normal truncate max-w-[170px]">
+                {currentUser?.nombreCompleto?.trim().toUpperCase() === (currentUser?.rolNombre || currentUser?.rol || '').trim().toUpperCase()
+                  ? (currentUser?.email || 'Cuenta Raíz')
+                  : (currentUser?.rolNombre || (currentUser?.rol === 'ADMIN' ? 'Administrador' : currentUser?.rol || 'Personal'))}
               </p>
             </div>
             <div className="relative">

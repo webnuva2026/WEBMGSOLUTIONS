@@ -996,6 +996,7 @@ export function App() {
           isOpenMobile={sidebarOpenMobile}
           onCloseMobile={() => setSidebarOpenMobile(false)}
           currentUser={currentUser}
+          onLogout={handleLogout}
         />
 
         {/* View Switcher Container */}

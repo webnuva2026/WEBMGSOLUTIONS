@@ -17,6 +17,7 @@ import {
   Store,
   Boxes,
   Cpu,
+  LogOut,
 } from 'lucide-react';
 import { Usuario } from '../types';
 
@@ -26,6 +27,7 @@ interface SideNavBarProps {
   isOpenMobile: boolean;
   onCloseMobile: () => void;
   currentUser: Usuario;
+  onLogout?: () => void;
 }
 
 export const SideNavBar: React.FC<SideNavBarProps> = ({
@@ -34,6 +36,7 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
   isOpenMobile,
   onCloseMobile,
   currentUser,
+  onLogout,
 }) => {
   const moduleLabels: Record<string, { label: string; icon: React.ReactNode }> = {
     dashboard: { label: 'Dashboard Operativo', icon: <LayoutDashboard className="w-5 h-5 shrink-0" /> },
@@ -206,15 +209,26 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
           </div>
         </div>
 
-        {/* User Card Footer */}
-        <div className="p-4 border-t border-blue-900/40 bg-blue-950/40 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center font-black text-sm text-blue-200">
-            {currentUser.nombreCompleto.charAt(0)}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-white truncate">{currentUser.nombreCompleto}</p>
-            <p className="text-xs font-semibold text-blue-200/70 truncate">{currentUser.rol}</p>
-          </div>
+        {/* User / Logout Footer */}
+        <div className="p-3 border-t border-blue-900/40 bg-blue-950/50">
+          {onLogout ? (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/15 hover:bg-red-600 text-red-200 hover:text-white border border-red-500/30 font-bold text-xs transition-all cursor-pointer shadow-sm group"
+              title="Cerrar sesión de forma segura"
+            >
+              <LogOut className="w-4 h-4 text-red-300 group-hover:text-white transition-colors" />
+              <span>Cerrar Sesión</span>
+            </button>
+          ) : (
+            <div className="flex items-center gap-2.5 px-2 py-1">
+              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center font-black text-xs text-blue-200">
+                {currentUser.nombreCompleto.charAt(0)}
+              </div>
+              <p className="text-xs font-bold text-white truncate">{currentUser.nombreCompleto}</p>
+            </div>
+          )}
         </div>
       </aside>
     </>
