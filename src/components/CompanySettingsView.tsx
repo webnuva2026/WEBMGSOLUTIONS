@@ -250,7 +250,7 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                 className="px-3.5 py-1.5 bg-[#00346F] text-white text-xs rounded-lg font-semibold hover:bg-[#004A99] flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                + Agregar Sucursal
+                Agregar Sucursal
               </button>
             </div>
 
