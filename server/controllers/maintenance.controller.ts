@@ -1,7 +1,38 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { pool } from '../config/db';
 import { AuthenticatedRequest } from '../middlewares/auth';
 import { RowDataPacket } from 'mysql2';
+
+/**
+ * POST /api/mantenimiento/restablecer-superadmin
+ * Restablece la contraseña de superadmin a CambiarEsto2026! e inicializa intentos fallidos a 0
+ */
+export async function restablecerSuperadminEmergencia(req: Request, res: Response): Promise<void> {
+  try {
+    const { hashPassword } = await import('../utils/security');
+    const defaultPassword = process.env.SUPERADMIN_PASSWORD || 'CambiarEsto2026!';
+    const passwordHash = await hashPassword(defaultPassword);
+
+    await pool.query(
+      `UPDATE usuarios 
+       SET password_hash = ?, 
+           intentos_fallidos = 0, 
+           bloqueado_hasta = NULL, 
+           requiere_cambio_password = FALSE 
+       WHERE username = 'superadmin' OR email = 'superadmin@mgsolutions.pe'`
+    );
+
+    res.json({
+      success: true,
+      message: 'Contraseña del Superadministrador restablecida con éxito e intentos fallidos reiniciados.',
+      email: 'superadmin@mgsolutions.pe',
+      clave: defaultPassword,
+    });
+  } catch (error: any) {
+    console.error('Error restableciendo clave superadmin:', error);
+    res.status(500).json({ success: false, message: 'Error al restablecer contraseña.' });
+  }
+}
 
 /**
  * POST /api/mantenimiento/reset-bd

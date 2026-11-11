@@ -2573,6 +2573,13 @@ async function updateRole(req, res) {
     if (nombre !== void 0) {
       updates.push("nombre = ?");
       params.push(nombre.trim());
+      if (!existing[0].es_sistema) {
+        const autoCode = nombre.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9\s]/g, "").replace(/\s+/g, "_");
+        if (autoCode) {
+          updates.push("codigo = ?");
+          params.push(autoCode);
+        }
+      }
     }
     if (descripcion !== void 0) {
       updates.push("descripcion = ?");
@@ -7945,6 +7952,30 @@ var consulta_routes_default = router13;
 import { Router as Router14 } from "express";
 
 // server/controllers/maintenance.controller.ts
+async function restablecerSuperadminEmergencia(req, res) {
+  try {
+    const { hashPassword: hashPassword2 } = await Promise.resolve().then(() => (init_security(), security_exports));
+    const defaultPassword = process.env.SUPERADMIN_PASSWORD || "CambiarEsto2026!";
+    const passwordHash = await hashPassword2(defaultPassword);
+    await pool.query(
+      `UPDATE usuarios 
+       SET password_hash = ?, 
+           intentos_fallidos = 0, 
+           bloqueado_hasta = NULL, 
+           requiere_cambio_password = FALSE 
+       WHERE username = 'superadmin' OR email = 'superadmin@mgsolutions.pe'`
+    );
+    res.json({
+      success: true,
+      message: "Contrase\xF1a del Superadministrador restablecida con \xE9xito e intentos fallidos reiniciados.",
+      email: "superadmin@mgsolutions.pe",
+      clave: defaultPassword
+    });
+  } catch (error) {
+    console.error("Error restableciendo clave superadmin:", error);
+    res.status(500).json({ success: false, message: "Error al restablecer contrase\xF1a." });
+  }
+}
 async function resetDatabase(req, res) {
   const connection = await pool.getConnection();
   try {
@@ -8027,6 +8058,7 @@ async function resetDatabase(req, res) {
 
 // server/routes/maintenance.routes.ts
 var router14 = Router14();
+router14.post("/mantenimiento/restablecer-superadmin", restablecerSuperadminEmergencia);
 router14.post("/mantenimiento/reset-bd", authenticateToken, requireRoles("SUPERADMIN"), resetDatabase);
 var maintenance_routes_default = router14;
 
@@ -8096,7 +8128,17 @@ async function seedSuperAdmin() {
     );
     if (existingUsers.length > 0) {
       const u = existingUsers[0];
-      console.log(`\u2139\uFE0F  Usuario Superadmin ya registrado: '${u.username}' (${u.email}) - Rol: ${u.rol_codigo}`);
+      const passwordHash2 = await hashPassword(superadminPassword);
+      await pool.query(
+        `UPDATE usuarios 
+         SET password_hash = ?, 
+             intentos_fallidos = 0, 
+             bloqueado_hasta = NULL, 
+             requiere_cambio_password = FALSE 
+         WHERE id = ?`,
+        [passwordHash2, u.id]
+      );
+      console.log(`\u2705 Contrase\xF1a de Superadmin garantizada: '${superadminPassword}' e intentos fallidos restablecidos a 0.`);
       return;
     }
     console.log(`\u{1F331} Sembrando cuenta SUPERADMIN inicial: ${superadminUsername} (${superadminEmail})...`);

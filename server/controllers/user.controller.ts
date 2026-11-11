@@ -745,6 +745,21 @@ export async function updateRole(req: AuthenticatedRequest, res: Response): Prom
     if (nombre !== undefined) {
       updates.push('nombre = ?');
       params.push(nombre.trim());
+
+      // Si no es rol protegido del sistema, sincronizar automáticamente el código interno
+      if (!existing[0].es_sistema) {
+        const autoCode = nombre
+          .trim()
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^A-Z0-9\s]/g, '')
+          .replace(/\s+/g, '_');
+        if (autoCode) {
+          updates.push('codigo = ?');
+          params.push(autoCode);
+        }
+      }
     }
     if (descripcion !== undefined) {
       updates.push('descripcion = ?');

@@ -585,8 +585,8 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
     setRoleForm(prev => ({
       ...prev,
       nombre: val,
-      // only auto-update code if creating and hasn't manually customized
-      codigo: !editingRole ? autoCode : prev.codigo,
+      // Se genera y actualiza internamente
+      codigo: (!editingRole || !editingRole.esSistema) ? (autoCode || 'ROL') : prev.codigo,
     }));
   };
 
@@ -609,10 +609,18 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
 
   const handleSubmitRole = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!roleForm.nombre.trim() || !roleForm.codigo.trim()) {
-      onShowToast('Campos requeridos', 'El nombre y código del rol son obligatorios.', 'warning');
+    if (!roleForm.nombre.trim()) {
+      onShowToast('Campo requerido', 'El nombre del rol es obligatorio.', 'warning');
       return;
     }
+
+    const finalCode = roleForm.codigo.trim() || roleForm.nombre
+      .trim()
+      .toUpperCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^A-Z0-9\s]/g, '')
+      .replace(/\s+/g, '_');
 
     setRoleModalLoading(true);
     try {
@@ -1088,11 +1096,6 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="block font-semibold text-slate-600">N° Documento *</label>
-                      {(userForm.tipoDocumento === 'DNI' || userForm.tipoDocumento === 'RUC') && (
-                        <span className="text-[10px] text-blue-700 font-semibold flex items-center gap-0.5">
-                          <Sparkles className="w-2.5 h-2.5 text-amber-500" /> {userForm.tipoDocumento === 'DNI' ? 'RENIEC' : 'SUNAT'}
-                        </span>
-                      )}
                     </div>
                     <div className="flex gap-1.5">
                       <input
@@ -1184,13 +1187,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                             Modificar
                           </button>
                         </div>
-                      ) : (
-                        userForm.tipoDocumento === 'DNI' && (
-                          <span className="text-[10px] text-slate-400">
-                            Digitar DNI y pulsar RENIEC
-                          </span>
-                        )
-                      )}
+                      ) : null}
                     </div>
                     <div className="relative">
                       <input
@@ -1208,7 +1205,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                             ? 'bg-slate-100 text-slate-700 font-semibold border border-emerald-400 cursor-not-allowed select-none pr-8'
                             : 'bg-white border border-slate-300 focus:border-[#00346F]'
                         }`}
-                        placeholder={userForm.tipoDocumento === 'DNI' ? 'Se autocompletará con RENIEC...' : 'Kevin Quispe Rojas'}
+                        placeholder="Ej: Carlos Mendoza Ramos"
                       />
                       {isDocVerified && (
                         <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" title="Nombre validado ante RENIEC">
@@ -1262,7 +1259,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                     >
                       {roles.map((r) => (
                         <option key={r.id} value={r.codigo}>
-                          {r.nombre} ({r.codigo})
+                          {r.nombre}
                         </option>
                       ))}
                     </select>
@@ -1284,7 +1281,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                         .filter((s) => s.estado === 'ACTIVO')
                         .map((s) => (
                           <option key={s.id} value={s.id}>
-                            {s.codigo} - {s.nombre} {s.esPrincipal ? '(Matriz / Principal)' : ''}
+                            {s.nombre} {s.esPrincipal ? '⭐ (Sede Principal)' : ''}
                           </option>
                         ))}
                     </select>
@@ -1412,35 +1409,18 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({
                   Definición del Rol
                 </span>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Nombre del Rol *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={roleForm.nombre}
-                      onChange={(e) => handleRoleNameChange(e.target.value)}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
-                      placeholder="ej: Supervisor de Taller"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Código del Rol (Identificador Interno) *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      disabled={Boolean(editingRole && editingRole.esSistema)}
-                      value={roleForm.codigo}
-                      onChange={(e) => setRoleForm({ ...roleForm, codigo: e.target.value.toUpperCase().replace(/\s+/g, '_') })}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold uppercase focus:outline-none focus:border-[#00346F] disabled:bg-slate-100 disabled:text-slate-500"
-                      placeholder="SUPERVISOR_TALLER"
-                    />
-                  </div>
+                <div>
+                  <label className="block font-semibold text-slate-600 mb-1">
+                    Nombre del Rol *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={roleForm.nombre}
+                    onChange={(e) => handleRoleNameChange(e.target.value)}
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-[#00346F]"
+                    placeholder="ej: Logística, Supervisor de Taller, etc."
+                  />
                 </div>
 
                 <div>

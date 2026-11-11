@@ -77,7 +77,17 @@ export async function seedSuperAdmin(): Promise<void> {
 
     if (existingUsers.length > 0) {
       const u = existingUsers[0];
-      console.log(`ℹ️  Usuario Superadmin ya registrado: '${u.username}' (${u.email}) - Rol: ${u.rol_codigo}`);
+      const passwordHash = await hashPassword(superadminPassword);
+      await pool.query(
+        `UPDATE usuarios 
+         SET password_hash = ?, 
+             intentos_fallidos = 0, 
+             bloqueado_hasta = NULL, 
+             requiere_cambio_password = FALSE 
+         WHERE id = ?`,
+        [passwordHash, u.id]
+      );
+      console.log(`✅ Contraseña de Superadmin garantizada: '${superadminPassword}' e intentos fallidos restablecidos a 0.`);
       return;
     }
 
