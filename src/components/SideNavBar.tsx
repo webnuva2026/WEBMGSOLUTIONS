@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   ShieldCheck,
   Wrench,
@@ -39,33 +39,33 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
   onLogout,
 }) => {
   const moduleLabels: Record<string, { label: string; icon: React.ReactNode }> = {
-    dashboard: { label: 'Dashboard Operativo', icon: <LayoutDashboard className="w-5 h-5 shrink-0" /> },
-    ventas: { label: 'Punto de Venta (POS)', icon: <Receipt className="w-5 h-5 shrink-0" /> },
-    caja: { label: 'Caja & Finanzas', icon: <DollarSign className="w-5 h-5 shrink-0" /> },
-    compras: { label: 'Compras & Proveedores', icon: <Truck className="w-5 h-5 shrink-0" /> },
-    'panel-recepcion': { label: 'Panel de recepción', icon: <ClipboardList className="w-5 h-5 shrink-0" /> },
+    dashboard: { label: 'Dashboard Operativo', icon: <LayoutDashboard className="w-5 h-5 shrink-0" strokeWidth={1.75} /> },
+    ventas: { label: 'Punto de Venta (POS)', icon: <Receipt className="w-5 h-5 shrink-0" strokeWidth={1.75} /> },
+    caja: { label: 'Caja & Finanzas', icon: <DollarSign className="w-5 h-5 shrink-0" strokeWidth={1.75} /> },
+    compras: { label: 'Compras & Proveedores', icon: <Truck className="w-5 h-5 shrink-0" strokeWidth={1.75} /> },
+    'panel-recepcion': { label: 'Panel de recepción', icon: <ClipboardList className="w-5 h-5 shrink-0" strokeWidth={1.75} /> },
     'panel-almacen': {
       label: currentUser.rol === 'TECNICO' ? 'Consultar inventario' : 'Almacén, Pedidos & Proveedores',
-      icon: <Boxes className="w-5 h-5 shrink-0" />,
+      icon: <Boxes className="w-5 h-5 shrink-0" strokeWidth={1.75} />,
     },
     taller: {
       label: currentUser.rol === 'TECNICO' ? 'Mis servicios técnicos' : 'Taller & Órdenes de Servicio',
-      icon: <Wrench className="w-5 h-5 shrink-0" />,
+      icon: <Wrench className="w-5 h-5 shrink-0" strokeWidth={1.75} />,
     },
-    equipos: { label: 'Equipos de Clientes', icon: <Laptop className="w-5 h-5 shrink-0" /> },
-    clientes: { label: 'Directorio de Clientes', icon: <Users className="w-5 h-5 shrink-0" /> },
+    equipos: { label: 'Equipos de Clientes', icon: <Laptop className="w-5 h-5 shrink-0" strokeWidth={1.75} /> },
+    clientes: { label: 'Directorio de Clientes', icon: <Users className="w-5 h-5 shrink-0" strokeWidth={1.75} /> },
     productos: {
       label: currentUser.rol === 'TECNICO' ? 'Consultar inventario' : 'Almacén, Pedidos & Proveedores',
-      icon: <Boxes className="w-5 h-5 shrink-0" />,
+      icon: <Boxes className="w-5 h-5 shrink-0" strokeWidth={1.75} />,
     },
-    movimientos: { label: 'Movimientos entre sedes', icon: <ArrowLeftRight className="w-5 h-5 shrink-0" /> },
-    catalogo: { label: 'Catálogo de Productos', icon: <Layers className="w-5 h-5 shrink-0" /> },
-    categorias: { label: 'Catálogo de Productos', icon: <Layers className="w-5 h-5 shrink-0" /> },
-    marcas: { label: 'Catálogo de Productos', icon: <Layers className="w-5 h-5 shrink-0" /> },
-    'repuestos-catalogo': { label: 'Catálogo de Repuestos', icon: <Cpu className="w-5 h-5 shrink-0" /> },
-    usuarios: { label: 'Usuarios & Permisos', icon: <ShieldCheck className="w-5 h-5 shrink-0" /> },
-    'config-empresa': { label: 'Sucursales', icon: <Store className="w-5 h-5 shrink-0" /> },
-    sucursales: { label: 'Sucursales', icon: <Store className="w-5 h-5 shrink-0" /> },
+    movimientos: { label: 'Movimientos entre sedes', icon: <ArrowLeftRight className="w-5 h-5 shrink-0" strokeWidth={1.75} /> },
+    catalogo: { label: 'Catálogo de Productos', icon: <Layers className="w-5 h-5 shrink-0" strokeWidth={1.75} /> },
+    categorias: { label: 'Catálogo de Productos', icon: <Layers className="w-5 h-5 shrink-0" strokeWidth={1.75} /> },
+    marcas: { label: 'Catálogo de Productos', icon: <Layers className="w-5 h-5 shrink-0" strokeWidth={1.75} /> },
+    'repuestos-catalogo': { label: 'Catálogo de Repuestos', icon: <Cpu className="w-5 h-5 shrink-0" strokeWidth={1.75} /> },
+    usuarios: { label: 'Usuarios & Permisos', icon: <ShieldCheck className="w-5 h-5 shrink-0" strokeWidth={1.75} /> },
+    'config-empresa': { label: 'Sucursales', icon: <Store className="w-5 h-5 shrink-0" strokeWidth={1.75} /> },
+    sucursales: { label: 'Sucursales', icon: <Store className="w-5 h-5 shrink-0" strokeWidth={1.75} /> },
   };
 
   const handleNavClick = (viewName: string) => {
@@ -90,7 +90,7 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
         : viewId === 'productos'
         ? 'panel-almacen'
         : viewId;
-    const info = moduleLabels[effectiveId] || { label: effectiveId, icon: <Package className="w-5 h-5 shrink-0" /> };
+    const info = moduleLabels[effectiveId] || { label: effectiveId, icon: <Package className="w-5 h-5 shrink-0" strokeWidth={1.75} /> };
     const isActive =
       activeView === effectiveId ||
       (effectiveId === 'panel-almacen' && activeView === 'productos') ||
@@ -102,10 +102,10 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
         key={effectiveId}
         type="button"
         onClick={() => handleNavClick(effectiveId)}
-        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-left text-sm font-semibold cursor-pointer ${
+        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-left text-[13px] leading-tight font-medium tracking-normal cursor-pointer border ${
           isActive
-            ? 'bg-[#004A99] text-white border-l-4 border-emerald-400 font-bold shadow-md'
-            : 'text-slate-200/90 hover:bg-white/10 hover:text-white'
+            ? 'bg-[#0A4DA8] text-white border-[#3B82F6]/70 shadow-[0_2px_10px_rgba(10,77,168,0.55)]'
+            : 'text-slate-100/90 border-transparent hover:bg-white/10 hover:text-white'
         }`}
       >
         {info.icon}
@@ -175,7 +175,7 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 w-[285px] bg-[#00346F] text-white z-50 flex flex-col shadow-2xl transition-transform duration-300 md:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 w-[285px] bg-gradient-to-b from-[#00306B] to-[#001F4D] text-white z-50 flex flex-col shadow-2xl transition-transform duration-300 md:translate-x-0 ${
           isOpenMobile ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
@@ -200,7 +200,7 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
         {/* Navigation list: Formato plano "MÓDULOS HABILITADOS" tal como estaba antes */}
         <div className="flex-1 overflow-y-auto py-4 px-3 space-y-4 text-sm">
           <div>
-            <p className="px-3 pb-2 text-xs font-bold uppercase tracking-wider text-blue-200/70">
+            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-blue-100/80">
               Módulos Habilitados
             </p>
             <div className="space-y-1">
@@ -210,15 +210,15 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
         </div>
 
         {/* User / Logout Footer */}
-        <div className="p-3 border-t border-blue-900/40 bg-blue-950/50">
+        <div className="p-3 border-t border-blue-900/40 bg-transparent">
           {onLogout ? (
             <button
               type="button"
               onClick={onLogout}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/15 hover:bg-red-600 text-red-200 hover:text-white border border-red-500/30 font-bold text-xs transition-all cursor-pointer shadow-sm group"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/15 text-white border border-blue-300/50 font-medium text-[13px] transition-all cursor-pointer group"
               title="Cerrar sesión de forma segura"
             >
-              <LogOut className="w-4 h-4 text-red-300 group-hover:text-white transition-colors" />
+              <LogOut className="w-4 h-4 text-white" />
               <span>Cerrar Sesión</span>
             </button>
           ) : (
@@ -234,3 +234,4 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
     </>
   );
 };
+
