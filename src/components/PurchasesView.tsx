@@ -214,7 +214,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
     const marca = catMarcas.find((m) => m.id === modelo.marcaId);
     const cat = catCategorias.find((c) => c.id === marca?.categoriaId);
     const nombreCat = (cat?.nombre || '').toUpperCase();
-    
+
     setCatRequiereSerie(!(nombreCat.includes('REPUESTO') || nombreCat.includes('SUMINISTRO') || nombreCat.includes('PERIF') || nombreCat.includes('COMPONENTE')));
     setCatDestino(nombreCat.includes('REPUESTO') ? 'MIXTO' : 'VENTA');
     setItemCantidad(1);
@@ -557,12 +557,19 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
       }
     }
 
-    const generatedCode =
-      modoOperacion === 'SOLICITADO'
-        ? serieNumero.trim()
-          ? serieNumero.toUpperCase().trim()
-          : `OC-${String(compras.length + 101).padStart(5, '0')}`
-        : serieNumero.toUpperCase().trim();
+    let generatedCode = '';
+    if (modoOperacion === 'SOLICITADO') {
+      const ocNumbers = compras
+        .map((c) => {
+          const match = c.codigoComprobante?.match(/OC-(\d+)/);
+          return match ? parseInt(match[1], 10) : 0;
+        })
+        .filter((n) => n > 0);
+      const nextNum = ocNumbers.length > 0 ? Math.max(...ocNumbers) + 1 : compras.length + 101;
+      generatedCode = `OC-${String(nextNum).padStart(5, '0')}`;
+    } else {
+      generatedCode = serieNumero.toUpperCase().trim();
+    }
 
     const newCompra: Compra = {
       id: Date.now(),
@@ -869,15 +876,15 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
               {activeTab === 'proveedores'
                 ? 'Directorio de Proveedores'
                 : activeTab === 'historial'
-                ? 'Órdenes de Compra & Recepción en Almacén'
-                : 'Pedidos a Proveedores, Recepción en Almacén & Abastecimiento'}
+                  ? 'Órdenes de Compra & Recepción en Almacén'
+                  : 'Pedidos a Proveedores, Recepción en Almacén & Abastecimiento'}
             </h1>
             <p className="mt-1 text-xs text-slate-500">
               {activeTab === 'proveedores'
                 ? 'Empresas proveedoras, mayoristas y canales de abastecimiento homologados.'
                 : activeTab === 'historial'
-                ? 'Historial de compras emitidas y verificación física de series para ingreso a stock.'
-                : 'Ciclo trazable en 2 etapas: 1° Emisión de Orden de Pedido al Proveedor (En Tránsito) → 2° Recepción Física y Alta de Series en Almacén para Ventas POS y Taller Técnico.'}
+                  ? 'Historial de compras emitidas y verificación física de series para ingreso a stock.'
+                  : 'Ciclo trazable en 2 etapas: 1° Emisión de Orden de Pedido al Proveedor (En Tránsito) → 2° Recepción Física y Alta de Series en Almacén para Ventas POS y Taller Técnico.'}
             </p>
           </div>
 
@@ -885,22 +892,20 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
           <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-200/70 p-1">
             <button
               onClick={() => setActiveTab('nueva')}
-              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all ${
-                activeTab === 'nueva'
-                  ? 'bg-white text-[#00346F] shadow-sm'
-                  : 'text-slate-600 hover:text-[#00346F]'
-              }`}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all ${activeTab === 'nueva'
+                ? 'bg-white text-[#00346F] shadow-sm'
+                : 'text-slate-600 hover:text-[#00346F]'
+                }`}
             >
               <Plus className="h-4 w-4" />
               Realizar Pedido a Proveedor
             </button>
             <button
               onClick={() => setActiveTab('historial')}
-              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all ${
-                activeTab === 'historial'
-                  ? 'bg-white text-[#00346F] shadow-sm'
-                  : 'text-slate-600 hover:text-[#00346F]'
-              }`}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all ${activeTab === 'historial'
+                ? 'bg-white text-[#00346F] shadow-sm'
+                : 'text-slate-600 hover:text-[#00346F]'
+                }`}
             >
               <FileText className="h-4 w-4" />
               Órdenes & Recepción ({scopedCompras.length})
@@ -912,11 +917,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
             </button>
             <button
               onClick={() => setActiveTab('proveedores')}
-              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all ${
-                activeTab === 'proveedores'
-                  ? 'bg-white text-[#00346F] shadow-sm'
-                  : 'text-slate-600 hover:text-[#00346F]'
-              }`}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all ${activeTab === 'proveedores'
+                ? 'bg-white text-[#00346F] shadow-sm'
+                : 'text-slate-600 hover:text-[#00346F]'
+                }`}
             >
               <Building2 className="h-4 w-4" />
               Proveedores ({proveedores.length})
@@ -938,11 +942,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setModoOperacion('SOLICITADO')}
-                    className={`flex flex-col items-start rounded-xl border p-3 text-left transition-all ${
-                      modoOperacion === 'SOLICITADO'
-                        ? 'border-[#00346F] bg-[#00346F] text-white shadow-md'
-                        : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300'
-                    }`}
+                    className={`flex flex-col items-start rounded-xl border p-3 text-left transition-all ${modoOperacion === 'SOLICITADO'
+                      ? 'border-[#00346F] bg-[#00346F] text-white shadow-md'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300'
+                      }`}
                   >
                     <div className="flex items-center gap-2 font-black text-xs">
                       <Clock className="h-4 w-4 shrink-0" />
@@ -956,11 +959,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setModoOperacion('RECEPCION_DIRECTA')}
-                    className={`flex flex-col items-start rounded-xl border p-3 text-left transition-all ${
-                      modoOperacion === 'RECEPCION_DIRECTA'
-                        ? 'border-emerald-700 bg-emerald-600 text-white shadow-md'
-                        : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300'
-                    }`}
+                    className={`flex flex-col items-start rounded-xl border p-3 text-left transition-all ${modoOperacion === 'RECEPCION_DIRECTA'
+                      ? 'border-emerald-700 bg-emerald-600 text-white shadow-md'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300'
+                      }`}
                   >
                     <div className="flex items-center gap-2 font-black text-xs">
                       <CheckCircle2 className="h-4 w-4 shrink-0" />
@@ -1001,9 +1003,13 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div
+                  className={`grid grid-cols-1 gap-4 ${
+                    modoOperacion === 'SOLICITADO' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'
+                  }`}
+                >
                   {/* Proveedor */}
-                  <div className="sm:col-span-2">
+                  <div className={modoOperacion === 'SOLICITADO' ? 'sm:col-span-3' : 'sm:col-span-2'}>
                     <label className="block text-xs font-bold text-slate-700">Proveedor Homologado</label>
                     <select
                       value={selectedProveedorId}
@@ -1061,19 +1067,21 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                     )}
                   </div>
 
-                  {/* Serie y Número */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700">
-                      {modoOperacion === 'SOLICITADO' ? 'Código de Orden (Autogenerado si vacío)' : 'N° Comprobante / Factura del Proveedor *'}
-                    </label>
-                    <input
-                      type="text"
-                      value={serieNumero}
-                      onChange={(e) => setSerieNumero(e.target.value)}
-                      placeholder={modoOperacion === 'SOLICITADO' ? `Ej. OC-00${compras.length + 101} (Automático)` : 'Ej. F001-004819'}
-                      className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold uppercase text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
-                    />
-                  </div>
+                  {/* N° Comprobante / Factura (SOLO en Recepción Directa con Factura del proveedor) */}
+                  {modoOperacion === 'RECEPCION_DIRECTA' && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700">
+                        N° Comprobante / Factura del Proveedor *
+                      </label>
+                      <input
+                        type="text"
+                        value={serieNumero}
+                        onChange={(e) => setSerieNumero(e.target.value)}
+                        placeholder="Ej. F001-004819"
+                        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold uppercase text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
+                      />
+                    </div>
+                  )}
 
                   {/* Sede Destino */}
                   <div>
@@ -1083,9 +1091,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                       disabled={!isGlobalAdmin && Boolean(assignedUserSucursal)}
                       onChange={(e) => setSucursalDestino(e.target.value)}
                       title={!isGlobalAdmin && assignedUserSucursal ? 'Sede asignada a su usuario' : 'Seleccionar sede destino'}
-                      className={`mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-[#00346F] ${
-                        !isGlobalAdmin && assignedUserSucursal ? 'bg-slate-100 cursor-not-allowed' : 'bg-slate-50 focus:bg-white'
-                      }`}
+                      className={`mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-[#00346F] ${!isGlobalAdmin && assignedUserSucursal ? 'bg-slate-100 cursor-not-allowed' : 'bg-slate-50 focus:bg-white'
+                        }`}
                     >
                       {sucursales.map((suc) => (
                         <option key={suc.id} value={suc.nombre}>
@@ -1128,11 +1135,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setProductSelectionMode('catalogo')}
-                      className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
-                        productSelectionMode === 'catalogo'
-                          ? 'bg-[#00346F] text-white shadow-md'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
+                      className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${productSelectionMode === 'catalogo'
+                        ? 'bg-[#00346F] text-white shadow-md'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
                     >
                       <Layers className="h-4 w-4" />
                       1. Catálogo Maestro (Categoría ➔ Marca ➔ Modelo)
@@ -1143,11 +1149,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setProductSelectionMode('almacen')}
-                      className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
-                        productSelectionMode === 'almacen'
-                          ? 'bg-[#00346F] text-white shadow-md'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
+                      className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${productSelectionMode === 'almacen'
+                        ? 'bg-[#00346F] text-white shadow-md'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
                     >
                       <Search className="h-4 w-4" />
                       2. Búsqueda Rápida en Catálogo Maestro
@@ -1190,11 +1195,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                                   setCatFiltroMarca('');
                                   setCatModeloSel(null);
                                 }}
-                                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
-                                  isSel
-                                    ? 'bg-indigo-600 text-white shadow-xs'
-                                    : 'border border-slate-200 bg-white text-slate-700 hover:bg-indigo-50 hover:border-indigo-300'
-                                }`}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${isSel
+                                  ? 'bg-indigo-600 text-white shadow-xs'
+                                  : 'border border-slate-200 bg-white text-slate-700 hover:bg-indigo-50 hover:border-indigo-300'
+                                  }`}
                               >
                                 {c.nombre}
                               </button>
@@ -1238,11 +1242,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                                       setCatFiltroMarca(m.id);
                                       setCatModeloSel(null);
                                     }}
-                                    className={`rounded-lg px-3 py-1 text-xs font-bold transition-all cursor-pointer ${
-                                      isSel
-                                        ? 'bg-indigo-700 text-white shadow-xs'
-                                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-indigo-50'
-                                    }`}
+                                    className={`rounded-lg px-3 py-1 text-xs font-bold transition-all cursor-pointer ${isSel
+                                      ? 'bg-indigo-700 text-white shadow-xs'
+                                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-indigo-50'
+                                      }`}
                                   >
                                     {m.nombre}
                                   </button>
@@ -1274,11 +1277,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                                   <div
                                     key={mo.id}
                                     onClick={() => handleSelectModeloCatalogo(mo)}
-                                    className={`flex cursor-pointer items-center justify-between rounded-xl p-2.5 transition-all ${
-                                      isSel
-                                        ? 'bg-indigo-600 text-white shadow-xs'
-                                        : 'hover:bg-indigo-50 border border-slate-100 text-slate-800'
-                                    }`}
+                                    className={`flex cursor-pointer items-center justify-between rounded-xl p-2.5 transition-all ${isSel
+                                      ? 'bg-indigo-600 text-white shadow-xs'
+                                      : 'hover:bg-indigo-50 border border-slate-100 text-slate-800'
+                                      }`}
                                   >
                                     <div>
                                       <p className="font-bold text-xs">
@@ -1293,9 +1295,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                                     {prod && (
                                       <div className="flex items-center gap-2">
                                         <span
-                                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                                            isSel ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
-                                          }`}
+                                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${isSel ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                                            }`}
                                         >
                                           ✔ En Almacén • Stock: {prod.stock}
                                         </span>
@@ -1346,43 +1347,39 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                               <div
                                 key={`cat-${mo.id}`}
                                 onClick={() => handleSelectModeloCatalogo(mo)}
-                                className={`flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-xs transition-all ${
-                                  isSelected
-                                    ? 'bg-[#00346F] text-white shadow-xs'
-                                    : 'bg-white hover:bg-indigo-50/60 text-slate-800 border border-slate-100'
-                                }`}
+                                className={`flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-xs transition-all ${isSelected
+                                  ? 'bg-[#00346F] text-white shadow-xs'
+                                  : 'bg-white hover:bg-indigo-50/60 text-slate-800 border border-slate-100'
+                                  }`}
                               >
                                 <div className="pr-3">
                                   <p className="font-bold flex flex-wrap items-center gap-1.5">
                                     <span>{marcaNombre ? `${marcaNombre} ${mo.nombre}` : mo.nombre}</span>
                                     {categoria && (
                                       <span
-                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                                          isSelected
-                                            ? 'bg-blue-500/30 text-white'
-                                            : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                                        }`}
+                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${isSelected
+                                          ? 'bg-blue-500/30 text-white'
+                                          : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                          }`}
                                       >
                                         {categoria.nombre}
                                       </span>
                                     )}
                                     {existente ? (
                                       <span
-                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                                          isSelected
-                                            ? 'bg-emerald-500/30 text-emerald-100'
-                                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                        }`}
+                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${isSelected
+                                          ? 'bg-emerald-500/30 text-emerald-100'
+                                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                          }`}
                                       >
                                         En almacén: {existente.stock} un.
                                       </span>
                                     ) : (
                                       <span
-                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                                          isSelected
-                                            ? 'bg-white/20 text-white'
-                                            : 'bg-slate-100 text-slate-600'
-                                        }`}
+                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${isSelected
+                                          ? 'bg-white/20 text-white'
+                                          : 'bg-slate-100 text-slate-600'
+                                          }`}
                                       >
                                         Catálogo Maestro
                                       </span>
@@ -1594,11 +1591,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                             <button
                               type="button"
                               onClick={() => handleOpenSeriesModal(index)}
-                              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold border transition-colors cursor-pointer ${
-                                (item.series?.length || 0) === item.cantidad
-                                  ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                                  : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
-                              }`}
+                              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold border transition-colors cursor-pointer ${(item.series?.length || 0) === item.cantidad
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                }`}
                             >
                               <Barcode className="h-3.5 w-3.5" />
                               {(item.series?.length || 0) === item.cantidad
@@ -1659,11 +1655,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                 type="button"
                 onClick={handleRegisterPurchase}
                 disabled={cartItems.length === 0}
-                className={`mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-black uppercase tracking-wider text-white shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                  modoOperacion === 'SOLICITADO'
-                    ? 'bg-[#00346F] hover:bg-[#004A99] shadow-blue-900/20'
-                    : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
-                }`}
+                className={`mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-black uppercase tracking-wider text-white shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed ${modoOperacion === 'SOLICITADO'
+                  ? 'bg-[#00346F] hover:bg-[#004A99] shadow-blue-900/20'
+                  : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                  }`}
               >
                 {modoOperacion === 'SOLICITADO' ? (
                   <>
@@ -1824,19 +1819,18 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                             </td>
                             <td className="px-5 py-3.5 text-center">
                               <span
-                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                                  isAnulada
-                                    ? 'bg-rose-100 text-rose-700'
-                                    : isSolicitado
+                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold ${isAnulada
+                                  ? 'bg-rose-100 text-rose-700'
+                                  : isSolicitado
                                     ? 'bg-amber-100 text-amber-800 border border-amber-300'
                                     : 'bg-emerald-100 text-emerald-700'
-                                }`}
+                                  }`}
                               >
                                 {isAnulada
                                   ? 'ANULADO'
                                   : isSolicitado
-                                  ? '⏳ PEDIDO SOLICITADO (En Tránsito)'
-                                  : '✅ RECIBIDO EN ALMACÉN'}
+                                    ? '⏳ PEDIDO SOLICITADO (En Tránsito)'
+                                    : '✅ RECIBIDO EN ALMACÉN'}
                               </span>
                             </td>
                             <td className="px-5 py-3.5 text-right">
@@ -1935,11 +1929,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                       <Building2 className="h-5 w-5" />
                     </div>
                     <span
-                      className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                        prov.estado === 'ACTIVO'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
+                      className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ${prov.estado === 'ACTIVO'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-slate-100 text-slate-600'
+                        }`}
                     >
                       {prov.estado}
                     </span>
@@ -2253,11 +2246,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                 <span className="font-black text-slate-800">{activeSeriesItem.cantidad} unidades</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black ${
-                  (activeSeriesItem.series?.length || 0) === activeSeriesItem.cantidad
-                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                    : 'bg-amber-100 text-amber-800 border border-amber-300'
-                }`}>
+                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black ${(activeSeriesItem.series?.length || 0) === activeSeriesItem.cantidad
+                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                  : 'bg-amber-100 text-amber-800 border border-amber-300'
+                  }`}>
                   {activeSeriesItem.series?.length || 0} de {activeSeriesItem.cantidad} ingresadas
                 </span>
               </div>
@@ -2268,22 +2260,20 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsBulkMode(false)}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
-                  !isBulkMode
-                    ? 'bg-[#00346F] text-white border-[#00346F]'
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                }`}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${!isBulkMode
+                  ? 'bg-[#00346F] text-white border-[#00346F]'
+                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
               >
                 Pistoleo / Uno por Uno
               </button>
               <button
                 type="button"
                 onClick={() => setIsBulkMode(true)}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
-                  isBulkMode
-                    ? 'bg-[#00346F] text-white border-[#00346F]'
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                }`}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${isBulkMode
+                  ? 'bg-[#00346F] text-white border-[#00346F]'
+                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
               >
                 Pegar Lote / Múltiples
               </button>

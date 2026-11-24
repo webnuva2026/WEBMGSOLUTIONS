@@ -408,12 +408,25 @@ export async function createCompra(req: AuthenticatedRequest, res: Response): Pr
       }
     }
 
-    const cleanCodigo =
-      codigoComprobante && codigoComprobante.trim()
-        ? codigoComprobante.trim()
-        : isPendingOrder
-        ? `OC-${Date.now().toString().slice(-6)}`
-        : `CMP-${Date.now().toString().slice(-6)}`;
+    let cleanCodigo = codigoComprobante && codigoComprobante.trim() ? codigoComprobante.trim() : '';
+
+    if (!cleanCodigo) {
+      if (isPendingOrder) {
+        const [lastRows] = await connection.query<RowDataPacket[]>(
+          "SELECT codigo FROM compras WHERE codigo LIKE 'OC-%' ORDER BY id DESC LIMIT 1"
+        );
+        let nextNum = 101;
+        if (lastRows.length > 0) {
+          const match = String(lastRows[0].codigo).match(/OC-(\d+)/);
+          if (match) {
+            nextNum = parseInt(match[1], 10) + 1;
+          }
+        }
+        cleanCodigo = `OC-${String(nextNum).padStart(5, '0')}`;
+      } else {
+        cleanCodigo = `CMP-${Date.now().toString().slice(-6)}`;
+      }
+    }
 
     // Calcular total si no viene dado
     const totalCalculado = items.reduce(
