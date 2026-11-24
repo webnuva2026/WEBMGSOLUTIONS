@@ -999,9 +999,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                 </div>
 
                 <div
-                  className={`grid grid-cols-1 gap-4 ${
-                    modoOperacion === 'SOLICITADO' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'
-                  }`}
+                  className={`grid grid-cols-1 gap-4 ${modoOperacion === 'SOLICITADO' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'
+                    }`}
                 >
                   {/* Proveedor */}
                   <div className={modoOperacion === 'SOLICITADO' ? 'sm:col-span-3' : 'sm:col-span-2'}>
@@ -1998,11 +1997,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                 <div className="text-right">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sede Destino</p>
                   <p className="text-sm font-black text-[#00346F]">{selectedCompraDetail.sucursalDestino}</p>
-                  <span className={`mt-1 inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                    selectedCompraDetail.estado === 'SOLICITADO'
+                  <span className={`mt-1 inline-block px-2 py-0.5 rounded text-[10px] font-bold ${selectedCompraDetail.estado === 'SOLICITADO'
                       ? 'bg-amber-100 text-amber-800'
                       : 'bg-emerald-100 text-emerald-800'
-                  }`}>
+                    }`}>
                     {selectedCompraDetail.estado === 'SOLICITADO' ? 'PEDIDO EN TRÁNSITO' : 'RECEPCIONADO EN ALMACÉN'}
                   </span>
                 </div>
@@ -2125,495 +2123,500 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
       )}
 
       {/* --- MODAL CREAR / EDITAR PROVEEDOR --- */}
-      {isProveedorModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
-            <button
-              onClick={() => setIsProveedorModalOpen(false)}
-              className="absolute right-4 top-4 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-            >
-              <X className="h-5 w-5" />
-            </button>
+{
+  isProveedorModalOpen && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+      <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+        <button
+          onClick={() => setIsProveedorModalOpen(false)}
+          className="absolute right-4 top-4 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+        >
+          <X className="h-5 w-5" />
+        </button>
 
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EFF4FF] text-[#00346F]">
-                <Building2 className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-black text-[#0B1C30]">
-                  {editingProveedor ? 'Editar Proveedor' : 'Registrar Nuevo Proveedor'}
-                </h3>
-                <p className="text-xs text-slate-500">Datos fiscales y de contacto mayorista</p>
-              </div>
-            </div>
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EFF4FF] text-[#00346F]">
+            <Building2 className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="text-base font-black text-[#0B1C30]">
+              {editingProveedor ? 'Editar Proveedor' : 'Registrar Nuevo Proveedor'}
+            </h3>
+            <p className="text-xs text-slate-500">Datos fiscales y de contacto mayorista</p>
+          </div>
+        </div>
 
-            <form onSubmit={handleSaveProveedorSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700">RUC (11 dígitos)</label>
-                  <div className="mt-1 flex gap-1.5">
-                    <input
-                      type="text"
-                      maxLength={11}
-                      value={proveedorForm.ruc}
-                      onChange={(e) => setProveedorForm({ ...proveedorForm, ruc: e.target.value.replace(/\D/g, '') })}
-                      placeholder="Ej. 20100154308"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
-                      required
-                    />
-                    <button
-                      type="button"
-                      disabled={isQueryingRuc}
-                      onClick={handleConsultarRucProveedor}
-                      className="shrink-0 rounded-xl bg-[#00346F] px-3 py-2 text-[11px] font-bold text-white hover:bg-[#004A99] disabled:opacity-50"
-                      title="Consultar RUC en SUNAT"
-                    >
-                      {isQueryingRuc ? '...' : 'SUNAT'}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700">Teléfono / WhatsApp</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={9}
-                    value={proveedorForm.telefono}
-                    onChange={(e) => setProveedorForm({ ...proveedorForm, telefono: e.target.value.replace(/\D/g, '').slice(0, 9) })}
-                    placeholder="974812390"
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700">Razón Social</label>
+        <form onSubmit={handleSaveProveedorSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-bold text-slate-700">RUC (11 dígitos)</label>
+              <div className="mt-1 flex gap-1.5">
                 <input
                   type="text"
-                  value={proveedorForm.razonSocial}
-                  onChange={(e) => setProveedorForm({ ...proveedorForm, razonSocial: e.target.value })}
-                  placeholder="Ej. GRUPO DELTRON S.A."
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold uppercase text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
+                  maxLength={11}
+                  value={proveedorForm.ruc}
+                  onChange={(e) => setProveedorForm({ ...proveedorForm, ruc: e.target.value.replace(/\D/g, '') })}
+                  placeholder="Ej. 20100154308"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
                   required
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700">Persona de Contacto / Ejecutivo</label>
-                <input
-                  type="text"
-                  value={proveedorForm.contacto}
-                  onChange={(e) => setProveedorForm({ ...proveedorForm, contacto: e.target.value })}
-                  placeholder="Ej. Carlos Mendoza (Ejecutivo de Ventas)"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700">Correo Electrónico</label>
-                <input
-                  type="email"
-                  value={proveedorForm.email}
-                  onChange={(e) => setProveedorForm({ ...proveedorForm, email: e.target.value })}
-                  placeholder="ventas@proveedor.com.pe"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700">Dirección Fiscal / Almacén</label>
-                <input
-                  type="text"
-                  value={proveedorForm.direccion}
-                  onChange={(e) => setProveedorForm({ ...proveedorForm, direccion: e.target.value })}
-                  placeholder="Ej. Av. Nicolás Arriola 314, La Victoria, Lima"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
                 <button
                   type="button"
-                  onClick={() => setIsProveedorModalOpen(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  disabled={isQueryingRuc}
+                  onClick={handleConsultarRucProveedor}
+                  className="shrink-0 rounded-xl bg-[#00346F] px-3 py-2 text-[11px] font-bold text-white hover:bg-[#004A99] disabled:opacity-50"
+                  title="Consultar RUC en SUNAT"
                 >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-xl bg-[#00346F] px-5 py-2 text-xs font-bold text-white hover:bg-[#004A99]"
-                >
-                  Guardar Proveedor
+                  {isQueryingRuc ? '...' : 'SUNAT'}
                 </button>
               </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700">Teléfono / WhatsApp</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={9}
+                value={proveedorForm.telefono}
+                onChange={(e) => setProveedorForm({ ...proveedorForm, telefono: e.target.value.replace(/\D/g, '').slice(0, 9) })}
+                placeholder="974812390"
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700">Razón Social</label>
+            <input
+              type="text"
+              value={proveedorForm.razonSocial}
+              onChange={(e) => setProveedorForm({ ...proveedorForm, razonSocial: e.target.value })}
+              placeholder="Ej. GRUPO DELTRON S.A."
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold uppercase text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700">Persona de Contacto / Ejecutivo</label>
+            <input
+              type="text"
+              value={proveedorForm.contacto}
+              onChange={(e) => setProveedorForm({ ...proveedorForm, contacto: e.target.value })}
+              placeholder="Ej. Carlos Mendoza (Ejecutivo de Ventas)"
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700">Correo Electrónico</label>
+            <input
+              type="email"
+              value={proveedorForm.email}
+              onChange={(e) => setProveedorForm({ ...proveedorForm, email: e.target.value })}
+              placeholder="ventas@proveedor.com.pe"
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700">Dirección Fiscal / Almacén</label>
+            <input
+              type="text"
+              value={proveedorForm.direccion}
+              onChange={(e) => setProveedorForm({ ...proveedorForm, direccion: e.target.value })}
+              placeholder="Ej. Av. Nicolás Arriola 314, La Victoria, Lima"
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-[#00346F] focus:bg-white"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+            <button
+              type="button"
+              onClick={() => setIsProveedorModalOpen(false)}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="rounded-xl bg-[#00346F] px-5 py-2 text-xs font-bold text-white hover:bg-[#004A99]"
+            >
+              Guardar Proveedor
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+{/* MODAL DE ASIGNACIÓN DE SERIES PARA ALMACÉN */ }
+{
+  seriesModalItemIndex !== null && activeSeriesItem && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="bg-[#00346F] text-white p-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-white">
+              <Barcode className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm">Series Físicas para Almacén</h3>
+              <p className="text-[11px] text-blue-200 truncate max-w-[320px]">
+                {activeSeriesItem.nombre}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSeriesModalItemIndex(null)}
+            className="text-white/70 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Sub-header / Progress */}
+        <div className="bg-blue-50/70 border-b border-blue-100 p-3.5 px-5 flex items-center justify-between text-xs">
+          <div>
+            <span className="font-bold text-[#00346F]">Cantidad requerida: </span>
+            <span className="font-black text-slate-800">{activeSeriesItem.cantidad} unidades</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black ${(activeSeriesItem.series?.length || 0) === activeSeriesItem.cantidad
+              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+              : 'bg-amber-100 text-amber-800 border border-amber-300'
+              }`}>
+              {activeSeriesItem.series?.length || 0} de {activeSeriesItem.cantidad} ingresadas
+            </span>
+          </div>
+        </div>
+
+        {/* Mode switch */}
+        <div className="p-5 pb-0 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setIsBulkMode(false)}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${!isBulkMode
+              ? 'bg-[#00346F] text-white border-[#00346F]'
+              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+              }`}
+          >
+            Pistoleo / Uno por Uno
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsBulkMode(true)}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${isBulkMode
+              ? 'bg-[#00346F] text-white border-[#00346F]'
+              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+              }`}
+          >
+            Pegar Lote / Múltiples
+          </button>
+        </div>
+
+        <div className="p-5 overflow-y-auto space-y-4 flex-1">
+          {!isBulkMode ? (
+            <form onSubmit={handleAddSingleSerie} className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  autoFocus
+                  value={currentInputSerie}
+                  onChange={(e) => setCurrentInputSerie(e.target.value.toUpperCase())}
+                  placeholder="Escanear con pistola o escribir serie..."
+                  className="w-full pl-9 pr-3 py-2 text-xs font-mono font-bold uppercase rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#00346F] outline-none"
+                />
+                <Barcode className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              </div>
+              <button
+                type="submit"
+                disabled={!currentInputSerie.trim() || (activeSeriesItem.series?.length || 0) >= activeSeriesItem.cantidad}
+                className="px-4 py-2 bg-[#00346F] hover:bg-[#004A99] disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Agregar
+              </button>
             </form>
+          ) : (
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-600 block">
+                Pegar series (una por línea o separadas por comas):
+              </label>
+              <textarea
+                rows={4}
+                value={bulkSeriesInput}
+                onChange={(e) => setBulkSeriesInput(e.target.value.toUpperCase())}
+                placeholder={`SN-${activeSeriesItem.marca}-001\nSN-${activeSeriesItem.marca}-002`}
+                className="w-full p-2.5 text-xs font-mono rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#00346F] outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleApplyBulkSeries}
+                className="w-full py-2 bg-[#00346F] hover:bg-[#004A99] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cargar Lista de Series
+              </button>
+            </div>
+          )}
+
+
+
+          {/* Lista de series ingresadas */}
+          <div>
+            <p className="text-xs font-bold text-slate-700 mb-2">
+              Series Registradas ({activeSeriesItem.series?.length || 0}):
+            </p>
+            {(!activeSeriesItem.series || activeSeriesItem.series.length === 0) ? (
+              <div className="py-6 border-2 border-dashed border-slate-200 rounded-xl text-center text-slate-400 text-xs">
+                No se han ingresado números de serie todavía.
+              </div>
+            ) : (
+              <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                {activeSeriesItem.series.map((s, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono"
+                  >
+                    <span className="font-bold text-slate-800">
+                      #{idx + 1}. {s}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSerie(idx)}
+                      className="text-slate-400 hover:text-rose-600 p-0.5 rounded transition-colors cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      )}
-      {/* MODAL DE ASIGNACIÓN DE SERIES PARA ALMACÉN */}
-      {seriesModalItemIndex !== null && activeSeriesItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-            {/* Header */}
-            <div className="bg-[#00346F] text-white p-5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-white">
-                  <Barcode className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm">Series Físicas para Almacén</h3>
-                  <p className="text-[11px] text-blue-200 truncate max-w-[320px]">
-                    {activeSeriesItem.nombre}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSeriesModalItemIndex(null)}
-                className="text-white/70 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+
+        {/* Footer */}
+        <div className="bg-slate-50 p-4 border-t border-slate-200 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setSeriesModalItemIndex(null)}
+            className="px-4 py-2 bg-[#00346F] hover:bg-[#004A99] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+          >
+            Listo / Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+{/* --- MODAL DE RECEPCIÓN FÍSICA Y CONTROL DE CALIDAD EN ALMACÉN --- */ }
+{
+  receivingCompra && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="bg-emerald-700 text-white p-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
+              <Truck className="w-5 h-5" />
             </div>
-
-            {/* Sub-header / Progress */}
-            <div className="bg-blue-50/70 border-b border-blue-100 p-3.5 px-5 flex items-center justify-between text-xs">
-              <div>
-                <span className="font-bold text-[#00346F]">Cantidad requerida: </span>
-                <span className="font-black text-slate-800">{activeSeriesItem.cantidad} unidades</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black ${(activeSeriesItem.series?.length || 0) === activeSeriesItem.cantidad
-                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                  : 'bg-amber-100 text-amber-800 border border-amber-300'
-                  }`}>
-                  {activeSeriesItem.series?.length || 0} de {activeSeriesItem.cantidad} ingresadas
-                </span>
-              </div>
-            </div>
-
-            {/* Mode switch */}
-            <div className="p-5 pb-0 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setIsBulkMode(false)}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${!isBulkMode
-                  ? 'bg-[#00346F] text-white border-[#00346F]'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                  }`}
-              >
-                Pistoleo / Uno por Uno
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsBulkMode(true)}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${isBulkMode
-                  ? 'bg-[#00346F] text-white border-[#00346F]'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                  }`}
-              >
-                Pegar Lote / Múltiples
-              </button>
-            </div>
-
-            <div className="p-5 overflow-y-auto space-y-4 flex-1">
-              {!isBulkMode ? (
-                <form onSubmit={handleAddSingleSerie} className="flex gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      autoFocus
-                      value={currentInputSerie}
-                      onChange={(e) => setCurrentInputSerie(e.target.value.toUpperCase())}
-                      placeholder="Escanear con pistola o escribir serie..."
-                      className="w-full pl-9 pr-3 py-2 text-xs font-mono font-bold uppercase rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#00346F] outline-none"
-                    />
-                    <Barcode className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={!currentInputSerie.trim() || (activeSeriesItem.series?.length || 0) >= activeSeriesItem.cantidad}
-                    className="px-4 py-2 bg-[#00346F] hover:bg-[#004A99] disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Agregar
-                  </button>
-                </form>
-              ) : (
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-600 block">
-                    Pegar series (una por línea o separadas por comas):
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={bulkSeriesInput}
-                    onChange={(e) => setBulkSeriesInput(e.target.value.toUpperCase())}
-                    placeholder={`SN-${activeSeriesItem.marca}-001\nSN-${activeSeriesItem.marca}-002`}
-                    className="w-full p-2.5 text-xs font-mono rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#00346F] outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleApplyBulkSeries}
-                    className="w-full py-2 bg-[#00346F] hover:bg-[#004A99] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    Cargar Lista de Series
-                  </button>
-                </div>
-              )}
-
-
-
-              {/* Lista de series ingresadas */}
-              <div>
-                <p className="text-xs font-bold text-slate-700 mb-2">
-                  Series Registradas ({activeSeriesItem.series?.length || 0}):
-                </p>
-                {(!activeSeriesItem.series || activeSeriesItem.series.length === 0) ? (
-                  <div className="py-6 border-2 border-dashed border-slate-200 rounded-xl text-center text-slate-400 text-xs">
-                    No se han ingresado números de serie todavía.
-                  </div>
-                ) : (
-                  <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
-                    {activeSeriesItem.series.map((s, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono"
-                      >
-                        <span className="font-bold text-slate-800">
-                          #{idx + 1}. {s}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveSerie(idx)}
-                          className="text-slate-400 hover:text-rose-600 p-0.5 rounded transition-colors cursor-pointer"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="bg-slate-50 p-4 border-t border-slate-200 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setSeriesModalItemIndex(null)}
-                className="px-4 py-2 bg-[#00346F] hover:bg-[#004A99] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
-              >
-                Listo / Confirmar
-              </button>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-200">
+                Paso 2: Verificación Física y Alta en Kardex
+              </span>
+              <h3 className="font-black text-base">
+                Recepcionar Pedido en Almacén ({receivingCompra.codigoComprobante})
+              </h3>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setReceivingCompra(null)}
+            className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
-      )}
 
-      {/* --- MODAL DE RECEPCIÓN FÍSICA Y CONTROL DE CALIDAD EN ALMACÉN --- */}
-      {receivingCompra && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh]">
-            <div className="bg-emerald-700 text-white p-5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
-                  <Truck className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-200">
-                    Paso 2: Verificación Física y Alta en Kardex
-                  </span>
-                  <h3 className="font-black text-base">
-                    Recepcionar Pedido en Almacén ({receivingCompra.codigoComprobante})
-                  </h3>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setReceivingCompra(null)}
-                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10"
-              >
-                <X className="w-5 h-5" />
-              </button>
+        <form onSubmit={handleConfirmReception} className="p-5 overflow-y-auto space-y-4 text-xs flex-1">
+          <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3.5 text-emerald-900">
+            <p className="font-bold">
+              Proveedor: {receivingCompra.proveedorRazonSocial} (RUC: {receivingCompra.proveedorRuc})
+            </p>
+            <p className="mt-0.5 text-[11px] text-emerald-700">
+              Sede receptora de stock: <strong>{receivingCompra.sucursalDestino}</strong> • Al confirmar esta recepción se incrementará el stock real para <strong>Ventas POS</strong> y <strong>Taller Técnico</strong>.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                N° Factura / Guía de Remisión del Proveedor *
+              </label>
+              <input
+                type="text"
+                required
+                value={recepcionComprobante}
+                onChange={(e) => setRecepcionComprobante(e.target.value.toUpperCase())}
+                placeholder="Ej. F001-004825"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-mono font-bold uppercase text-slate-800 focus:border-emerald-600 outline-none"
+              />
             </div>
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Conformidad / Observación de Almacén
+              </label>
+              <input
+                type="text"
+                value={recepcionObs}
+                onChange={(e) => setRecepcionObs(e.target.value)}
+                placeholder="Mercadería verificada conforme..."
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-emerald-600 outline-none"
+              />
+            </div>
+          </div>
 
-            <form onSubmit={handleConfirmReception} className="p-5 overflow-y-auto space-y-4 text-xs flex-1">
-              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3.5 text-emerald-900">
-                <p className="font-bold">
-                  Proveedor: {receivingCompra.proveedorRazonSocial} (RUC: {receivingCompra.proveedorRuc})
-                </p>
-                <p className="mt-0.5 text-[11px] text-emerald-700">
-                  Sede receptora de stock: <strong>{receivingCompra.sucursalDestino}</strong> • Al confirmar esta recepción se incrementará el stock real para <strong>Ventas POS</strong> y <strong>Taller Técnico</strong>.
-                </p>
-              </div>
+          <div className="space-y-3">
+            <p className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
+              Productos y Series Físicas por Ingresar al Almacén:
+            </p>
+            {receivingCompra.items.map((it) => {
+              const seriesList = recepcionSeriesMap[it.productoId] || [];
+              const costo = Number(it.precioCostoUnitario || 0);
+              const ventaStr = recepcionPreciosVentaMap[it.productoId] || '';
+              const ventaNum = parseFloat(ventaStr) || 0;
+              const ganancia = ventaNum > costo ? ventaNum - costo : 0;
+              const margenPct = ventaNum > 0 && costo > 0 ? ((ventaNum - costo) / ventaNum) * 100 : 0;
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    N° Factura / Guía de Remisión del Proveedor *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={recepcionComprobante}
-                    onChange={(e) => setRecepcionComprobante(e.target.value.toUpperCase())}
-                    placeholder="Ej. F001-004825"
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-mono font-bold uppercase text-slate-800 focus:border-emerald-600 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Conformidad / Observación de Almacén
-                  </label>
-                  <input
-                    type="text"
-                    value={recepcionObs}
-                    onChange={(e) => setRecepcionObs(e.target.value)}
-                    placeholder="Mercadería verificada conforme..."
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-emerald-600 outline-none"
-                  />
-                </div>
-              </div>
+              return (
+                <div key={it.productoId} className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[10px] text-slate-500 bg-slate-200 px-1.5 py-0.5 rounded">{it.codigo || 'SIN-COD'}</span>
+                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">{it.categoria || 'Equipo'}</span>
+                      </div>
+                      <p className="font-black text-slate-900 text-sm mt-0.5">{it.nombre}</p>
+                      <p className="text-[11px] text-slate-500">
+                        Costo de compra pactado: <strong className="text-slate-800">S/ {costo.toFixed(2)}</strong> c/u
+                      </p>
+                    </div>
+                    <span className="rounded-xl bg-[#00346F] px-3 py-1.5 text-xs font-black text-white shadow-xs">
+                      +{it.cantidad} un.
+                    </span>
+                  </div>
 
-              <div className="space-y-3">
-                <p className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
-                  Productos y Series Físicas por Ingresar al Almacén:
-                </p>
-                {receivingCompra.items.map((it) => {
-                  const seriesList = recepcionSeriesMap[it.productoId] || [];
-                  const costo = Number(it.precioCostoUnitario || 0);
-                  const ventaStr = recepcionPreciosVentaMap[it.productoId] || '';
-                  const ventaNum = parseFloat(ventaStr) || 0;
-                  const ganancia = ventaNum > costo ? ventaNum - costo : 0;
-                  const margenPct = ventaNum > 0 && costo > 0 ? ((ventaNum - costo) / ventaNum) * 100 : 0;
-
-                  return (
-                    <div key={it.productoId} className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-[10px] text-slate-500 bg-slate-200 px-1.5 py-0.5 rounded">{it.codigo || 'SIN-COD'}</span>
-                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">{it.categoria || 'Equipo'}</span>
-                          </div>
-                          <p className="font-black text-slate-900 text-sm mt-0.5">{it.nombre}</p>
-                          <p className="text-[11px] text-slate-500">
-                            Costo de compra pactado: <strong className="text-slate-800">S/ {costo.toFixed(2)}</strong> c/u
-                          </p>
-                        </div>
-                        <span className="rounded-xl bg-[#00346F] px-3 py-1.5 text-xs font-black text-white shadow-xs">
-                          +{it.cantidad} un.
+                  {/* Fijación de Precio de Venta al Público (PVP) */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 bg-white p-3 rounded-xl border border-slate-200">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Precio de Venta Comercial (PVP) (S/) *
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        required
+                        value={ventaStr}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setRecepcionPreciosVentaMap((prev) => ({ ...prev, [it.productoId]: val }));
+                        }}
+                        placeholder="Ej. 3199.00"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-black text-emerald-700 outline-none focus:border-emerald-600"
+                      />
+                    </div>
+                    <div className="flex flex-col justify-center">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">Margen Comercial Estimado</span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={`text-xs font-black ${margenPct > 0 ? 'text-emerald-700' : 'text-slate-500'}`}>
+                          {margenPct > 0 ? `+${margenPct.toFixed(1)}%` : '0.0%'}
                         </span>
-                      </div>
-
-                      {/* Fijación de Precio de Venta al Público (PVP) */}
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 bg-white p-3 rounded-xl border border-slate-200">
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                            Precio de Venta Comercial (PVP) (S/) *
-                          </label>
-                          <input
-                            type="number"
-                            step="any"
-                            min="0"
-                            required
-                            value={ventaStr}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setRecepcionPreciosVentaMap((prev) => ({ ...prev, [it.productoId]: val }));
-                            }}
-                            placeholder="Ej. 3199.00"
-                            className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-black text-emerald-700 outline-none focus:border-emerald-600"
-                          />
-                        </div>
-                        <div className="flex flex-col justify-center">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase">Margen Comercial Estimado</span>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className={`text-xs font-black ${margenPct > 0 ? 'text-emerald-700' : 'text-slate-500'}`}>
-                              {margenPct > 0 ? `+${margenPct.toFixed(1)}%` : '0.0%'}
-                            </span>
-                            {ganancia > 0 && (
-                              <span className="text-[10px] font-semibold text-slate-500">
-                                (Ganancia: S/ {ganancia.toFixed(2)} por unidad)
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Ingreso de Series Físicas obligatorio para todo producto */}
-                      <div className="rounded-xl border border-blue-200 bg-white p-3.5 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-[#00346F] flex items-center gap-1.5 text-xs">
-                            <Barcode className="w-4 h-4 text-blue-600" />
-                            Series Físicas Recibidas ({seriesList.length}/{it.cantidad}):
+                        {ganancia > 0 && (
+                          <span className="text-[10px] font-semibold text-slate-500">
+                            (Ganancia: S/ {ganancia.toFixed(2)} por unidad)
                           </span>
-
-                        </div>
-                        <p className="text-[10px] text-slate-500">
-                          Escanee el código de barras de cada caja o digite las series separadas por salto de línea.
-                        </p>
-                        <textarea
-                          rows={Math.min(4, Math.max(2, it.cantidad))}
-                          value={recepcionBulkTextMap[it.productoId] || ''}
-                          onChange={(e) => {
-                            const raw = e.target.value.toUpperCase();
-                            setRecepcionBulkTextMap((prev) => ({ ...prev, [it.productoId]: raw }));
-                            const parsed = Array.from(
-                              new Set(
-                                raw
-                                  .split(/[\n,;]+/)
-                                  .map((s) => s.trim())
-                                  .filter(Boolean)
-                              )
-                            ).slice(0, it.cantidad);
-                            setRecepcionSeriesMap((prev) => ({ ...prev, [it.productoId]: parsed }));
-                          }}
-                          placeholder={`Escanee o ingrese las ${it.cantidad} series físicas aquí...`}
-                          className="w-full rounded-lg border border-slate-300 p-2 font-mono text-xs text-slate-800 outline-none focus:border-blue-600"
-                        />
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className={seriesList.length >= it.cantidad ? 'font-bold text-emerald-600' : 'font-bold text-amber-600'}>
-                            {seriesList.length >= it.cantidad
-                              ? '✔ Todas las series requeridas han sido ingresadas'
-                              : `Faltan ${it.cantidad - seriesList.length} series por ingresar`}
-                          </span>
-                          <span className="text-slate-400">Total a ingresar: {it.cantidad}</span>
-                        </div>
+                        )}
                       </div>
                     </div>
-                  );
-                })}</div>
+                  </div>
 
-              <div className="flex items-center justify-end gap-2 border-t border-slate-200 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setReceivingCompra(null)}
-                  className="rounded-xl border border-slate-300 px-4 py-2.5 font-bold text-slate-600 hover:bg-slate-100"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingRecepcion}
-                  className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 font-black text-white shadow-md hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  {isSubmittingRecepcion ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Ingresando a Stock...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      Confirmar Recepción e Incrementar Stock
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
+                  {/* Ingreso de Series Físicas obligatorio para todo producto */}
+                  <div className="rounded-xl border border-blue-200 bg-white p-3.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-[#00346F] flex items-center gap-1.5 text-xs">
+                        <Barcode className="w-4 h-4 text-blue-600" />
+                        Series Físicas Recibidas ({seriesList.length}/{it.cantidad}):
+                      </span>
+
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Escanee el código de barras de cada caja o digite las series separadas por salto de línea.
+                    </p>
+                    <textarea
+                      rows={Math.min(4, Math.max(2, it.cantidad))}
+                      value={recepcionBulkTextMap[it.productoId] || ''}
+                      onChange={(e) => {
+                        const raw = e.target.value.toUpperCase();
+                        setRecepcionBulkTextMap((prev) => ({ ...prev, [it.productoId]: raw }));
+                        const parsed = Array.from(
+                          new Set(
+                            raw
+                              .split(/[\n,;]+/)
+                              .map((s) => s.trim())
+                              .filter(Boolean)
+                          )
+                        ).slice(0, it.cantidad);
+                        setRecepcionSeriesMap((prev) => ({ ...prev, [it.productoId]: parsed }));
+                      }}
+                      placeholder={`Escanee o ingrese las ${it.cantidad} series físicas aquí...`}
+                      className="w-full rounded-lg border border-slate-300 p-2 font-mono text-xs text-slate-800 outline-none focus:border-blue-600"
+                    />
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className={seriesList.length >= it.cantidad ? 'font-bold text-emerald-600' : 'font-bold text-amber-600'}>
+                        {seriesList.length >= it.cantidad
+                          ? '✔ Todas las series requeridas han sido ingresadas'
+                          : `Faltan ${it.cantidad - seriesList.length} series por ingresar`}
+                      </span>
+                      <span className="text-slate-400">Total a ingresar: {it.cantidad}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}</div>
+
+          <div className="flex items-center justify-end gap-2 border-t border-slate-200 pt-4">
+            <button
+              type="button"
+              onClick={() => setReceivingCompra(null)}
+              className="rounded-xl border border-slate-300 px-4 py-2.5 font-bold text-slate-600 hover:bg-slate-100"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmittingRecepcion}
+              className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 font-black text-white shadow-md hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {isSubmittingRecepcion ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Ingresando a Stock...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  Confirmar Recepción e Incrementar Stock
+                </>
+              )}
+            </button>
           </div>
-        </div>
-      )}
+        </form>
+      </div>
+    </div>
+  )}
     </div>
   );
 };
