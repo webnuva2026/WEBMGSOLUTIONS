@@ -1969,98 +1969,153 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
 
       {/* --- MODAL DETALLE / IMPRESIÓN DE COMPRA --- */}
       {isDetailModalOpen && selectedCompraDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="relative w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs print:static print:p-0 print:bg-white print:backdrop-blur-none">
+          <div className="relative w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl print:shadow-none print:p-0 print:max-w-none print:w-full print:border-none">
             <button
               onClick={() => setIsDetailModalOpen(false)}
-              className="absolute right-4 top-4 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              className="absolute right-4 top-4 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 no-print cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
 
             {/* Printable Area */}
-            <div id="print-compra-area">
-              <div className="flex items-start justify-between border-b border-slate-200 pb-4">
+            <div id="print-compra-area" className="printable-a4 font-sans text-slate-900">
+              <div className="flex items-start justify-between border-b-2 border-slate-300 pb-4">
                 <div>
-                  <span className="inline-block rounded-md bg-[#00346F] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white">
-                    MG Solutions - Nota de Ingreso a Almacén
-                  </span>
-                  <h3 className="mt-1 text-xl font-black text-[#0B1C30]">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block rounded-md bg-[#00346F] px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-white">
+                      MG SOLUTIONS ERP
+                    </span>
+                    <span className="text-xs font-bold text-slate-500">
+                      • {selectedCompraDetail.tipoComprobante === 'ORDEN_COMPRA' || selectedCompraDetail.estado === 'SOLICITADO' ? 'Orden de Compra Oficial' : 'Comprobante de Recepción'}
+                    </span>
+                  </div>
+                  <h3 className="mt-2 text-2xl font-black text-[#0B1C30]">
                     {selectedCompraDetail.tipoComprobante}: {selectedCompraDetail.codigoComprobante}
                   </h3>
-                  <p className="text-xs text-slate-500">Fecha de registro: {selectedCompraDetail.fecha}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Fecha de emisión: {selectedCompraDetail.fecha}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-bold text-slate-700">Sede Destino:</p>
-                  <p className="text-xs font-black text-[#00346F]">{selectedCompraDetail.sucursalDestino}</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sede Destino</p>
+                  <p className="text-sm font-black text-[#00346F]">{selectedCompraDetail.sucursalDestino}</p>
+                  <span className={`mt-1 inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                    selectedCompraDetail.estado === 'SOLICITADO'
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-emerald-100 text-emerald-800'
+                  }`}>
+                    {selectedCompraDetail.estado === 'SOLICITADO' ? 'PEDIDO EN TRÁNSITO' : 'RECEPCIONADO EN ALMACÉN'}
+                  </span>
                 </div>
               </div>
 
               {/* Proveedor Info */}
-              <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs">
-                <p className="font-bold text-slate-800">Proveedor: {selectedCompraDetail.proveedorRazonSocial}</p>
-                <p className="text-slate-600">RUC: {selectedCompraDetail.proveedorRuc}</p>
-                <p className="text-slate-500">Registrado por: {selectedCompraDetail.compradorNombre}</p>
+              <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4 text-xs border border-slate-200">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Datos del Proveedor</p>
+                  <p className="font-black text-slate-800 text-sm mt-0.5">{selectedCompraDetail.proveedorRazonSocial}</p>
+                  <p className="text-slate-600 font-mono mt-0.5"><span className="font-bold">RUC:</span> {selectedCompraDetail.proveedorRuc}</p>
+                  {selectedCompraDetail.proveedorEmail && (
+                    <p className="text-slate-600 mt-0.5"><span className="font-bold">Email:</span> {selectedCompraDetail.proveedorEmail}</p>
+                  )}
+                  {selectedCompraDetail.proveedorTelefono && (
+                    <p className="text-slate-600 mt-0.5"><span className="font-bold">Tel:</span> {selectedCompraDetail.proveedorTelefono}</p>
+                  )}
+                </div>
+                <div className="text-right border-l border-slate-200 pl-3">
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Emisor Responsable</p>
+                  <p className="font-bold text-slate-800 mt-0.5">{selectedCompraDetail.compradorNombre}</p>
+                  <p className="text-slate-500 text-[11px] mt-0.5">Área de Logística & Abastecimiento</p>
+                  <p className="text-slate-400 text-[10px] mt-2">MG Solutions Group • Sistema ERP</p>
+                </div>
               </div>
 
               {/* Items Table */}
               <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100 font-bold uppercase text-slate-600">
+                  <thead className="bg-slate-100 font-bold uppercase text-slate-600 border-b border-slate-200">
                     <tr>
-                      <th className="px-3 py-2">Código</th>
-                      <th className="px-3 py-2">Descripción del Producto</th>
-                      <th className="px-3 py-2 text-center">Cant.</th>
-                      <th className="px-3 py-2 text-right">Costo Unit.</th>
-                      <th className="px-3 py-2 text-right">Subtotal</th>
+                      <th className="px-3 py-2.5">Código</th>
+                      <th className="px-3 py-2.5">Descripción del Producto</th>
+                      <th className="px-3 py-2.5 text-center">Cant.</th>
+                      <th className="px-3 py-2.5 text-right">Costo Unit.</th>
+                      <th className="px-3 py-2.5 text-right">Subtotal</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {selectedCompraDetail.items.map((item, i) => (
-                      <tr key={i}>
-                        <td className="px-3 py-2 font-mono text-slate-500">{item.codigo}</td>
-                        <td className="px-3 py-2 font-semibold text-slate-800">{item.nombre}</td>
-                        <td className="px-3 py-2 text-center font-bold">{item.cantidad}</td>
-                        <td className="px-3 py-2 text-right">S/ {item.precioCostoUnitario.toFixed(2)}</td>
-                        <td className="px-3 py-2 text-right font-black text-[#00346F]">S/ {item.subtotal.toFixed(2)}</td>
+                      <tr key={i} className="hover:bg-slate-50/50">
+                        <td className="px-3 py-2.5 font-mono text-slate-500">{item.codigo}</td>
+                        <td className="px-3 py-2.5 font-semibold text-slate-800">{item.nombre}</td>
+                        <td className="px-3 py-2.5 text-center font-bold text-slate-900">{item.cantidad}</td>
+                        <td className="px-3 py-2.5 text-right font-mono">S/ {item.precioCostoUnitario.toFixed(2)}</td>
+                        <td className="px-3 py-2.5 text-right font-mono font-black text-[#00346F]">S/ {item.subtotal.toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
 
-              {/* Financial Total */}
-              <div className="mt-4 flex justify-between items-center text-xs">
-                <div>
-                  {selectedCompraDetail.observaciones && (
-                    <p className="text-slate-500 italic max-w-sm">
-                      Nota: {selectedCompraDetail.observaciones}
-                    </p>
+              {/* Financial Totals */}
+              <div className="mt-4 flex justify-between items-start text-xs">
+                <div className="max-w-xs space-y-1">
+                  {selectedCompraDetail.observaciones ? (
+                    <div className="rounded-lg bg-amber-50/70 border border-amber-200 p-2.5">
+                      <p className="text-[10px] font-bold uppercase text-amber-800">Observaciones / Instrucciones:</p>
+                      <p className="text-slate-700 italic text-xs mt-0.5">{selectedCompraDetail.observaciones}</p>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 italic">Sin observaciones registradas para esta orden.</p>
                   )}
                 </div>
-                <div className="rounded-xl bg-[#EFF4FF] p-3 text-right">
-                  <span className="block text-[11px] font-bold text-slate-600">Total Ingreso:</span>
-                  <span className="text-xl font-black text-[#00346F]">
-                    S/ {selectedCompraDetail.total.toFixed(2)}
-                  </span>
+                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3.5 min-w-[220px] space-y-1.5 text-right">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Op. Gravada (Subtotal):</span>
+                    <span className="font-mono font-semibold">
+                      S/ {(selectedCompraDetail.subtotal || selectedCompraDetail.total / 1.18).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>I.G.V. (18%):</span>
+                    <span className="font-mono font-semibold">
+                      S/ {(selectedCompraDetail.igv || (selectedCompraDetail.total - selectedCompraDetail.total / 1.18)).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-300 pt-1.5 text-sm font-black text-[#00346F]">
+                    <span>Total Pactado:</span>
+                    <span className="font-mono text-base">S/ {selectedCompraDetail.total.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Firmas para versión impresa */}
+              <div className="hidden print:grid grid-cols-2 gap-12 mt-12 pt-8 text-center text-xs">
+                <div className="border-t border-slate-400 pt-2">
+                  <p className="font-bold text-slate-800">Emisor / Autorizado por</p>
+                  <p className="text-[11px] text-slate-600">{selectedCompraDetail.compradorNombre}</p>
+                  <p className="text-[10px] text-slate-400">Área de Abastecimiento & Compras</p>
+                </div>
+                <div className="border-t border-slate-400 pt-2">
+                  <p className="font-bold text-slate-800">Recepción Conforme / Almacén</p>
+                  <p className="text-[11px] text-slate-600">{selectedCompraDetail.sucursalDestino}</p>
+                  <p className="text-[10px] text-slate-400">Firma, Sello y Fecha de Ingreso</p>
                 </div>
               </div>
             </div>
 
             {/* Modal Actions */}
-            <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+            <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-100 pt-4 no-print">
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="flex items-center gap-2 rounded-xl bg-[#00346F] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#004A99]"
+                className="flex items-center gap-2 rounded-xl bg-[#00346F] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#004A99] shadow-xs cursor-pointer"
               >
                 <Printer className="h-4 w-4" />
-                Imprimir Comprobante
+                Imprimir Comprobante (PDF / Papel)
               </button>
               <button
                 type="button"
                 onClick={() => setIsDetailModalOpen(false)}
-                className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 cursor-pointer"
               >
                 Cerrar
               </button>

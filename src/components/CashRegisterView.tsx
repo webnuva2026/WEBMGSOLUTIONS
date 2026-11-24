@@ -444,7 +444,7 @@ export const CashRegisterView: React.FC<CashRegisterViewProps> = ({
             </div>
 
             {/* Current Shift Table */}
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+            <div className="printable-a4 rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
               <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/70 px-5 py-4">
                 <div>
                   <h2 className="text-sm font-bold text-[#0B1C30]">Movimientos del Turno Vigente</h2>
@@ -455,7 +455,7 @@ export const CashRegisterView: React.FC<CashRegisterViewProps> = ({
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  className="no-print flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
                 >
                   <Printer className="h-3.5 w-3.5" />
                   Imprimir Arqueo Rápido

@@ -203,7 +203,7 @@ export const WarrantyIntakeModal: React.FC<WarrantyIntakeModalProps> = ({
           {actaRecepcion ? (
             /* VISTA DE ACTA DE RECEPCIÓN OFICIAL EMITIDA */
             <div className="space-y-4 animate-in fade-in duration-200">
-              <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-between">
+              <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-between no-print">
                 <div className="flex items-center gap-2.5">
                   <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
                   <div>
@@ -221,7 +221,7 @@ export const WarrantyIntakeModal: React.FC<WarrantyIntakeModalProps> = ({
               </div>
 
               {/* Ficha Formal Imprimible del Acta */}
-              <div className="p-5 bg-white border border-slate-300 rounded-xl shadow-xs space-y-3 font-mono text-[11px] text-slate-800">
+              <div className="printable-content p-5 bg-white border border-slate-300 rounded-xl shadow-xs space-y-3 font-mono text-[11px] text-slate-800">
                 <div className="text-center pb-2 border-b border-dashed border-slate-300">
                   <p className="font-black text-sm text-[#00346F]">MG SOLUTIONS GROUP • CONSTANCIA DE INGRESO RMA</p>
                   <p className="text-[10px] text-slate-500">Servicio Técnico Autorizado • Chiclayo, Lambayeque</p>
@@ -258,7 +258,7 @@ export const WarrantyIntakeModal: React.FC<WarrantyIntakeModalProps> = ({
               </div>
 
               {/* Botones de Acción */}
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 no-print">
                 <button
                   type="button"
                   onClick={() => window.print()}

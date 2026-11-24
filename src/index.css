@@ -27,16 +27,40 @@
 }
 
 @media print {
+  @page {
+    margin: 10mm;
+    size: auto;
+  }
+
+  html, body, #root {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Ocultar toda la interfaz visual de la app */
   body * {
     visibility: hidden;
   }
+
+  /* Mostrar exclusivamente los contenedores imprimibles y sus hijos */
   .printable-content,
-  .printable-content * {
+  .printable-content *,
+  .printable-a4,
+  .printable-a4 *,
+  #print-compra-area,
+  #print-compra-area * {
     visibility: visible !important;
   }
+
+  /* Formato ticket térmico (POS / Taller) */
   .printable-content {
     position: absolute !important;
     left: 0 !important;
+    right: 0 !important;
     top: 0 !important;
     width: 100% !important;
     max-width: 480px !important;
@@ -44,9 +68,38 @@
     padding: 10px !important;
     box-shadow: none !important;
     border: 1px dashed #000 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
   }
-  .no-print {
+
+  /* Formato A4 / Documento formal (Órdenes de Compra / Guías / Facturas) */
+  .printable-a4,
+  #print-compra-area {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 16px !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Evitar saltos de página huérfanos dentro de tablas o cabeceras */
+  table, tr, td, th {
+    page-break-inside: avoid !important;
+  }
+
+  /* Elementos excluidos de la impresión */
+  .no-print,
+  .no-print * {
     display: none !important;
+    visibility: hidden !important;
   }
 }
 
