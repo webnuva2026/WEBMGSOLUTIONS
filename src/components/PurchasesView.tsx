@@ -603,6 +603,158 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
     setObservaciones('');
   };
 
+  // --- IMPRESIÓN DIRECTA Y AISLADA DE ORDEN DE COMPRA (100% SIN HOJAS EN BLANCO) ---
+  const handlePrintCompraDocument = (compra: Compra) => {
+    const printWindow = window.open('', '_blank', 'width=850,height=800');
+    if (!printWindow) {
+      window.print();
+      return;
+    }
+
+    const itemsRows = compra.items
+      .map(
+        (it) => `
+        <tr>
+          <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-family: monospace;">${it.codigo}</td>
+          <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${it.nombre}</td>
+          <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: center; font-weight: bold;">${it.cantidad}</td>
+          <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-family: monospace;">S/ ${Number(it.precioCostoUnitario).toFixed(2)}</td>
+          <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-family: monospace; font-weight: bold; color: #00346f;">S/ ${Number(it.subtotal).toFixed(2)}</td>
+        </tr>
+      `
+      )
+      .join('');
+
+    const subtotal = compra.subtotal || compra.total / 1.18;
+    const igv = compra.igv || (compra.total - subtotal);
+    const isOrden = compra.tipoComprobante === 'ORDEN_COMPRA' || compra.estado === 'SOLICITADO';
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8"/>
+          <title>${isOrden ? 'Orden de Compra' : 'Comprobante de Recepción'} - ${compra.codigoComprobante}</title>
+          <style>
+            @page { size: A4; margin: 15mm; }
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #0f172a; background: #ffffff; padding: 24px; font-size: 12px; }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #00346f; padding-bottom: 14px; }
+            .badge { background: #00346f; color: #ffffff; padding: 3px 8px; font-size: 10px; font-weight: 800; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+            .title { font-size: 20px; font-weight: 900; color: #0b1c30; margin-top: 6px; }
+            .subtitle { font-size: 11px; color: #64748b; margin-top: 2px; }
+            .branch-info { text-align: right; }
+            .branch-name { font-size: 14px; font-weight: 900; color: #00346f; }
+            .status-badge { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; background: #fef3c7; color: #92400e; }
+            .vendor-card { margin-top: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; }
+            .vendor-col { font-size: 11px; line-height: 1.5; }
+            .vendor-title { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #94a3b8; }
+            .vendor-name { font-size: 13px; font-weight: 800; color: #1e293b; margin: 2px 0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 11.5px; }
+            th { background: #f1f5f9; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 10px; padding: 8px 10px; text-align: left; border-bottom: 2px solid #cbd5e1; }
+            .totals-container { margin-top: 16px; display: flex; justify-content: space-between; align-items: flex-start; }
+            .obs-box { max-width: 55%; font-size: 11px; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; }
+            .totals-box { width: 240px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 12px; }
+            .totals-row { display: flex; justify-content: space-between; margin-bottom: 4px; color: #475569; }
+            .totals-total { display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 2px solid #cbd5e1; font-size: 14px; font-weight: 900; color: #00346f; }
+            .signatures { margin-top: 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; text-align: center; font-size: 11px; }
+            .sign-line { border-top: 1px solid #94a3b8; padding-top: 6px; }
+            .sign-title { font-weight: bold; color: #1e293b; }
+            .sign-sub { font-size: 10px; color: #64748b; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <span class="badge">MG SOLUTIONS ERP</span>
+              <div class="title">${isOrden ? 'ORDEN DE COMPRA A PROVEEDOR' : 'COMPROBANTE DE RECEPCIÓN'}</div>
+              <div class="subtitle">Código Oficial: <strong>${compra.codigoComprobante}</strong> • Fecha: ${compra.fecha}</div>
+            </div>
+            <div class="branch-info">
+              <div style="font-size: 10px; font-weight: bold; color: #94a3b8; text-transform: uppercase;">Sede Destino</div>
+              <div class="branch-name">${compra.sucursalDestino}</div>
+              <div class="status-badge">${compra.estado === 'SOLICITADO' ? 'PEDIDO EN TRÁNSITO' : 'RECEPCIONADO'}</div>
+            </div>
+          </div>
+
+          <div class="vendor-card">
+            <div class="vendor-col">
+              <div class="vendor-title">Datos del Proveedor</div>
+              <div class="vendor-name">${compra.proveedorRazonSocial}</div>
+              <div><strong>RUC:</strong> ${compra.proveedorRuc}</div>
+              ${compra.proveedorEmail ? `<div><strong>Email:</strong> ${compra.proveedorEmail}</div>` : ''}
+              ${compra.proveedorTelefono ? `<div><strong>Teléfono:</strong> ${compra.proveedorTelefono}</div>` : ''}
+            </div>
+            <div class="vendor-col" style="text-align: right;">
+              <div class="vendor-title">Emisor Responsable</div>
+              <div class="vendor-name">${compra.compradorNombre}</div>
+              <div style="color: #64748b;">Área de Logística y Abastecimiento</div>
+              <div style="color: #94a3b8; font-size: 10px; margin-top: 4px;">MG Solutions Group • ERP Interno</div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 15%;">Código</th>
+                <th style="width: 45%;">Descripción del Producto</th>
+                <th style="width: 10%; text-align: center;">Cant.</th>
+                <th style="width: 15%; text-align: right;">Costo Unit.</th>
+                <th style="width: 15%; text-align: right;">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsRows}
+            </tbody>
+          </table>
+
+          <div class="totals-container">
+            <div class="obs-box">
+              <strong>Observaciones:</strong>
+              <p style="margin-top: 4px; font-style: italic;">${compra.observaciones || 'Sin observaciones registradas.'}</p>
+            </div>
+            <div class="totals-box">
+              <div class="totals-row">
+                <span>Op. Gravada:</span>
+                <span style="font-family: monospace;">S/ ${subtotal.toFixed(2)}</span>
+              </div>
+              <div class="totals-row">
+                <span>I.G.V. (18%):</span>
+                <span style="font-family: monospace;">S/ ${igv.toFixed(2)}</span>
+              </div>
+              <div class="totals-total">
+                <span>TOTAL PACTADO:</span>
+                <span style="font-family: monospace;">S/ ${compra.total.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="signatures">
+            <div class="sign-line">
+              <div class="sign-title">Emisor / Autorizado por</div>
+              <div class="sign-sub">${compra.compradorNombre}</div>
+            </div>
+            <div class="sign-line">
+              <div class="sign-title">Recepción Conforme / Almacén</div>
+              <div class="sign-sub">${compra.sucursalDestino}</div>
+            </div>
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.focus();
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
   // --- RECEPCIÓN FÍSICA EN ALMACÉN DE UN PEDIDO EN TRÁNSITO ---
   const handleOpenReceptionModal = (compra: Compra) => {
     setReceivingCompra(compra);
@@ -2104,7 +2256,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
             <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-100 pt-4 no-print">
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => handlePrintCompraDocument(selectedCompraDetail)}
                 className="flex items-center gap-2 rounded-xl bg-[#00346F] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#004A99] shadow-xs cursor-pointer"
               >
                 <Printer className="h-4 w-4" />
