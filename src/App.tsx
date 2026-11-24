@@ -156,8 +156,8 @@ export function App() {
       currentUser && !isAdminUser && currentUser.sucursalId
         ? currentUser.sucursalId
         : sedeFilter !== undefined
-        ? sedeFilter
-        : selectedSedeId;
+          ? sedeFilter
+          : selectedSedeId;
 
     clientService.getClients({ limit: 100 }).then((res) => {
       if (res.success && res.data) {
@@ -592,10 +592,10 @@ export function App() {
       user.rol === 'TECNICO'
         ? 'taller'
         : user.rol === 'SECRETARIA'
-        ? 'panel-recepcion'
-        : user.rol === 'ALMACEN'
-        ? 'panel-almacen'
-        : 'ventas';
+          ? 'panel-recepcion'
+          : user.rol === 'ALMACEN'
+            ? 'panel-almacen'
+            : 'ventas';
     const normalized = normalizeModuleIds(user.modulosPermitidos);
     const fallbackView = normalized[0] === 'compras' ? 'panel-almacen' : normalized[0] || 'ventas';
     setActiveView(isAdminUser || hasModuleAccess(user.modulosPermitidos, preferredView) ? preferredView : fallbackView);
@@ -614,10 +614,10 @@ export function App() {
         rol === 'TECNICO'
           ? 'taller'
           : rol === 'SECRETARIA'
-          ? 'panel-recepcion'
-          : rol === 'ALMACEN'
-          ? 'panel-almacen'
-          : 'ventas';
+            ? 'panel-recepcion'
+            : rol === 'ALMACEN'
+              ? 'panel-almacen'
+              : 'ventas';
       const isAdminUser = rol === 'ADMIN' || rol === 'SUPERADMIN';
       const normalized = normalizeModuleIds(updatedUser.modulosPermitidos);
       const fallbackView = normalized[0] === 'compras' ? 'panel-almacen' : normalized[0] || 'ventas';
@@ -821,21 +821,21 @@ export function App() {
     const isExisting = proveedores.some((p) => p.id === prov.id);
     const res = isExisting
       ? await purchaseService.updateProveedor(prov.id, {
-          ruc: prov.ruc,
-          razonSocial: prov.razonSocial,
-          contacto: prov.contacto,
-          telefono: prov.telefono,
-          email: prov.email,
-          direccion: prov.direccion,
-        })
+        ruc: prov.ruc,
+        razonSocial: prov.razonSocial,
+        contacto: prov.contacto,
+        telefono: prov.telefono,
+        email: prov.email,
+        direccion: prov.direccion,
+      })
       : await purchaseService.createProveedor({
-          ruc: prov.ruc,
-          razonSocial: prov.razonSocial,
-          contacto: prov.contacto,
-          telefono: prov.telefono,
-          email: prov.email,
-          direccion: prov.direccion,
-        });
+        ruc: prov.ruc,
+        razonSocial: prov.razonSocial,
+        contacto: prov.contacto,
+        telefono: prov.telefono,
+        email: prov.email,
+        direccion: prov.direccion,
+      });
     setActionLoading(false);
 
     if (res.success) {
@@ -1277,51 +1277,51 @@ export function App() {
             (currentUser.rol === 'SUPERADMIN' ||
               currentUser.rol === 'ADMIN' ||
               hasModuleAccess(currentUser.modulosPermitidos, 'sucursales')) && (
-            <CompanySettingsView
-              empresa={empresa}
-              sucursales={sucursales}
-              onSaveEmpresa={(updated) => setEmpresa(updated)}
-              onSaveSucursal={(suc) =>
-                setSucursales((prev) => {
-                  const exists = prev.find((s) => s.id === suc.id);
-                  const next = exists ? prev.map((s) => (s.id === suc.id ? suc : s)) : [...prev, suc];
-                  if (suc.esPrincipal) {
-                    return next.map((s) => (s.id === suc.id ? s : { ...s, esPrincipal: false }));
-                  }
-                  return next;
-                })
-              }
-              onToggleSucursalEstado={(id) =>
-                setSucursales((prev) => {
-                  const updated = prev.map((s) =>
-                    s.id === id ? { ...s, estado: (s.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO') as any } : s
-                  );
-                  if (selectedSedeId === id) {
-                    const target = updated.find((s) => s.id === id);
-                    if (target?.estado === 'INACTIVO') {
-                      handleSelectSede(null);
+              <CompanySettingsView
+                empresa={empresa}
+                sucursales={sucursales}
+                onSaveEmpresa={(updated) => setEmpresa(updated)}
+                onSaveSucursal={(suc) =>
+                  setSucursales((prev) => {
+                    const exists = prev.find((s) => s.id === suc.id);
+                    const next = exists ? prev.map((s) => (s.id === suc.id ? suc : s)) : [...prev, suc];
+                    if (suc.esPrincipal) {
+                      return next.map((s) => (s.id === suc.id ? s : { ...s, esPrincipal: false }));
                     }
-                  }
-                  return updated;
-                })
-              }
-              onShowToast={showToast}
-              setActiveView={setActiveView}
-            />
-          )}
+                    return next;
+                  })
+                }
+                onToggleSucursalEstado={(id) =>
+                  setSucursales((prev) => {
+                    const updated = prev.map((s) =>
+                      s.id === id ? { ...s, estado: (s.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO') as any } : s
+                    );
+                    if (selectedSedeId === id) {
+                      const target = updated.find((s) => s.id === id);
+                      if (target?.estado === 'INACTIVO') {
+                        handleSelectSede(null);
+                      }
+                    }
+                    return updated;
+                  })
+                }
+                onShowToast={showToast}
+                setActiveView={setActiveView}
+              />
+            )}
 
           {activeView === 'usuarios' &&
             (currentUser.rol === 'SUPERADMIN' ||
               currentUser.rol === 'ADMIN' ||
               hasModuleAccess(currentUser.modulosPermitidos, 'usuarios')) && (
-            <UsersManagementView
-              usuarios={usuarios}
-              sucursales={sucursalesActivas}
-              onSaveUsuario={handleSaveUsuario}
-              onToggleUsuarioEstado={handleToggleUsuarioStatus}
-              onShowToast={showToast}
-            />
-          )}
+              <UsersManagementView
+                usuarios={usuarios}
+                sucursales={sucursalesActivas}
+                onSaveUsuario={handleSaveUsuario}
+                onToggleUsuarioEstado={handleToggleUsuarioStatus}
+                onShowToast={showToast}
+              />
+            )}
 
           {activeView === 'clientes' && (
             <ClientsManagementView

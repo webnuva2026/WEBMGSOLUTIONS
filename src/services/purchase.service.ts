@@ -103,6 +103,7 @@ export const purchaseService = {
   async createCompra(payload: {
     codigoComprobante?: string;
     proveedorId: number;
+    proveedorRuc?: string;
     sucursalDestino: string | number;
     compradorId?: number;
     modoIngreso?: 'SOLICITADO' | 'RECEPCION_DIRECTA';

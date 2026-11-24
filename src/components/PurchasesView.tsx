@@ -59,7 +59,7 @@ interface PurchasesViewProps {
   proveedores: Proveedor[];
   productos: Producto[];
   sucursales: Sucursal[];
-  onSaveCompra: (compra: Compra) => void;
+  onSaveCompra: (compra: Compra) => Promise<any> | any;
   onAnularCompra: (compraId: number) => void;
   onSaveProveedor: (proveedor: Proveedor) => void;
   onToggleProveedorEstado: (id: number) => void;
@@ -102,6 +102,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
   const [recepcionSeriesMap, setRecepcionSeriesMap] = useState<Record<number, string[]>>({});
   const [recepcionBulkTextMap, setRecepcionBulkTextMap] = useState<Record<number, string>>({});
   const [isSubmittingRecepcion, setIsSubmittingRecepcion] = useState(false);
+  const [isSubmittingCompra, setIsSubmittingCompra] = useState(false);
   const [sendingOrderEmailId, setSendingOrderEmailId] = useState<number | null>(null);
   const [isQueryingRuc, setIsQueryingRuc] = useState(false);
 
@@ -591,16 +592,32 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
       observaciones: observaciones.trim() || undefined,
     };
 
-    onSaveCompra(newCompra);
+    setIsSubmittingCompra(true);
+    let saveResult: any;
+    try {
+      saveResult = await onSaveCompra(newCompra);
+    } catch (err: any) {
+      console.error('Error al guardar compra:', err);
+    } finally {
+      setIsSubmittingCompra(false);
+    }
 
-    // Open detail modal to review / print
-    setSelectedCompraDetail(newCompra);
-    setIsDetailModalOpen(true);
+    if (saveResult && saveResult.success !== false) {
+      const confirmedCompra: Compra = {
+        ...newCompra,
+        codigoComprobante: saveResult.codigoComprobante || newCompra.codigoComprobante,
+        id: saveResult.compraId || newCompra.id,
+      };
 
-    // Reset form
-    setCartItems([]);
-    setSerieNumero('');
-    setObservaciones('');
+      // Open detail modal to review / print
+      setSelectedCompraDetail(confirmedCompra);
+      setIsDetailModalOpen(true);
+
+      // Reset form
+      setCartItems([]);
+      setSerieNumero('');
+      setObservaciones('');
+    }
   };
 
   // --- IMPRESIÓN DIRECTA Y AISLADA DE ORDEN DE COMPRA (100% SIN HOJAS EN BLANCO) ---
@@ -1787,13 +1804,18 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
               <button
                 type="button"
                 onClick={handleRegisterPurchase}
-                disabled={cartItems.length === 0}
+                disabled={cartItems.length === 0 || isSubmittingCompra}
                 className={`mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-black uppercase tracking-wider text-white shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed ${modoOperacion === 'SOLICITADO'
                   ? 'bg-[#00346F] hover:bg-[#004A99] shadow-blue-900/20'
                   : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
                   }`}
               >
-                {modoOperacion === 'SOLICITADO' ? (
+                {isSubmittingCompra ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Guardando pedido en base de datos...</span>
+                  </>
+                ) : modoOperacion === 'SOLICITADO' ? (
                   <>
                     <Truck className="h-4 w-4" />
                     Emitir Orden de Pedido al Proveedor (En Tránsito)

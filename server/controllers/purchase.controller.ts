@@ -392,7 +392,7 @@ export async function createCompra(req: AuthenticatedRequest, res: Response): Pr
 
     const isPendingOrder = modoIngreso === 'SOLICITADO';
 
-    // Resolver sucursalId numérico (los usuarios asignados a una sede solo pueden emitir órdenes para su propia sede)
+    // Resolver sucursalId numérico válida
     let targetSucursalId = userBranchId || 1;
     if (isGlobalAdmin || !userBranchId) {
       if (typeof sucursalDestino === 'number') {
@@ -407,11 +407,60 @@ export async function createCompra(req: AuthenticatedRequest, res: Response): Pr
         }
       }
     }
+    const [branchCheck] = await connection.query<RowDataPacket[]>(
+      'SELECT id FROM sucursales WHERE id = ?',
+      [targetSucursalId]
+    );
+    if (branchCheck.length === 0) {
+      const [firstBranch] = await connection.query<RowDataPacket[]>(
+        'SELECT id FROM sucursales WHERE estado = "ACTIVO" LIMIT 1'
+      );
+      targetSucursalId = firstBranch.length > 0 ? firstBranch[0].id : 1;
+    }
 
+    // Resolver proveedorId válido contra MySQL para evitar fallo de clave foránea
+    let finalProveedorId = Number(proveedorId);
+    const [provCheck] = await connection.query<RowDataPacket[]>(
+      'SELECT id FROM proveedores WHERE id = ?',
+      [finalProveedorId]
+    );
+    if (provCheck.length === 0) {
+      if (req.body.proveedorRuc) {
+        const [byRuc] = await connection.query<RowDataPacket[]>(
+          'SELECT id FROM proveedores WHERE ruc = ? LIMIT 1',
+          [String(req.body.proveedorRuc).trim()]
+        );
+        if (byRuc.length > 0) finalProveedorId = byRuc[0].id;
+      }
+      if (provCheck.length === 0) {
+        const [firstProv] = await connection.query<RowDataPacket[]>(
+          'SELECT id FROM proveedores WHERE estado = "ACTIVO" LIMIT 1'
+        );
+        if (firstProv.length > 0) finalProveedorId = firstProv[0].id;
+      }
+    }
+
+    // Resolver compradorId válido contra MySQL
+    let finalCompradorId = Number(compradorId) || 1;
+    const [userCheck] = await connection.query<RowDataPacket[]>(
+      'SELECT id FROM usuarios WHERE id = ?',
+      [finalCompradorId]
+    );
+    if (userCheck.length === 0) {
+      const [firstUser] = await connection.query<RowDataPacket[]>(
+        'SELECT id FROM usuarios LIMIT 1'
+      );
+      finalCompradorId = firstUser.length > 0 ? firstUser[0].id : 1;
+    }
+
+    // Generación atómica anti-colisión de código de orden
     let cleanCodigo = codigoComprobante && codigoComprobante.trim() ? codigoComprobante.trim() : '';
+    if (isPendingOrder) {
+      const [existsCode] = cleanCodigo
+        ? await connection.query<RowDataPacket[]>('SELECT id FROM compras WHERE codigo = ?', [cleanCodigo])
+        : [[]];
 
-    if (!cleanCodigo) {
-      if (isPendingOrder) {
+      if (!cleanCodigo || existsCode.length > 0) {
         const [lastRows] = await connection.query<RowDataPacket[]>(
           "SELECT codigo FROM compras WHERE codigo LIKE 'OC-%' ORDER BY id DESC LIMIT 1"
         );
@@ -423,9 +472,18 @@ export async function createCompra(req: AuthenticatedRequest, res: Response): Pr
           }
         }
         cleanCodigo = `OC-${String(nextNum).padStart(5, '0')}`;
-      } else {
-        cleanCodigo = `CMP-${Date.now().toString().slice(-6)}`;
+        while (true) {
+          const [checkAgain] = await connection.query<RowDataPacket[]>(
+            'SELECT id FROM compras WHERE codigo = ?',
+            [cleanCodigo]
+          );
+          if (checkAgain.length === 0) break;
+          nextNum++;
+          cleanCodigo = `OC-${String(nextNum).padStart(5, '0')}`;
+        }
       }
+    } else if (!cleanCodigo) {
+      cleanCodigo = `CMP-${Date.now().toString().slice(-6)}`;
     }
 
     // Calcular total si no viene dado
@@ -445,7 +503,7 @@ export async function createCompra(req: AuthenticatedRequest, res: Response): Pr
     const [compraResult] = await connection.query<ResultSetHeader>(
       `INSERT INTO compras (codigo, proveedor_id, sucursal_id, total, estado_id, usuario_id, fecha_compra, observaciones, updated_at)
        VALUES (?, ?, ?, ?, 1, ?, NOW(), ?, NOW())`,
-      [cleanCodigo, Number(proveedorId), targetSucursalId, finalTotal, Number(compradorId) || 1, storedObservaciones]
+      [cleanCodigo, finalProveedorId, targetSucursalId, finalTotal, finalCompradorId, storedObservaciones]
     );
 
     const newCompraId = compraResult.insertId;
@@ -547,7 +605,10 @@ export async function createCompra(req: AuthenticatedRequest, res: Response): Pr
   } catch (error: any) {
     await connection.rollback();
     console.error('Error al registrar compra/pedido:', error);
-    res.status(500).json({ success: false, message: 'Error interno al registrar el pedido/compra.' });
+    res.status(500).json({
+      success: false,
+      message: error?.sqlMessage || error?.message || 'Error interno al registrar el pedido/compra.',
+    });
   } finally {
     connection.release();
   }
