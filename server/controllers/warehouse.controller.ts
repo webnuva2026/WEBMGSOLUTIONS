@@ -615,7 +615,7 @@ export async function createProductoAlmacen(req: Request, res: Response): Promis
       precioVenta = 0,
       precioCosto = 0,
       stockMinimo = 5,
-      requiereSerie = false,
+      requiereSerie = true,
       disponibleVenta = true,
       tipoDestino = 'VENTA',
       stockInicial = 0,

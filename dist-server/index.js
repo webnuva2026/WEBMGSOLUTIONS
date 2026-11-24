@@ -5229,7 +5229,7 @@ async function createProductoAlmacen(req, res) {
       precioVenta = 0,
       precioCosto = 0,
       stockMinimo = 5,
-      requiereSerie = false,
+      requiereSerie = true,
       disponibleVenta = true,
       tipoDestino = "VENTA",
       stockInicial = 0,
@@ -7737,16 +7737,13 @@ async function recepcionarCompra(req, res) {
       [compraId]
     );
     for (const it of items) {
-      const reqSerie = Boolean(it.requiereSerie) || Number(it.requiereSerie) === 1;
-      if (reqSerie) {
-        const providedSeries = Array.isArray(seriesPorProducto[it.productoId]) ? seriesPorProducto[it.productoId].map((s) => String(s).trim()).filter(Boolean) : [];
-        if (providedSeries.length < Number(it.cantidad)) {
-          res.status(400).json({
-            success: false,
-            message: `Integridad de Almac\xE9n: El producto "${it.nombre}" requiere registrar ${it.cantidad} n\xFAmero(s) de serie f\xEDsicos para poder ingresar al almac\xE9n (registrados: ${providedSeries.length}).`
-          });
-          return;
-        }
+      const providedSeries = Array.isArray(seriesPorProducto[it.productoId]) ? seriesPorProducto[it.productoId].map((s) => String(s).trim()).filter(Boolean) : [];
+      if (providedSeries.length < Number(it.cantidad)) {
+        res.status(400).json({
+          success: false,
+          message: `Integridad de Almac\xE9n: El producto "${it.nombre}" requiere registrar ${it.cantidad} n\xFAmero(s) de serie f\xEDsicos para poder ingresar al almac\xE9n (registrados: ${providedSeries.length}).`
+        });
+        return;
       }
     }
     await connection.beginTransaction();

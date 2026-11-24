@@ -618,20 +618,17 @@ export async function recepcionarCompra(req: AuthenticatedRequest, res: Response
       [compraId]
     );
 
-    // Validar series requeridas antes de alterar el stock
+    // Validar series requeridas antes de alterar el stock (obligatorio para todo producto al recepcionar en almacén)
     for (const it of items) {
-      const reqSerie = Boolean(it.requiereSerie) || Number(it.requiereSerie) === 1;
-      if (reqSerie) {
-        const providedSeries: string[] = Array.isArray(seriesPorProducto[it.productoId])
-          ? seriesPorProducto[it.productoId].map((s: string) => String(s).trim()).filter(Boolean)
-          : [];
-        if (providedSeries.length < Number(it.cantidad)) {
-          res.status(400).json({
-            success: false,
-            message: `Integridad de Almacén: El producto "${it.nombre}" requiere registrar ${it.cantidad} número(s) de serie físicos para poder ingresar al almacén (registrados: ${providedSeries.length}).`,
-          });
-          return;
-        }
+      const providedSeries: string[] = Array.isArray(seriesPorProducto[it.productoId])
+        ? seriesPorProducto[it.productoId].map((s: string) => String(s).trim()).filter(Boolean)
+        : [];
+      if (providedSeries.length < Number(it.cantidad)) {
+        res.status(400).json({
+          success: false,
+          message: `Integridad de Almacén: El producto "${it.nombre}" requiere registrar ${it.cantidad} número(s) de serie físicos para poder ingresar al almacén (registrados: ${providedSeries.length}).`,
+        });
+        return;
       }
     }
 

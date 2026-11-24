@@ -215,7 +215,6 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
     const cat = catCategorias.find((c) => c.id === marca?.categoriaId);
     const nombreCat = (cat?.nombre || '').toUpperCase();
 
-    setCatRequiereSerie(!(nombreCat.includes('REPUESTO') || nombreCat.includes('SUMINISTRO') || nombreCat.includes('PERIF') || nombreCat.includes('COMPONENTE')));
     setCatDestino(nombreCat.includes('REPUESTO') ? 'MIXTO' : 'VENTA');
     setItemCantidad(1);
 
@@ -258,7 +257,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
         modeloId: catModeloSel.id,
         precioVenta: venta,
         precioCosto: costo,
-        requiereSerie: catRequiereSerie,
+        requiereSerie: true,
         tipoDestino: catDestino,
         disponibleVenta: catDestino !== 'SERVICIO_TALLER',
         stockInicial: 0,
@@ -277,7 +276,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
         cantidad: itemCantidad,
         precioCostoUnitario: costo,
         subtotal: itemCantidad * costo,
-        requiereSerie: catRequiereSerie,
+        requiereSerie: true,
         series: [],
       };
       setCartItems((prev) => [...prev, newItem]);
@@ -319,7 +318,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
         cantidad,
         precioCostoUnitario: costo,
         subtotal: cantidad * costo,
-        requiereSerie: existente.requiereSerie,
+        requiereSerie: true,
         series: [],
       };
       setCartItems((prev) => [...prev, newItem]);
@@ -418,7 +417,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
       return;
     }
 
-    const isSeriado = !!(selectedProductObj.requiereSerie || (selectedProductObj.categoriaId && selectedProductObj.categoriaId <= 3));
+    const isSeriado = true;
 
     // Check if already in cart
     const existingIndex = cartItems.findIndex((item) => item.productoId === selectedProductObj.id);
@@ -427,7 +426,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
       updated[existingIndex].cantidad += itemCantidad;
       updated[existingIndex].precioCostoUnitario = costoNum;
       updated[existingIndex].subtotal = updated[existingIndex].cantidad * costoNum;
-      updated[existingIndex].requiereSerie = isSeriado;
+      updated[existingIndex].requiereSerie = true;
       setCartItems(updated);
     } else {
       const newItem: ItemCompra = {
@@ -439,7 +438,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
         cantidad: itemCantidad,
         precioCostoUnitario: costoNum,
         subtotal: itemCantidad * costoNum,
-        requiereSerie: isSeriado,
+        requiereSerie: true,
         series: [],
       };
       setCartItems([...cartItems, newItem]);
@@ -612,10 +611,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
     const initialSeries: Record<number, string[]> = {};
     const initialBulk: Record<number, string> = {};
     compra.items.forEach((it) => {
-      if (it.requiereSerie) {
-        initialSeries[it.productoId] = [];
-        initialBulk[it.productoId] = '';
-      }
+      initialSeries[it.productoId] = [];
+      initialBulk[it.productoId] = '';
     });
     setRecepcionSeriesMap(initialSeries);
     setRecepcionBulkTextMap(initialBulk);
@@ -629,18 +626,16 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
       return;
     }
 
-    // Validar series requeridas
+    // Validar series requeridas obligatoriamente para todo producto
     for (const it of receivingCompra.items) {
-      if (it.requiereSerie) {
-        const list = recepcionSeriesMap[it.productoId] || [];
-        if (list.length < it.cantidad) {
-          onShowToast(
-            'Series requeridas para Almacén',
-            `El equipo "${it.nombre}" requiere registrar sus ${it.cantidad} números de serie antes de ingresar al stock.`,
-            'warning'
-          );
-          return;
-        }
+      const list = recepcionSeriesMap[it.productoId] || [];
+      if (list.length < it.cantidad) {
+        onShowToast(
+          'Series requeridas para Almacén',
+          `El producto "${it.nombre}" requiere registrar sus ${it.cantidad} números de serie antes de ingresar al stock.`,
+          'warning'
+        );
+        return;
       }
     }
 
@@ -1508,19 +1503,6 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                             Agregar al Pedido
                           </button>
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 pt-1 text-[11px] text-slate-600">
-                        <input
-                          type="checkbox"
-                          id="checkReqSerieCat"
-                          checked={catRequiereSerie}
-                          onChange={(e) => setCatRequiereSerie(e.target.checked)}
-                          className="h-3.5 w-3.5 cursor-pointer"
-                        />
-                        <label htmlFor="checkReqSerieCat" className="cursor-pointer font-medium">
-                          Exigir ingreso de números de serie físicos al recibir en almacén (Laptops, Impresoras, Monitores)
-                        </label>
                       </div>
                     </div>
                   )}
@@ -2503,48 +2485,46 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                         </div>
                       </div>
 
-                      {/* Ingreso de Series Físicas para Equipos Seriados */}
-                      {it.requiereSerie && (
-                        <div className="rounded-xl border border-blue-200 bg-white p-3.5 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-[#00346F] flex items-center gap-1.5 text-xs">
-                              <Barcode className="w-4 h-4 text-blue-600" />
-                              Series Físicas Recibidas ({seriesList.length}/{it.cantidad}):
-                            </span>
+                      {/* Ingreso de Series Físicas obligatorio para todo producto */}
+                      <div className="rounded-xl border border-blue-200 bg-white p-3.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-[#00346F] flex items-center gap-1.5 text-xs">
+                            <Barcode className="w-4 h-4 text-blue-600" />
+                            Series Físicas Recibidas ({seriesList.length}/{it.cantidad}):
+                          </span>
 
-                          </div>
-                          <p className="text-[10px] text-slate-500">
-                            Escanee el código de barras de cada caja o digite las series separadas por salto de línea.
-                          </p>
-                          <textarea
-                            rows={Math.min(4, Math.max(2, it.cantidad))}
-                            value={recepcionBulkTextMap[it.productoId] || ''}
-                            onChange={(e) => {
-                              const raw = e.target.value.toUpperCase();
-                              setRecepcionBulkTextMap((prev) => ({ ...prev, [it.productoId]: raw }));
-                              const parsed = Array.from(
-                                new Set(
-                                  raw
-                                    .split(/[\n,;]+/)
-                                    .map((s) => s.trim())
-                                    .filter(Boolean)
-                                )
-                              ).slice(0, it.cantidad);
-                              setRecepcionSeriesMap((prev) => ({ ...prev, [it.productoId]: parsed }));
-                            }}
-                            placeholder={`Escanee o ingrese las ${it.cantidad} series físicas aquí...`}
-                            className="w-full rounded-lg border border-slate-300 p-2 font-mono text-xs text-slate-800 outline-none focus:border-blue-600"
-                          />
-                          <div className="flex items-center justify-between text-[10px]">
-                            <span className={seriesList.length >= it.cantidad ? 'font-bold text-emerald-600' : 'font-bold text-amber-600'}>
-                              {seriesList.length >= it.cantidad
-                                ? '✔ Todas las series requeridas han sido ingresadas'
-                                : `Faltan ${it.cantidad - seriesList.length} series por ingresar`}
-                            </span>
-                            <span className="text-slate-400">Total a ingresar: {it.cantidad}</span>
-                          </div>
                         </div>
-                      )}
+                        <p className="text-[10px] text-slate-500">
+                          Escanee el código de barras de cada caja o digite las series separadas por salto de línea.
+                        </p>
+                        <textarea
+                          rows={Math.min(4, Math.max(2, it.cantidad))}
+                          value={recepcionBulkTextMap[it.productoId] || ''}
+                          onChange={(e) => {
+                            const raw = e.target.value.toUpperCase();
+                            setRecepcionBulkTextMap((prev) => ({ ...prev, [it.productoId]: raw }));
+                            const parsed = Array.from(
+                              new Set(
+                                raw
+                                  .split(/[\n,;]+/)
+                                  .map((s) => s.trim())
+                                  .filter(Boolean)
+                              )
+                            ).slice(0, it.cantidad);
+                            setRecepcionSeriesMap((prev) => ({ ...prev, [it.productoId]: parsed }));
+                          }}
+                          placeholder={`Escanee o ingrese las ${it.cantidad} series físicas aquí...`}
+                          className="w-full rounded-lg border border-slate-300 p-2 font-mono text-xs text-slate-800 outline-none focus:border-blue-600"
+                        />
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className={seriesList.length >= it.cantidad ? 'font-bold text-emerald-600' : 'font-bold text-amber-600'}>
+                            {seriesList.length >= it.cantidad
+                              ? '✔ Todas las series requeridas han sido ingresadas'
+                              : `Faltan ${it.cantidad - seriesList.length} series por ingresar`}
+                          </span>
+                          <span className="text-slate-400">Total a ingresar: {it.cantidad}</span>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}</div>
