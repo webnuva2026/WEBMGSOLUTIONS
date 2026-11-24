@@ -1979,22 +1979,6 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                                     Recepcionar en Almacén
                                   </button>
                                 )}
-                                {!isAnulada && (
-                                  <button
-                                    type="button"
-                                    disabled={sendingOrderEmailId === compra.id}
-                                    onClick={() => handleSendOrderEmail(compra)}
-                                    className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1.5 text-[11px] font-bold text-[#00346F] hover:bg-blue-100 disabled:opacity-50"
-                                    title="Enviar Orden de Pedido al Correo Oficial del Proveedor"
-                                  >
-                                    {sendingOrderEmailId === compra.id ? (
-                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                      <Mail className="h-3.5 w-3.5" />
-                                    )}
-                                    Enviar Orden
-                                  </button>
-                                )}
                                 <button
                                   onClick={() => {
                                     setSelectedCompraDetail(compra);
