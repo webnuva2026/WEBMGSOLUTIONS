@@ -6,6 +6,7 @@ import {
   toggleProveedorEstado,
   getCompras,
   createCompra,
+  aprobarCompra,
   recepcionarCompra,
   enviarOrdenCompraEmail,
   anularCompra,
@@ -27,6 +28,7 @@ router.patch('/proveedores/:id/estado', toggleProveedorEstado);
 // Compras, Órdenes de Pedido & Recepción en Almacén
 router.get('/compras', getCompras);
 router.post('/compras', createCompra);
+router.put('/compras/:id/aprobar', aprobarCompra);
 router.post('/compras/:id/recepcionar', recepcionarCompra);
 router.post('/compras/:id/enviar-email', enviarOrdenCompraEmail);
 router.put('/compras/:id/anular', anularCompra);

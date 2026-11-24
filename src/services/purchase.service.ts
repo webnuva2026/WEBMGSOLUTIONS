@@ -135,10 +135,25 @@ export const purchaseService = {
     }
   },
 
+  async aprobarCompra(id: number): Promise<{ success: boolean; estado?: string; message?: string }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/compras/${id}/aprobar`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+      });
+      return await res.json();
+    } catch (error: any) {
+      console.error('Error al aprobar orden de compra:', error);
+      return { success: false, message: 'Error al aprobar orden de compra.' };
+    }
+  },
+
   async recepcionarCompra(
     id: number,
     payload: {
-      codigoComprobante: string;
+      codigoComprobante?: string;
+      tipoDocumentoRecepcion?: 'GUIA_REMISION' | 'FACTURA';
+      numeroDocumentoRecepcion?: string;
       observacionesRecepcion?: string;
       seriesPorProducto?: Record<number, string[]>;
       preciosVentaPorProducto?: Record<number, number>;

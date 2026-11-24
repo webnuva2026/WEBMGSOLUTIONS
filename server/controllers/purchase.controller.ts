@@ -304,14 +304,43 @@ export async function getCompras(req: AuthenticatedRequest, res: Response): Prom
       const igv = Math.round((tot - sub) * 100) / 100;
       const rawObs = String(c.observaciones || '');
       const isPendingOrder = rawObs.startsWith('[PEDIDO_SOLICITADO]');
+      const isApprovedOrder = rawObs.startsWith('[PEDIDO_APROBADO]');
+      const isReceived = rawObs.startsWith('[RECIBIDO_ALMACEN]');
+
+      let aprobadoPor = '';
+      const matchAprobado = rawObs.match(/\[Aprobado por:\s*([^\]]+)\]/i);
+      if (matchAprobado) {
+        aprobadoPor = matchAprobado[1].trim();
+      }
+
+      let recepcionadoPor = '';
+      const matchRecepcionado = rawObs.match(/\[Recepcionado por:\s*([^\]]+)\]/i);
+      if (matchRecepcionado) {
+        recepcionadoPor = matchRecepcionado[1].trim();
+      }
+
+      let docFisicoRecepcion = '';
+      const matchDoc = rawObs.match(/\[Doc F\u00EDsico:\s*([^\]]+)\]/i) || rawObs.match(/\[Doc Físico:\s*([^\]]+)\]/i);
+      if (matchDoc) {
+        docFisicoRecepcion = matchDoc[1].trim();
+      }
+
       const cleanObs = rawObs
         .replace(/^\[PEDIDO_SOLICITADO\]\s*/i, '')
+        .replace(/^\[PEDIDO_APROBADO\]\s*/i, '')
         .replace(/^\[RECIBIDO_ALMACEN\]\s*/i, '')
+        .replace(/\[Aprobado por:[^\]]+\]\s*/gi, '')
+        .replace(/\[Recepcionado por:[^\]]+\]\s*/gi, '')
+        .replace(/\[Doc F[í\u00ED]sico:[^\]]+\]\s*/gi, '')
         .trim();
 
       const estadoResolved =
         c.estado !== 'ACTIVO'
           ? 'ANULADA'
+          : isReceived
+          ? 'REGISTRADA'
+          : isApprovedOrder
+          ? 'APROBADO'
           : isPendingOrder
           ? 'SOLICITADO'
           : 'REGISTRADA';
@@ -343,6 +372,9 @@ export async function getCompras(req: AuthenticatedRequest, res: Response): Prom
         igv: igv,
         total: tot,
         estado: estadoResolved as any,
+        aprobadoPor: aprobadoPor || undefined,
+        recepcionadoPor: recepcionadoPor || undefined,
+        docFisicoRecepcion: docFisicoRecepcion || undefined,
         observaciones: cleanObs,
       };
     });
@@ -633,6 +665,8 @@ export async function recepcionarCompra(req: AuthenticatedRequest, res: Response
 
     const {
       codigoComprobante,
+      tipoDocumentoRecepcion = 'GUIA_REMISION',
+      numeroDocumentoRecepcion = '',
       observacionesRecepcion = '',
       seriesPorProducto = {}, // Record<number, string[]>
       preciosVentaPorProducto = {}, // Record<number, number>
@@ -661,7 +695,7 @@ export async function recepcionarCompra(req: AuthenticatedRequest, res: Response
     }
 
     const rawObs = String(cmp.observaciones || '');
-    if (!rawObs.startsWith('[PEDIDO_SOLICITADO]')) {
+    if (rawObs.startsWith('[RECIBIDO_ALMACEN]')) {
       res.status(400).json({
         success: false,
         message: 'Este pedido ya fue recepcionado previamente en el almacén.',
@@ -781,14 +815,19 @@ export async function recepcionarCompra(req: AuthenticatedRequest, res: Response
       }
     }
 
-    const prevCleanObs = rawObs.replace(/^\[PEDIDO_SOLICITADO\]\s*/i, '').trim();
-    const finalObs = `[RECIBIDO_ALMACEN] ${prevCleanObs}${
+    const receiverName = req.user?.nombre || req.user?.username || 'Almacenero';
+    const docTipoLabel = tipoDocumentoRecepcion === 'FACTURA' ? 'FACTURA' : 'GUÍA DE REMISIÓN';
+    const docNumClean = String(numeroDocumentoRecepcion || codigoComprobante || '').trim().toUpperCase();
+    const docTag = docNumClean ? `[Doc Físico: ${docTipoLabel} Nº ${docNumClean}]` : '';
+
+    const prevCleanObs = rawObs
+      .replace(/^\[PEDIDO_SOLICITADO\]\s*/i, '')
+      .replace(/^\[PEDIDO_APROBADO\]\s*/i, '')
+      .trim();
+    const finalObs = `[RECIBIDO_ALMACEN] ${docTag} [Recepcionado por: ${receiverName} - ${new Date().toLocaleString('es-PE')}] ${prevCleanObs}${
       observacionesRecepcion.trim() ? ` | Recepción: ${observacionesRecepcion.trim()}` : ''
     }`;
-    const finalCodigo =
-      codigoComprobante && String(codigoComprobante).trim()
-        ? String(codigoComprobante).trim().toUpperCase()
-        : cmp.codigo;
+    const finalCodigo = docNumClean || cmp.codigo;
 
     await connection.query(
       'UPDATE compras SET codigo = ?, observaciones = ?, updated_at = NOW() WHERE id = ?',
@@ -927,9 +966,70 @@ export async function enviarOrdenCompraEmail(req: AuthenticatedRequest, res: Res
 }
 
 /**
+ * PUT /api/compras/:id/aprobar
+ * Aprueba una solicitud de pedido emitida (SOLICITADO -> APROBADO)
+ * Autorizado para Administradores y Gerencia
+ */
+export async function aprobarCompra(req: AuthenticatedRequest, res: Response): Promise<void> {
+  const connection = await pool.getConnection();
+  try {
+    const compraId = Number(req.params.id);
+    if (isNaN(compraId)) {
+      res.status(400).json({ success: false, message: 'ID de compra inválido.' });
+      return;
+    }
+
+    const [compraRows] = await connection.query<RowDataPacket[]>(
+      'SELECT id, codigo, sucursal_id, estado_id, observaciones FROM compras WHERE id = ?',
+      [compraId]
+    );
+
+    if (compraRows.length === 0) {
+      res.status(404).json({ success: false, message: 'Orden o solicitud de pedido no encontrada.' });
+      return;
+    }
+
+    const cmp = compraRows[0];
+    if (cmp.estado_id !== 1) {
+      res.status(400).json({ success: false, message: 'No se puede aprobar un pedido anulado.' });
+      return;
+    }
+
+    const rawObs = String(cmp.observaciones || '');
+    if (!rawObs.startsWith('[PEDIDO_SOLICITADO]')) {
+      res.status(400).json({
+        success: false,
+        message: 'Solo se pueden aprobar pedidos pendientes en estado SOLICITADO.',
+      });
+      return;
+    }
+
+    const approverName = req.user?.nombre || req.user?.username || 'Administración';
+    const cleanObs = rawObs.replace(/^\[PEDIDO_SOLICITADO\]\s*/i, '').trim();
+    const newObs = `[PEDIDO_APROBADO] [Aprobado por: ${approverName} - ${new Date().toLocaleString('es-PE')}] ${cleanObs}`;
+
+    await connection.query(
+      'UPDATE compras SET observaciones = ?, updated_at = NOW() WHERE id = ?',
+      [newObs, compraId]
+    );
+
+    res.json({
+      success: true,
+      message: `Orden de Pedido ${cmp.codigo} aprobada exitosamente por ${approverName}. Autorizada para emisión a proveedor y recepción física en almacén.`,
+      estado: 'APROBADO',
+    });
+  } catch (error: any) {
+    console.error('Error al aprobar compra:', error);
+    res.status(500).json({ success: false, message: 'Error interno al aprobar el pedido.' });
+  } finally {
+    connection.release();
+  }
+}
+
+/**
  * PUT /api/compras/:id/anular
  * Anula una orden de pedido o compra:
- * - Si estaba SOLICITADO (en tránsito), solo cambia el estado a ANULADA sin restar stock.
+ * - Si estaba SOLICITADO o APROBADO (en tránsito), solo cambia el estado a ANULADA sin restar stock.
  * - Si ya estaba REGISTRADA (recibida en almacén), revierte el stock ingresado a la sede.
  */
 export async function anularCompra(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -961,12 +1061,13 @@ export async function anularCompra(req: AuthenticatedRequest, res: Response): Pr
       return;
     }
 
-    const wasPendingOrder = String(cmp.observaciones || '').startsWith('[PEDIDO_SOLICITADO]');
+    const rawObs = String(cmp.observaciones || '');
+    const wasPendingOrApproved = rawObs.startsWith('[PEDIDO_SOLICITADO]') || rawObs.startsWith('[PEDIDO_APROBADO]');
 
     await connection.beginTransaction();
 
     // Solo revertir stock si la mercadería YA había sido recepcionada físicamente en almacén
-    if (!wasPendingOrder) {
+    if (!wasPendingOrApproved) {
       const [items] = await connection.query<RowDataPacket[]>(
         'SELECT producto_id, cantidad FROM detalle_compras WHERE compra_id = ?',
         [compraId]
@@ -987,7 +1088,7 @@ export async function anularCompra(req: AuthenticatedRequest, res: Response): Pr
 
     res.json({
       success: true,
-      message: wasPendingOrder
+      message: wasPendingOrApproved
         ? `Orden de Pedido ${cmp.codigo} cancelada antes de recepción (sin alterar stock).`
         : `Recepción ${cmp.codigo} anulada exitosamente y stock revertido en almacén.`,
     });

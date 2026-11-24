@@ -414,7 +414,10 @@ export interface Compra {
   subtotal: number;
   igv: number;
   total: number;
-  estado: 'SOLICITADO' | 'REGISTRADA' | 'ANULADA';
+  estado: 'SOLICITADO' | 'APROBADO' | 'REGISTRADA' | 'ANULADA';
+  aprobadoPor?: string;
+  recepcionadoPor?: string;
+  docFisicoRecepcion?: string;
   destinoPedido?: 'VENTA' | 'SERVICIO_TALLER' | 'MIXTO';
   observaciones?: string;
 }

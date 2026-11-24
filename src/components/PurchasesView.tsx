@@ -36,6 +36,7 @@ import {
   Loader2,
   Wrench,
   ShoppingCart,
+  XCircle,
 } from 'lucide-react';
 import {
   Compra,
@@ -97,12 +98,14 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
 
   // --- MODAL DE RECEPCIÓN FÍSICA EN ALMACÉN ---
   const [receivingCompra, setReceivingCompra] = useState<Compra | null>(null);
+  const [recepcionTipoDoc, setRecepcionTipoDoc] = useState<'GUIA_REMISION' | 'FACTURA'>('GUIA_REMISION');
   const [recepcionComprobante, setRecepcionComprobante] = useState('');
   const [recepcionObs, setRecepcionObs] = useState('');
   const [recepcionSeriesMap, setRecepcionSeriesMap] = useState<Record<number, string[]>>({});
   const [recepcionBulkTextMap, setRecepcionBulkTextMap] = useState<Record<number, string>>({});
   const [isSubmittingRecepcion, setIsSubmittingRecepcion] = useState(false);
   const [isSubmittingCompra, setIsSubmittingCompra] = useState(false);
+  const [isApprovingId, setIsApprovingId] = useState<number | null>(null);
   const [sendingOrderEmailId, setSendingOrderEmailId] = useState<number | null>(null);
   const [isQueryingRuc, setIsQueryingRuc] = useState(false);
 
@@ -644,7 +647,15 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
 
     const subtotal = compra.subtotal || compra.total / 1.18;
     const igv = compra.igv || (compra.total - subtotal);
-    const isOrden = compra.tipoComprobante === 'ORDEN_COMPRA' || compra.estado === 'SOLICITADO';
+    const isOrden = compra.tipoComprobante === 'ORDEN_COMPRA' || compra.estado === 'SOLICITADO' || compra.estado === 'APROBADO';
+    const statusText =
+      compra.estado === 'SOLICITADO'
+        ? '1. SOLICITUD (POR APROBAR)'
+        : compra.estado === 'APROBADO'
+        ? '2. APROBADO (EMITIDO A PROVEEDOR)'
+        : compra.estado === 'ANULADA'
+        ? 'ANULADO'
+        : '3. RECEPCIONADO EN ALMACÉN';
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -674,7 +685,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
             .totals-box { width: 240px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 12px; }
             .totals-row { display: flex; justify-content: space-between; margin-bottom: 4px; color: #475569; }
             .totals-total { display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 2px solid #cbd5e1; font-size: 14px; font-weight: 900; color: #00346f; }
-            .signatures { margin-top: 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; text-align: center; font-size: 11px; }
+            .signatures { margin-top: 50px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; text-align: center; font-size: 11px; }
             .sign-line { border-top: 1px solid #94a3b8; padding-top: 6px; }
             .sign-title { font-weight: bold; color: #1e293b; }
             .sign-sub { font-size: 10px; color: #64748b; }
@@ -690,7 +701,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
             <div class="branch-info">
               <div style="font-size: 10px; font-weight: bold; color: #94a3b8; text-transform: uppercase;">Sede Destino</div>
               <div class="branch-name">${compra.sucursalDestino}</div>
-              <div class="status-badge">${compra.estado === 'SOLICITADO' ? 'PEDIDO EN TRÁNSITO' : 'RECEPCIONADO'}</div>
+              <div class="status-badge">${statusText}</div>
             </div>
           </div>
 
@@ -703,7 +714,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
               ${compra.proveedorTelefono ? `<div><strong>Teléfono:</strong> ${compra.proveedorTelefono}</div>` : ''}
             </div>
             <div class="vendor-col" style="text-align: right;">
-              <div class="vendor-title">Emisor Responsable</div>
+              <div class="vendor-title">Responsable Logístico</div>
               <div class="vendor-name">${compra.compradorNombre}</div>
               <div style="color: #64748b;">Área de Logística y Abastecimiento</div>
               <div style="color: #94a3b8; font-size: 10px; margin-top: 4px;">MG Solutions Group • ERP Interno</div>
@@ -748,12 +759,16 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
 
           <div class="signatures">
             <div class="sign-line">
-              <div class="sign-title">Emisor / Autorizado por</div>
+              <div class="sign-title">1. Solicitante / Logística</div>
               <div class="sign-sub">${compra.compradorNombre}</div>
             </div>
             <div class="sign-line">
-              <div class="sign-title">Recepción Conforme / Almacén</div>
-              <div class="sign-sub">${compra.sucursalDestino}</div>
+              <div class="sign-title">2. Aprobación Gerencial</div>
+              <div class="sign-sub">${compra.aprobadoPor ? compra.aprobadoPor.split('-')[0].trim() : 'Gerencia General / Admin'}</div>
+            </div>
+            <div class="sign-line">
+              <div class="sign-title">3. Control Físico en Almacén</div>
+              <div class="sign-sub">${compra.recepcionadoPor ? compra.recepcionadoPor.split('-')[0].trim() : compra.sucursalDestino}</div>
             </div>
           </div>
 
@@ -772,26 +787,71 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
     printWindow.document.close();
   };
 
-  // --- RECEPCIÓN FÍSICA EN ALMACÉN DE UN PEDIDO EN TRÁNSITO ---
+  // --- APROBACIÓN GERENCIAL / ADMINISTRATIVA DE ORDEN ---
+  const handleAprobarPedido = async (compra: Compra) => {
+    if (
+      !confirm(
+        `¿Aprobar formalmente la orden de compra ${compra.codigoComprobante} para el proveedor ${compra.proveedorRazonSocial}?\n\nAl aprobarla, se autoriza formalmente la emisión al proveedor y su posterior recepción física en almacén.`
+      )
+    ) {
+      return;
+    }
+    setIsApprovingId(compra.id);
+    try {
+      const res = await purchaseService.aprobarCompra(compra.id);
+      if (res.success) {
+        onShowToast(
+          'Orden Aprobada',
+          res.message || `La orden ${compra.codigoComprobante} fue aprobada exitosamente.`,
+          'success'
+        );
+        if (onRefreshData) onRefreshData();
+      } else {
+        onShowToast('Error al Aprobar', res.message || 'No se pudo aprobar la orden.', 'error');
+      }
+    } catch (err: any) {
+      onShowToast('Error', err?.message || 'Error interno al aprobar la orden.', 'error');
+    } finally {
+      setIsApprovingId(null);
+    }
+  };
+
+  // --- RECEPCIÓN FÍSICA EN ALMACÉN DE UN PEDIDO APROBADO O EN TRÁNSITO ---
   const handleOpenReceptionModal = (compra: Compra) => {
     setReceivingCompra(compra);
-    setRecepcionComprobante(`F001-${String(compra.id).slice(-5).padStart(6, '0')}`);
-    setRecepcionObs('Mercadería verificada conforme en almacén.');
+    setRecepcionTipoDoc('GUIA_REMISION');
+    setRecepcionComprobante(`GR01-${String(compra.id).slice(-5).padStart(6, '0')}`);
+    setRecepcionObs('Mercadería verificada conforme en almacén. Precintos y embalajes intactos.');
     const initialSeries: Record<number, string[]> = {};
     const initialBulk: Record<number, string> = {};
+    const initialPrecios: Record<number, string> = {};
+    const initialDestinos: Record<number, string> = {};
+    const initialMostrarPos: Record<number, boolean> = {};
+
     compra.items.forEach((it) => {
       initialSeries[it.productoId] = [];
       initialBulk[it.productoId] = '';
+      const prodEnAlmacen = productos.find((p) => p.id === it.productoId);
+      initialPrecios[it.productoId] = prodEnAlmacen?.precioVenta ? String(prodEnAlmacen.precioVenta) : '';
+      initialDestinos[it.productoId] = (prodEnAlmacen?.tipoDestino as string) || 'VENTA';
+      initialMostrarPos[it.productoId] = prodEnAlmacen?.disponibleVenta !== false;
     });
     setRecepcionSeriesMap(initialSeries);
     setRecepcionBulkTextMap(initialBulk);
+    setRecepcionPreciosVentaMap(initialPrecios);
+    setRecepcionDestinosMap(initialDestinos);
+    setRecepcionMostrarPosMap(initialMostrarPos);
   };
 
   const handleConfirmReception = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!receivingCompra) return;
     if (!recepcionComprobante.trim()) {
-      onShowToast('Falta comprobante', 'Ingresa el N° de Factura o Guía de Remisión con que llegó el pedido.', 'warning');
+      onShowToast(
+        'Falta comprobante',
+        'Ingresa el N° de Guía de Remisión o Factura física con que llegó el cargamento.',
+        'warning'
+      );
       return;
     }
 
@@ -801,7 +861,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
       if (list.length < it.cantidad) {
         onShowToast(
           'Series requeridas para Almacén',
-          `El producto "${it.nombre}" requiere registrar sus ${it.cantidad} números de serie antes de ingresar al stock.`,
+          `El producto "${it.nombre}" requiere registrar sus ${it.cantidad} números de serie físicos antes de ingresar al stock.`,
           'warning'
         );
         return;
@@ -812,8 +872,15 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
     try {
       const res = await purchaseService.recepcionarCompra(receivingCompra.id, {
         codigoComprobante: recepcionComprobante.trim().toUpperCase(),
+        tipoDocumentoRecepcion: recepcionTipoDoc,
+        numeroDocumentoRecepcion: recepcionComprobante.trim().toUpperCase(),
         observacionesRecepcion: recepcionObs.trim(),
         seriesPorProducto: recepcionSeriesMap,
+        preciosVentaPorProducto: Object.fromEntries(
+          Object.entries(recepcionPreciosVentaMap).map(([k, v]) => [k, parseFloat(v) || 0])
+        ),
+        destinosPorProducto: recepcionDestinosMap,
+        mostrarEnPosPorProducto: recepcionMostrarPosMap,
       });
 
       if (res.success) {
@@ -969,7 +1036,9 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
   }, [scopedCompras, isGlobalAdmin, historialSearch, filterSede, filterProveedor, filterEstadoPedido]);
 
   // Metric stats (estrictamente sobre órdenes visibles para la sede)
-  const pedidosEnTransito = scopedCompras.filter((c) => c.estado === 'SOLICITADO').length;
+  const pedidosSolicitados = scopedCompras.filter((c) => c.estado === 'SOLICITADO').length;
+  const pedidosAprobados = scopedCompras.filter((c) => c.estado === 'APROBADO').length;
+  const pedidosEnTransito = pedidosSolicitados + pedidosAprobados;
   const totalInvertido = scopedCompras
     .filter((c) => c.estado === 'REGISTRADA')
     .reduce((sum, c) => sum + c.total, 0);
@@ -1048,7 +1117,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                 ? 'Empresas proveedoras, mayoristas y canales de abastecimiento homologados.'
                 : activeTab === 'historial'
                   ? 'Historial de compras emitidas y verificación física de series para ingreso a stock.'
-                  : 'Ciclo trazable en 2 etapas: 1° Emisión de Orden de Pedido al Proveedor (En Tránsito) → 2° Recepción Física y Alta de Series en Almacén para Ventas POS y Taller Técnico.'}
+                  : 'Ciclo formal en 3 fases: 1° Requerimiento / Solicitud → 2° Aprobación Gerencial & Emisión de Orden → 3° Recepción Física con Guía/Factura y Registro de Series en Almacén.'}
             </p>
           </div>
 
@@ -1100,7 +1169,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
               {/* Selector de Etapa / Modalidad Logística */}
               <div className="rounded-2xl border-2 border-blue-200 bg-gradient-to-r from-[#EFF4FF] to-indigo-50/60 p-4 shadow-xs">
                 <p className="text-[11px] font-black uppercase tracking-wider text-[#00346F] mb-2">
-                  Etapa del Proceso de Abastecimiento (Integridad de Almacén)
+                  Etapa del Proceso de Abastecimiento (Separación de Funciones & Trazabilidad)
                 </p>
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <button
@@ -1113,10 +1182,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                   >
                     <div className="flex items-center gap-2 font-black text-xs">
                       <Clock className="h-4 w-4 shrink-0" />
-                      <span>1. Emitir Orden de Pedido (En Tránsito)</span>
+                      <span>1. Emitir Requerimiento / Solicitud</span>
                     </div>
                     <p className={`mt-1 text-[10px] leading-snug ${modoOperacion === 'SOLICITADO' ? 'text-blue-100' : 'text-slate-500'}`}>
-                      Genera el pedido oficial al proveedor. <strong>No altera el stock real</strong> hasta que Almacén confirme su llegada física.
+                      Genera el pedido para validación gerencial. <strong>No incrementa stock</strong> hasta contar con aprobación y recepción física en almacén.
                     </p>
                   </button>
 
@@ -1133,7 +1202,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                       <span>2. Recepción Directa con Factura</span>
                     </div>
                     <p className={`mt-1 text-[10px] leading-snug ${modoOperacion === 'RECEPCION_DIRECTA' ? 'text-emerald-50' : 'text-slate-500'}`}>
-                      Cuando la mercadería ya llegó físicamente con Factura/Guía y series listas para entrar a stock.
+                      Para compras urgentes donde el producto y su comprobante ya están en mostrador para alta inmediata de stock.
                     </p>
                   </button>
                 </div>
@@ -1837,19 +1906,19 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
             {/* KPI Cards */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5 shadow-xs">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-amber-800">Pedidos en Tránsito (Solicitados)</p>
-                <p className="mt-2 text-2xl font-black text-amber-700">{pedidosEnTransito}</p>
-                <p className="mt-1 text-xs text-amber-700">Pendientes de recepción física en almacén</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-amber-800">1. Por Aprobar (Solicitudes)</p>
+                <p className="mt-2 text-2xl font-black text-amber-700">{pedidosSolicitados}</p>
+                <p className="mt-1 text-xs text-amber-700">Requerimientos esperando validación gerencial</p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Inversión Recepcionada</p>
-                <p className="mt-2 text-2xl font-black text-[#00346F]">S/ {totalInvertido.toFixed(2)}</p>
-                <p className="mt-1 text-xs text-slate-500">En equipos, repuestos y productos</p>
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 shadow-xs">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-blue-800">2. Aprobados (En Tránsito)</p>
+                <p className="mt-2 text-2xl font-black text-[#00346F]">{pedidosAprobados}</p>
+                <p className="mt-1 text-xs text-blue-700">Órdenes emitidas al proveedor / En camino a sede</p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Unidades Ingresadas a Stock</p>
-                <p className="mt-2 text-2xl font-black text-emerald-600">{totalItemsComprados} un.</p>
-                <p className="mt-1 text-xs text-slate-500">Abastecidas para Ventas POS y Taller</p>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5 shadow-xs">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">3. Inversión Recepcionada</p>
+                <p className="mt-2 text-2xl font-black text-emerald-700">S/ {totalInvertido.toFixed(2)}</p>
+                <p className="mt-1 text-xs text-emerald-700">{totalItemsComprados} unidades ingresadas a inventario real</p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Proveedores Homologados</p>
@@ -1878,9 +1947,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                   className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-[#00346F] outline-none"
                 >
                   <option value="ALL">⚡ Todos los Estados</option>
-                  <option value="SOLICITADO">⏳ Pedidos Solicitados (En Tránsito)</option>
-                  <option value="REGISTRADA">✅ Recibidos en Almacén (Stock OK)</option>
-                  <option value="ANULADA">❌ Anulados</option>
+                  <option value="SOLICITADO">⏳ 1. Solicitados (Por Aprobar)</option>
+                  <option value="APROBADO">🔷 2. Aprobados (Emitidos a Proveedor)</option>
+                  <option value="REGISTRADA">✅ 3. Recibidos en Almacén (Stock OK)</option>
+                  <option value="ANULADA">❌ Anulados / Rechazados</option>
                 </select>
 
                 {isGlobalAdmin ? (
@@ -1949,8 +2019,20 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                       filteredCompras.map((compra) => {
                         const isAnulada = compra.estado === 'ANULADA';
                         const isSolicitado = compra.estado === 'SOLICITADO';
+                        const isAprobado = compra.estado === 'APROBADO';
+                        const isRecepcionado = compra.estado === 'REGISTRADA';
+
                         return (
-                          <tr key={compra.id} className={`transition-colors ${isSolicitado ? 'bg-amber-50/30 hover:bg-amber-50/60' : 'hover:bg-slate-50/70'}`}>
+                          <tr
+                            key={compra.id}
+                            className={`transition-colors ${
+                              isSolicitado
+                                ? 'bg-amber-50/30 hover:bg-amber-50/60'
+                                : isAprobado
+                                ? 'bg-blue-50/30 hover:bg-blue-50/60'
+                                : 'hover:bg-slate-50/70'
+                            }`}
+                          >
                             <td className="px-5 py-3.5">
                               <span className="font-mono font-bold text-[#00346F]">{compra.codigoComprobante}</span>
                               <span className="block text-[10px] text-slate-400">{compra.tipoComprobante}</span>
@@ -1974,55 +2056,115 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                             </td>
                             <td className="px-5 py-3.5 text-center">
                               <span
-                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold ${isAnulada
-                                  ? 'bg-rose-100 text-rose-700'
-                                  : isSolicitado
+                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                                  isAnulada
+                                    ? 'bg-rose-100 text-rose-700'
+                                    : isSolicitado
                                     ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                    : isAprobado
+                                    ? 'bg-blue-100 text-blue-800 border border-blue-300'
                                     : 'bg-emerald-100 text-emerald-700'
-                                  }`}
+                                }`}
                               >
                                 {isAnulada
-                                  ? 'ANULADO'
+                                  ? '❌ ANULADO / RECHAZADO'
                                   : isSolicitado
-                                    ? '⏳ PEDIDO SOLICITADO (En Tránsito)'
-                                    : '✅ RECIBIDO EN ALMACÉN'}
+                                  ? '⏳ 1. SOLICITADO (Por Aprobar)'
+                                  : isAprobado
+                                  ? '🔷 2. APROBADO (Emitido a Proveedor)'
+                                  : '✅ 3. RECIBIDO EN ALMACÉN'}
                               </span>
+                              {compra.aprobadoPor && (
+                                <p className="text-[9px] text-blue-700 font-medium mt-0.5">
+                                  ✔ Aprobado por: {compra.aprobadoPor.split('-')[0].trim()}
+                                </p>
+                              )}
+                              {compra.recepcionadoPor && (
+                                <p className="text-[9px] text-emerald-700 font-medium mt-0.5">
+                                  📦 Recibido por: {compra.recepcionadoPor.split('-')[0].trim()}
+                                </p>
+                              )}
                             </td>
                             <td className="px-5 py-3.5 text-right">
                               <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                {/* Fase 1: SOLICITADO -> Solo Administradores pueden aprobar o rechazar */}
                                 {isSolicitado && !readOnly && (
+                                  <>
+                                    {isGlobalAdmin ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          disabled={isApprovingId === compra.id}
+                                          onClick={() => handleAprobarPedido(compra)}
+                                          className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[11px] font-bold text-white shadow-xs hover:bg-blue-700 transition disabled:opacity-50"
+                                          title="Aprobar Solicitud y Emitir Orden Oficial al Proveedor"
+                                        >
+                                          <CheckCircle2 className="h-3.5 w-3.5" />
+                                          {isApprovingId === compra.id ? 'Aprobando...' : 'Aprobar Orden'}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (
+                                              confirm(
+                                                `¿Rechazar y anular el requerimiento de compra ${compra.codigoComprobante}?`
+                                              )
+                                            ) {
+                                              onAnularCompra(compra.id);
+                                            }
+                                          }}
+                                          className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1.5 text-[11px] font-bold text-rose-700 hover:bg-rose-100 transition"
+                                          title="Rechazar requerimiento"
+                                        >
+                                          <XCircle className="h-3.5 w-3.5" />
+                                          Rechazar
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <span className="text-[10px] text-amber-700 font-semibold bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                                        Esperando Aprobación
+                                      </span>
+                                    )}
+                                  </>
+                                )}
+
+                                {/* Fase 2: APROBADO -> Almacén puede recepcionar físicamente con Guía/Factura */}
+                                {isAprobado && !readOnly && (
                                   <button
                                     type="button"
                                     onClick={() => handleOpenReceptionModal(compra)}
                                     className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-bold text-white shadow-xs hover:bg-emerald-700 transition"
-                                    title="Confirmar llegada física de mercadería al almacén e incrementar stock"
+                                    title="Confirmar llegada física con Guía/Factura e ingresar series a stock"
                                   >
                                     <Truck className="h-3.5 w-3.5" />
                                     Recepcionar en Almacén
                                   </button>
                                 )}
+
                                 <button
                                   onClick={() => {
                                     setSelectedCompraDetail(compra);
                                     setIsDetailModalOpen(true);
                                   }}
                                   className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-[#EFF4FF] hover:text-[#00346F]"
-                                  title="Ver detalle / Imprimir"
+                                  title="Ver detalle / Imprimir documento oficial"
                                 >
                                   <Eye className="h-4 w-4" />
                                 </button>
-                                {!isAnulada && !readOnly && (
+
+                                {isRecepcionado && !readOnly && isGlobalAdmin && (
                                   <button
                                     onClick={() => {
-                                      const msg = isSolicitado
-                                        ? `¿Estás seguro de cancelar el pedido en tránsito ${compra.codigoComprobante}?`
-                                        : `¿Estás seguro de anular la recepción ${compra.codigoComprobante}? Se revertirá el stock ingresado a ${compra.sucursalDestino}.`;
-                                      if (confirm(msg)) {
+                                      if (
+                                        confirm(
+                                          `¿Estás seguro de anular la recepción ${compra.codigoComprobante}? Se revertirá el stock ingresado a ${compra.sucursalDestino}.`
+                                        )
+                                      ) {
                                         onAnularCompra(compra.id);
                                       }
                                     }}
                                     className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-rose-50 hover:text-rose-600"
-                                    title={isSolicitado ? 'Cancelar pedido' : 'Anular compra y revertir stock'}
+                                    title="Revertir recepción y descontar stock"
                                   >
                                     <RotateCcw className="h-4 w-4" />
                                   </button>
@@ -2144,7 +2286,12 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                       MG SOLUTIONS ERP
                     </span>
                     <span className="text-xs font-bold text-slate-500">
-                      • {selectedCompraDetail.tipoComprobante === 'ORDEN_COMPRA' || selectedCompraDetail.estado === 'SOLICITADO' ? 'Orden de Compra Oficial' : 'Comprobante de Recepción'}
+                      •{' '}
+                      {selectedCompraDetail.estado === 'SOLICITADO'
+                        ? '1. Requerimiento / Solicitud de Compra'
+                        : selectedCompraDetail.estado === 'APROBADO'
+                        ? '2. Orden de Compra Oficial (Aprobada)'
+                        : '3. Comprobante de Recepción en Almacén'}
                     </span>
                   </div>
                   <h3 className="mt-2 text-2xl font-black text-[#0B1C30]">
@@ -2155,12 +2302,30 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                 <div className="text-right">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sede Destino</p>
                   <p className="text-sm font-black text-[#00346F]">{selectedCompraDetail.sucursalDestino}</p>
-                  <span className={`mt-1 inline-block px-2 py-0.5 rounded text-[10px] font-bold ${selectedCompraDetail.estado === 'SOLICITADO'
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-emerald-100 text-emerald-800'
-                    }`}>
-                    {selectedCompraDetail.estado === 'SOLICITADO' ? 'PEDIDO EN TRÁNSITO' : 'RECEPCIONADO EN ALMACÉN'}
+                  <span
+                    className={`mt-1 inline-block px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                      selectedCompraDetail.estado === 'SOLICITADO'
+                        ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                        : selectedCompraDetail.estado === 'APROBADO'
+                        ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                        : selectedCompraDetail.estado === 'ANULADA'
+                        ? 'bg-rose-100 text-rose-800'
+                        : 'bg-emerald-100 text-emerald-800'
+                    }`}
+                  >
+                    {selectedCompraDetail.estado === 'SOLICITADO'
+                      ? '⏳ 1. SOLICITADO (Por Aprobar)'
+                      : selectedCompraDetail.estado === 'APROBADO'
+                      ? '🔷 2. APROBADO (Emitido a Proveedor)'
+                      : selectedCompraDetail.estado === 'ANULADA'
+                      ? '❌ ANULADO / RECHAZADO'
+                      : '✅ 3. RECEPCIONADO EN ALMACÉN'}
                   </span>
+                  {selectedCompraDetail.docFisicoRecepcion && (
+                    <p className="text-[10px] text-emerald-700 font-bold mt-1">
+                      {selectedCompraDetail.docFisicoRecepcion}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -2178,9 +2343,18 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                   )}
                 </div>
                 <div className="text-right border-l border-slate-200 pl-3">
-                  <p className="text-[10px] uppercase font-bold text-slate-400">Emisor Responsable</p>
-                  <p className="font-bold text-slate-800 mt-0.5">{selectedCompraDetail.compradorNombre}</p>
-                  <p className="text-slate-500 text-[11px] mt-0.5">Área de Logística & Abastecimiento</p>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Trazabilidad & Responsables</p>
+                  <p className="font-bold text-slate-800 mt-0.5">Solicitante: {selectedCompraDetail.compradorNombre}</p>
+                  {selectedCompraDetail.aprobadoPor && (
+                    <p className="text-blue-700 font-bold text-[11px] mt-0.5">
+                      Aprobó: {selectedCompraDetail.aprobadoPor}
+                    </p>
+                  )}
+                  {selectedCompraDetail.recepcionadoPor && (
+                    <p className="text-emerald-700 font-bold text-[11px] mt-0.5">
+                      Recepcionó: {selectedCompraDetail.recepcionadoPor}
+                    </p>
+                  )}
                   <p className="text-slate-400 text-[10px] mt-2">MG Solutions Group • Sistema ERP</p>
                 </div>
               </div>
@@ -2582,10 +2756,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
             </div>
             <div>
               <span className="text-[10px] font-black uppercase tracking-wider text-emerald-200">
-                Paso 2: Verificación Física y Alta en Kardex
+                Fase 3: Verificación Física en Almacén & Alta en Kardex
               </span>
               <h3 className="font-black text-base">
-                Recepcionar Pedido en Almacén ({receivingCompra.codigoComprobante})
+                Recepcionar Mercadería ({receivingCompra.codigoComprobante})
               </h3>
             </div>
           </div>
@@ -2608,23 +2782,44 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                N° Factura / Guía de Remisión del Proveedor *
+                Documento de Llegada *
+              </label>
+              <select
+                value={recepcionTipoDoc}
+                onChange={(e) => {
+                  const val = e.target.value as 'GUIA_REMISION' | 'FACTURA';
+                  setRecepcionTipoDoc(val);
+                  if (val === 'GUIA_REMISION' && !recepcionComprobante.startsWith('GR')) {
+                    setRecepcionComprobante(`GR01-${String(receivingCompra.id).slice(-5).padStart(6, '0')}`);
+                  } else if (val === 'FACTURA' && !recepcionComprobante.startsWith('F')) {
+                    setRecepcionComprobante(`F001-${String(receivingCompra.id).slice(-5).padStart(6, '0')}`);
+                  }
+                }}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:border-emerald-600 outline-none"
+              >
+                <option value="GUIA_REMISION">📄 Guía de Remisión (Remitente)</option>
+                <option value="FACTURA">🧾 Factura de Compra (Proveedor)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                N° Documento Físico *
               </label>
               <input
                 type="text"
                 required
                 value={recepcionComprobante}
                 onChange={(e) => setRecepcionComprobante(e.target.value.toUpperCase())}
-                placeholder="Ej. F001-004825"
+                placeholder={recepcionTipoDoc === 'GUIA_REMISION' ? 'Ej. GR01-000492' : 'Ej. F001-002849'}
                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-mono font-bold uppercase text-slate-800 focus:border-emerald-600 outline-none"
               />
             </div>
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                Conformidad / Observación de Almacén
+                Conformidad / Observación
               </label>
               <input
                 type="text"

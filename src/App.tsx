@@ -776,6 +776,7 @@ export function App() {
     const res = await purchaseService.createCompra({
       codigoComprobante: newCompra.codigoComprobante,
       proveedorId: newCompra.proveedorId,
+      proveedorRuc: newCompra.proveedorRuc,
       sucursalDestino: newCompra.sucursalDestino,
       compradorId: newCompra.compradorId,
       modoIngreso: newCompra.estado === 'SOLICITADO' ? 'SOLICITADO' : 'RECEPCION_DIRECTA',
@@ -797,8 +798,10 @@ export function App() {
         'success'
       );
       loadDatabaseData();
+      return res;
     } else {
       showToast('Error', res.message || 'No se pudo guardar el pedido en el servidor.', 'error');
+      return res;
     }
   };
 
